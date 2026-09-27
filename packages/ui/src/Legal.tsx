@@ -31,8 +31,6 @@ export interface CompanyInfo {
     entityType?: string;
     registrationNumber?: string;
     registrationAuthority?: string;
-    registeredOffice?: string;
-    postalAddress?: string;
     /** Support lines; each is shown as its own tel: link. */
     phones?: string[];
     email?: string;
@@ -87,14 +85,13 @@ const COMPANY_ROWS: Array<[keyof CompanyInfo, string]> = [
     ['entityType', 'Type of entity'],
     ['registrationNumber', 'Registration number'],
     ['registrationAuthority', 'Registered with'],
-    ['registeredOffice', 'Registered office'],
-    ['postalAddress', 'Postal address'],
     ['phones', 'Phone'],
     ['email', 'Email'],
     ['privacyContact', 'Privacy contact'],
     ['privacyEmail', 'Privacy requests'],
 ];
-const REQUIRED: Array<keyof CompanyInfo> = ['legalName', 'registrationNumber', 'registeredOffice', 'phones', 'email', 'privacyContact'];
+// No address row: none is published (packages/config/legal/company.mjs).
+const REQUIRED: Array<keyof CompanyInfo> = ['legalName', 'registrationNumber', 'phones', 'email', 'privacyContact'];
 
 /**
  * The operator's identity as a definition list. A value that is still a

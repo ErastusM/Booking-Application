@@ -9,17 +9,16 @@ import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './com
 import { CURRENCY_CODES_TEXT } from './currencies.mjs';
 import { FEATURES } from '../features.mjs';
 
-export const TERMS_LAST_UPDATED = '26 September 2026';
+export const TERMS_LAST_UPDATED = '27 September 2026';
 
 const op = operatorName(COMPANY);
 // companyValue-based: a missing or placeholder address is never shown.
 const mail = mailLink('email');
 const phones = phoneLinks();
 const reg = companyValue('registrationNumber');
-const office = companyValue('registeredOffice');
 const entity = companyValue('entityType');
 
-const operatorLine = `Bookplus is operated by **${op}**${entity ? `, a ${entity.charAt(0).toLowerCase()}${entity.slice(1)}` : ''}${reg ? ` (registration number ${reg})` : ''}${office ? `, with its registered office at ${office}` : ''}. Our full details are in our [Legal notice](/legal).`;
+const operatorLine = `Bookplus is operated by **${op}**${entity ? `, a ${entity.charAt(0).toLowerCase()}${entity.slice(1)}` : ''}${reg ? ` (registration number ${reg})` : ''}. Our full details are in our [Legal notice](/legal).`;
 
 // ── Customer terms ─────────────────────────────────────────────────────────
 

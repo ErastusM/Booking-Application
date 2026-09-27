@@ -65,7 +65,7 @@ describe('company details guard', () => {
     });
 
     it('with complete details shows them all and no fallback', () => {
-        render(<CompanyDetails company={{ ...COMPANY, legalName: 'Acme Bookings CC', registrationNumber: 'CC/2000/1', registeredOffice: '1 Main St', phones: ['+264 61 000 000'], email: 'a@b.c', privacyContact: 'Info Officer' }} />);
+        render(<CompanyDetails company={{ ...COMPANY, legalName: 'Acme Bookings CC', registrationNumber: 'CC/2000/1', phones: ['+264 61 000 000'], email: 'a@b.c', privacyContact: 'Info Officer' }} />);
         const box = screen.getByTestId('company-details');
         expect(box).toHaveTextContent('Acme Bookings CC');
         expect(box).toHaveTextContent('CC/2000/1');
@@ -116,11 +116,44 @@ describe('the "Who we are" page', () => {
     it('renders the configured operator details with no placeholder text', () => {
         render(<MemoryRouter><LegalNotice /></MemoryRouter>);
         const box = screen.getByTestId('company-details');
-        for (const key of ['legalName', 'registrationNumber', 'registeredOffice', 'email']) {
+        for (const key of ['legalName', 'registrationNumber', 'email']) {
             const v = companyValue(key);
             if (v) expect(box).toHaveTextContent(v);
         }
         expect(screen.getByTestId('legal-document').textContent).not.toMatch(/\[[^\]]*\]/);
+    });
+});
+
+// The only registered address is a private home: no street or postal address
+// is ever published; written contact is the email (owner's instruction).
+describe('no private address is published', () => {
+    const ADDRESS = /Mahetago|Erf\s*\d|Yashilongo|P\.?\s*O\.?\s*Box|Registered office|Postal address|registered office at/i;
+
+    it('the company details carry no address fields', () => {
+        expect(COMPANY).not.toHaveProperty('registeredOffice');
+        expect(COMPANY).not.toHaveProperty('postalAddress');
+        expect(missingCompanyFields()).toEqual([]);
+    });
+
+    it('no legal document mentions an address', () => {
+        const docs = [legalNotice('customer'), legalNotice('business'), privacyPolicy('customer'), privacyPolicy('business'), termsOfService('customer'), termsOfService('business')];
+        for (const d of docs) expect(textOf(d)).not.toMatch(ADDRESS);
+    });
+
+    it('the "Who we are" page shows no address, no "coming soon", and the email to write to', () => {
+        render(<MemoryRouter><LegalNotice /></MemoryRouter>);
+        const box = screen.getByTestId('company-details');
+        expect(box.textContent).not.toMatch(ADDRESS);
+        expect(screen.getByTestId('legal-document').textContent).not.toMatch(ADDRESS);
+        expect(screen.queryByTestId('company-details-pending')).toBeNull();
+        const mails = within(box).getAllByText('info@bookplus.pro');
+        expect(mails.length).toBeGreaterThan(0);
+        mails.forEach((m) => expect(m.closest('a')).toHaveAttribute('href', 'mailto:info@bookplus.pro'));
+    });
+
+    it('an address passed in by mistake is still not shown', () => {
+        render(<CompanyDetails company={{ ...COMPANY, registeredOffice: 'Erf 1442 Mahetago', postalAddress: 'P.O. Box 906' }} />);
+        expect(screen.getByTestId('company-details').textContent).not.toMatch(ADDRESS);
     });
 });
 
