@@ -1973,10 +1973,14 @@ const ProviderDashboard = () => {
                 0 where the body already keeps room for the bottom nav (index.css). */}
             <div className="container" style={{ paddingTop: 'var(--page-pad-top)', paddingBottom: 'var(--page-pad-bottom)' }}>
 
-                {/* The calendar is a fixed full-screen frame over the page, so these
-                    would only take up hidden space underneath it. */}
-                {activeTab !== 'calendar' && <EnablePushBanner />}
-                {activeTab !== 'calendar' && <SetupChecklistNudge />}
+                {/* The calendar is a fixed full-screen frame over the page, so there
+                    these would only take up hidden space underneath it. Hidden, not
+                    unmounted: they fetch once per visit, and are already in place
+                    (no late 177px jump) on whichever tab the owner opens next. */}
+                <div style={{ display: activeTab === 'calendar' ? 'none' : undefined }}>
+                    <EnablePushBanner />
+                    <SetupChecklistNudge />
+                </div>
 
                 {error && (
                     <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>

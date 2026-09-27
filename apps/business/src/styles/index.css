@@ -1243,9 +1243,11 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 }
 /* The full-screen calendar frame stops above the bottom nav — only where there is
    one. At >= 1024px the nav is hidden, so the frame runs to the bottom edge
-   instead of leaving a 52px empty strip under the grid. */
+   instead of leaving a 52px empty strip under the grid; its padding keeps the
+   grid clear of the home indicator (an iPad in the installed app, 20px) while
+   the card colour still runs under it. 0 in a desktop browser. */
 .cal-frame { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
-@media (min-width: 1024px) { .cal-frame { bottom: 0; } }
+@media (min-width: 1024px) { .cal-frame { bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); } }
 /* Services tab: each category group keeps 1.5rem under itself, so the last one's
    margin stacked on the page's bottom room (61px above the "+", 24px more than
    every other tab). A member's "From the menu" card after the grid keeps the 2rem
