@@ -3,7 +3,7 @@ const { SEED, login } = require('./helpers.cjs');
 
 /**
  * The three Team changes shipped in PR #120:
- *   1. the staff working-hours editor labels its Start / End columns,
+ *   1. a member's working hours are the owner's Working Hours screen,
  *   2. "Send invite" reports truthfully whether the email went out and flips the
  *      member to "invited, awaiting login" (the e2e API has SMTP disabled, so the
  *      honest result here is the "didn't send" branch — the account is still made),
@@ -16,7 +16,7 @@ const cardByName = (page, name) => page.getByTestId('team-member-card').filter({
 const expandCard = async (card) => card.getByRole('button').first().click();
 
 test.describe('Team — working hours labels', () => {
-    test('the custom-hours editor labels the starting and ending time columns', async ({ page }) => {
+    test('a member with no hours gets the Working Hours screen, every day off', async ({ page }) => {
         await login(page, SEED.provider);
         await page.goto('/team');
 
@@ -28,12 +28,16 @@ test.describe('Team — working hours labels', () => {
         await expandCard(card);
         await card.getByTestId('tab-workspace').click();
 
-        await expect(card.getByTestId('no-hours-note')).toContainText('can’t be booked until you set them');
-        // Reveal the per-day editor.
-        await card.getByTestId('custom-hours').click();
+        // The same Working Hours screen the owner has, over Alex's week: every
+        // day off, and the note that clients can't book him yet.
+        await expect(card.getByTestId('no-hours-note')).toContainText('can’t be booked until you turn on a day');
+        await expect(card.getByRole('heading', { name: 'Alex’s working hours' })).toBeVisible();
+        await expect(card.getByRole('switch', { name: 'Open on monday' })).toHaveAttribute('aria-checked', 'false');
 
-        await expect(card.getByText('Starting time', { exact: true })).toBeVisible();
-        await expect(card.getByText('Ending time', { exact: true })).toBeVisible();
+        // Switching a day on shows its opening and closing time.
+        await card.getByRole('switch', { name: 'Open on monday' }).click();
+        await expect(card.getByRole('combobox', { name: 'Monday opening time' })).toBeVisible();
+        await expect(card.getByRole('combobox', { name: 'Monday closing time' })).toBeVisible();
     });
 });
 

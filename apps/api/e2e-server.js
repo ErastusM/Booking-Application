@@ -345,6 +345,36 @@ const outbox = [];
         });
         res.json({ email, password: 'Password1!', providerId: String(owner._id), moses: String(moses._id) });
     });
+    // A fresh business for the working-hours spec (business e2e): an owner and
+    // one team member, Moses, with a login and 09:00–17:00 Monday to Friday of
+    // his own — so changing his week never touches the seeded business.
+    let hoursSeq = 0;
+    outer.post('/__e2e/member-hours-fixture', async (req, res) => {
+        const StaffAvailability = require('./src/models/StaffAvailability');
+        hoursSeq += 1;
+        const tag = `${hoursSeq}-${Date.now()}`;
+        const owner = await User.create({
+            name: 'Hours Owner', email: `e2e-hours-owner-${tag}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000012', role: 'provider', providerCategory: 'Home services',
+            isVerified: true, provider: 'local', providerSetupComplete: true,
+        });
+        const mosesUser = await User.create({
+            name: 'Moses Hamalwa', email: `e2e-hours-member-${tag}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000013', role: 'staff', staffOf: owner._id, isVerified: true,
+            provider: 'local', lastLoginAt: new Date(),
+        });
+        const moses = await TeamMember.create({
+            provider: owner._id, name: 'Moses Hamalwa', role: 'Barber', color: '#3B82F6',
+            user: mosesUser._id, bookable: true, offersAllServices: true,
+        });
+        const on = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] };
+        const off = { enabled: false, slots: [] };
+        await StaffAvailability.create({
+            provider: owner._id, teamMember: moses._id,
+            schedule: { monday: on, tuesday: on, wednesday: on, thursday: on, friday: on, saturday: off, sunday: off },
+        });
+        res.json({ owner: owner.email, member: mosesUser.email, password: 'Password1!', moses: String(moses._id) });
+    });
     // A fresh business for the admin-panel spec (business e2e), built on demand
     // so suspending / crediting it never touches the seeded business the other
     // specs book: one bookable service, open every day, a GUEST booking far in
