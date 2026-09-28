@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { teamBusinessSuspended, TEAM_SUSPENDED_MESSAGE } = require('../utils/publicProvider');
 
 exports.auth = async (req, res, next) => {
     try {
@@ -28,6 +29,11 @@ exports.auth = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Token has been revoked' });
         }
 
+        // A team login is closed while an admin has its business suspended.
+        if (await teamBusinessSuspended(req.user)) {
+            return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
+        }
+
         next();
     } catch (error) {
         res.status(401).json({ success: false, message: 'Token is not valid' });
@@ -47,7 +53,8 @@ exports.optionalAuth = async (req, res, next) => {
         const user = await User.findById(decoded.id);
         // Only attach a fully-valid, active, non-revoked session; otherwise stay anonymous.
         if (user && user.isActive !== false &&
-            !(decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion)) {
+            !(decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) &&
+            !(await teamBusinessSuspended(user))) {
             req.user = user;
         }
     } catch {

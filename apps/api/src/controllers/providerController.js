@@ -11,6 +11,7 @@ const { pickRotationWeek, ownerPerforms, membersHoursReadiness, availabilityHasH
 const { bookableMembersByProvider, performersOf, offeringSummary } = require('../utils/serviceOffering');
 const { photoPresentation } = require('../utils/photoEdits');
 const { memberSlugMap, findMemberIdBySlug } = require('../utils/memberLink');
+const { publicProviderFilter, publicProviderIds } = require('../utils/publicProvider');
 
 // The member's effective week for a given date, or null when they have no weekly
 // schedule at all (then they have no hours of their own and every day without a
@@ -40,6 +41,10 @@ exports.getProviderStaff = async (req, res) => {
         // Only people clients can book: active AND bookable. A front desk member
         // (bookable:false) used to be listed, picked, and then refused at the very
         // last step ("not available for online booking").
+        // A suspended business has no bookable team on any public surface.
+        if (!mongoose.isValidObjectId(req.params.id) || !(await publicProviderIds([req.params.id])).has(String(req.params.id))) {
+            return res.status(200).json({ success: true, data: [] });
+        }
         const query = { provider: req.params.id, isActive: true, bookable: { $ne: false } };
         if (req.query.serviceId) {
             // Who performs this service? Mirrors staffBooking.performsService:
@@ -333,10 +338,10 @@ exports.getAllProviders = async (req, res) => {
             isActive: true,
         });
 
-        const providers = await User.find({
+        // Suspended businesses never appear (utils/publicProvider).
+        const providers = await User.find(publicProviderFilter({
             _id: { $in: providerIds },
-            role: 'provider',
-        }).select('name avatar providerCategory businessProfile portfolio createdAt');
+        })).select('name avatar providerCategory businessProfile portfolio createdAt');
 
         // Batch: fetch all services for these providers in ONE query
         const allServices = await Service.find({
@@ -419,6 +424,17 @@ exports.getAllProviders = async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+// A profile that isn't public: a suspended business answers with its own code
+// so the customer app can say "This business isn't taking bookings" rather than
+// "not found". Nothing else about it is returned.
+async function notPublicProfile(res, match) {
+    const suspended = await User.exists({ ...match, role: 'provider' });
+    if (suspended) {
+        return res.status(404).json({ success: false, code: 'provider_unavailable', message: 'This business isn’t taking bookings' });
+    }
+    return res.status(404).json({ success: false, message: 'Provider not found' });
+}
 
 // Shared payload builder — one provider doc in, the full public profile out.
 // Both the id route and the slug route funnel through here so they never drift.
@@ -526,14 +542,12 @@ async function buildProviderProfilePayload(provider) {
 
 exports.getProviderProfile = async (req, res) => {
     try {
-        const provider = await User.findOne({
+        // A suspended business's profile is not found, the same as a missing one.
+        const provider = await User.findOne(publicProviderFilter({
             _id: req.params.id,
-            role: 'provider',
-        }).select(PROFILE_SELECT);
+        })).select(PROFILE_SELECT);
 
-        if (!provider) {
-            return res.status(404).json({ success: false, message: 'Provider not found' });
-        }
+        if (!provider) return notPublicProfile(res, { _id: req.params.id });
 
         const data = await buildProviderProfilePayload(provider);
         res.status(200).json({ success: true, data });
@@ -553,14 +567,11 @@ exports.getProviderProfileBySlug = async (req, res) => {
         const slug = String(req.params.slug || '').trim().toLowerCase();
         if (!slug) return res.status(404).json({ success: false, message: 'Provider not found' });
 
-        const provider = await User.findOne({
+        const provider = await User.findOne(publicProviderFilter({
             'businessProfile.slug': slug,
-            role: 'provider',
-        }).select(PROFILE_SELECT);
+        })).select(PROFILE_SELECT);
 
-        if (!provider) {
-            return res.status(404).json({ success: false, message: 'Provider not found' });
-        }
+        if (!provider) return notPublicProfile(res, { 'businessProfile.slug': slug });
 
         const data = await buildProviderProfilePayload(provider);
         res.status(200).json({ success: true, data });
@@ -578,7 +589,7 @@ exports.getProviderProfileBySlug = async (req, res) => {
 exports.getMemberBySlug = async (req, res) => {
     try {
         const slug = String(req.params.slug || '').trim().toLowerCase();
-        const provider = slug && await User.findOne({ 'businessProfile.slug': slug, role: 'provider' }).select('_id');
+        const provider = slug && await User.findOne(publicProviderFilter({ 'businessProfile.slug': slug })).select('_id');
         if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
         const memberId = await findMemberIdBySlug(provider._id, req.params.memberSlug);
         const member = memberId && await TeamMember.findOne({ _id: memberId, provider: provider._id, isActive: true }).select('name');

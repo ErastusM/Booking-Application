@@ -103,7 +103,7 @@ exports.getAdminSummary = async (req, res) => {
 exports.getAllWallets = async (req, res) => {
     try {
         const wallets = await ProviderWallet.find()
-            .populate('provider', 'name email phone avatar providerCategory')
+            .populate('provider', 'name email phone avatar providerCategory businessProfile.businessName')
             .sort({ balance: -1 });
         res.status(200).json({ success: true, data: wallets });
     } catch (error) {
@@ -117,7 +117,7 @@ exports.getTopUps = async (req, res) => {
         const query = { type: 'topup' };
         if (req.query.status) query.status = req.query.status;
         const txns = await ProviderWalletTransaction.find(query)
-            .populate('provider', 'name email avatar')
+            .populate('provider', 'name email avatar businessProfile.businessName')
             .sort({ createdAt: -1 }).limit(200);
         res.status(200).json({ success: true, data: txns });
     } catch (error) {
@@ -193,6 +193,12 @@ exports.adjustBalance = async (req, res) => {
         const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('name');
         if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
 
+        // Any business can be credited — its account row is created on the first
+        // credit (it used to exist only after the business sent a top-up). A
+        // debit never creates one: there is nothing to take from.
+        if (direction === 'debit' && !(await ProviderWallet.exists({ provider: providerId }))) {
+            return res.status(400).json({ success: false, message: 'Provider balance is too low for that debit' });
+        }
         const wallet = await getOrCreateWallet(providerId);
         const before = wallet.balance;
         let updated;

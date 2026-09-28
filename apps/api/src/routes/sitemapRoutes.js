@@ -2,6 +2,7 @@ const express = require('express');
 const User = require('../models/User');
 const TeamMember = require('../models/TeamMember');
 const { findMemberIdBySlug } = require('../utils/memberLink');
+const { publicProviderFilter } = require('../utils/publicProvider');
 const { primaryOrigin } = require('../utils/origins');
 const pino = require('pino');
 
@@ -31,10 +32,9 @@ const STATIC_PATHS = [
 router.get('/sitemap.xml', async (req, res) => {
     try {
         const base = siteBase();
-        const providers = await User.find({
-            role: 'provider',
+        const providers = await User.find(publicProviderFilter({
             'businessProfile.slug': { $type: 'string' },
-        }).select('businessProfile.slug updatedAt').lean();
+        })).select('businessProfile.slug updatedAt').lean();
 
         const urls = [
             ...STATIC_PATHS.map(({ path, changefreq, priority }) =>
@@ -169,10 +169,9 @@ const DEFAULT_CARD_MAXAGE = 60;
 router.get('/prerender/b/:slug', async (req, res) => {
     const base = siteBase();
     try {
-        const p = await User.findOne({
-            role: 'provider',
+        const p = await User.findOne(publicProviderFilter({
             'businessProfile.slug': String(req.params.slug || '').toLowerCase(),
-        }).select(PROVIDER_FIELDS).lean();
+        })).select(PROVIDER_FIELDS).lean();
         if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
         return sendCard(res, renderProviderCard(p, `${base}/b/${p.businessProfile.slug}`, base));
     } catch (err) {
@@ -188,10 +187,9 @@ router.get('/prerender/b/:slug', async (req, res) => {
 router.get('/prerender/b/:slug/:member', async (req, res) => {
     const base = siteBase();
     try {
-        const p = await User.findOne({
-            role: 'provider',
+        const p = await User.findOne(publicProviderFilter({
             'businessProfile.slug': String(req.params.slug || '').toLowerCase(),
-        }).select(PROVIDER_FIELDS).lean();
+        })).select(PROVIDER_FIELDS).lean();
         if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
         const businessUrl = `${base}/b/${p.businessProfile.slug}`;
         const memberId = await findMemberIdBySlug(p._id, req.params.member);
@@ -217,7 +215,7 @@ router.get('/prerender/b/:slug/:member', async (req, res) => {
 router.get('/prerender/providers/:id', async (req, res) => {
     const base = siteBase();
     try {
-        const p = await User.findOne({ _id: req.params.id, role: 'provider' })
+        const p = await User.findOne(publicProviderFilter({ _id: req.params.id }))
             .select(PROVIDER_FIELDS).lean();
         if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
         const canonical = p.businessProfile?.slug ? `${base}/b/${p.businessProfile.slug}` : `${base}/providers/${p._id}`;
