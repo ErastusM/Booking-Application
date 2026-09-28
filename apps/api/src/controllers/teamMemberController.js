@@ -1847,6 +1847,44 @@ const upsertSchedule = (member, schedule, rotation) => {
     );
 };
 
+// ── Telling the owner when a member changes their own hours ────────────────
+// Members set their own working hours and it applies at once (no approval), so
+// the owner gets an in-app notification saying what changed — e.g.
+// "Moses changed their working hours: Wednesday 10:00 – 14:00, Sunday off."
+// Only the days that actually changed are named; saving the same week again
+// says nothing. In-app (and web push where enabled) — never an email.
+const HOURS_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const dayText = (cfg) => {
+    const slots = cfg?.enabled && Array.isArray(cfg.slots)
+        ? cfg.slots.filter((s) => s?.start && s?.end).map((s) => `${s.start} – ${s.end}`)
+        : [];
+    return slots.length ? slots.join(', ') : 'off';
+};
+const describeWeekChange = (before, after) => HOURS_DAYS
+    .filter((d) => dayText(before?.[d]) !== dayText(after?.[d]))
+    .map((d) => `${d.charAt(0).toUpperCase()}${d.slice(1)} ${dayText(after?.[d])}`);
+
+const notifyOwnerOfOwnHours = async (member, before, after) => {
+    try {
+        const changed = describeWeekChange(before, after);
+        if (!changed.length) return;
+        const first = String(member.name || 'A team member').trim().split(/\s+/)[0];
+        const { createNotification } = require('../utils/notificationhelper');
+        await createNotification(member.provider, `${first} changed their working hours: ${changed.join(', ')}.`, 'general', '/team');
+    } catch { /* a missed notification must never undo a saved week */ }
+};
+
+// The week a member was on before a save (their flat week — what the Working
+// Hours screen shows and edits), for describing what changed.
+const previousWeek = async (member) => {
+    const doc = await StaffAvailability.findOne({ teamMember: member._id }).select('schedule').lean();
+    return doc?.schedule || null;
+};
+
+// Is this request the member acting on their own hours (not the owner)?
+const isSelf = (reqUser, member) => reqUser.role === 'staff'
+    && !!member.user && member.user.toString() === reqUser._id.toString();
+
 /**
  * PUT /api/team/:id/availability  (provider/admin, or staff-self)
  * Body: { schedule } — upserts the per-staff schedule.
@@ -1866,7 +1904,10 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         if (!member || !canTouchStaffAvailability(req.user, member)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
         }
+        const self = isSelf(req.user, member);
+        const before = self ? await previousWeek(member) : null;
         const availability = await upsertSchedule(member, schedule, rotation);
+        if (self) await notifyOwnerOfOwnHours(member, before, availability.schedule);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1891,7 +1932,9 @@ exports.getMyAvailability = async (req, res) => {
 
 /**
  * PUT /api/team/mine/availability  (staff-self)
- * Body: { schedule } — a member sets their OWN weekly working hours.
+ * Body: { schedule, rotation? } — a member sets their OWN weekly working hours.
+ * Applies at once; the owner gets an in-app notification naming the days that
+ * changed. Only ever the caller's own roster row (resolved from the token).
  */
 exports.setMyAvailability = async (req, res) => {
     try {
@@ -1906,7 +1949,10 @@ exports.setMyAvailability = async (req, res) => {
         if (rotErr) return res.status(400).json({ success: false, message: rotErr });
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        // Instant — no approval. The owner is told what changed.
+        const before = await previousWeek(member);
         const availability = await upsertSchedule(member, schedule, rotation);
+        await notifyOwnerOfOwnHours(member, before, availability.schedule);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
