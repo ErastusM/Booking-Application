@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import PhotoFrame, { WholePhoto, hasCrop, ratioOf } from '../components/PhotoFrame';
+import BusinessUnavailable from '../components/BusinessUnavailable';
 import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService, authService, favoriteService } from '../services';
 import { track } from '../services/client';
@@ -67,6 +68,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const confirm = useConfirm();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [unavailable, setUnavailable] = useState(false); // business suspended on Bookplus
     const [activeCategory, setActiveCategory] = useState('featured');
     const [schedule, setSchedule] = useState(null);
     const [blocked, setBlocked] = useState(false);
@@ -142,8 +144,10 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 setData(res.data.data);
                 // Funnel: a shopper viewed this provider's public profile.
                 track('provider_view', { providerId: id });
-            } catch {
-                navigate('/');
+            } catch (err) {
+                // A suspended business explains itself; anything else goes home.
+                if (err?.response?.data?.code === 'provider_unavailable') setUnavailable(true);
+                else navigate('/');
             } finally {
                 setLoading(false);
             }
@@ -291,6 +295,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         </div>
     );
 
+    if (unavailable) return <BusinessUnavailable />;
     if (!data) return null;
 
     const { provider, categories, reviews } = data;
