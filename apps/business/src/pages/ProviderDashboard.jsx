@@ -27,7 +27,7 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import useMyMember, { refreshMyMember, loadMyMember } from '../hooks/useMyMember';
 import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges, ticketBuffers } from '../utils/bookingSlots';
 import { editableWeek, sortedPeriods, sortedWeek, weekProblem } from '../utils/workingHours';
-import DayPeriods from '../components/DayPeriods';
+import WorkingHoursEditor from '../components/WorkingHoursEditor';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
@@ -50,7 +50,6 @@ const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').
 const WalletAdjustmentModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.WalletAdjustmentModal })));
 import StaffLanesDay from './dashboard/StaffLanesDay';
 const GiftCards = lazy(() => import('./dashboard/GiftCards'));
-const TimeOffSection = lazy(() => import('./dashboard/TimeOffSection'));
 
 // CSV cell encoding. Two problems with the previous `"${String(c)}"`:
 // a quote inside a value ended the field and corrupted the rest of the row, and a
@@ -204,6 +203,9 @@ const ProviderDashboard = () => {
     // older API. memberHoursNow is that answer refreshed after a save.
     const [memberHadHours, setMemberHadHours] = useState(true);
     const [memberHoursNow, setMemberHoursNow] = useState(null);
+    // Weeks in a member's old rotating cycle (0 = none). The Working Hours screen
+    // is one repeating week, so saving it replaces the cycle — said up front.
+    const [memberRotationWeeks, setMemberRotationWeeks] = useState(0);
     const memberServerHours = memberHoursNow ?? myMember?.hasHours;
     const memberNotBookable = isStaff && (typeof memberServerHours === 'boolean' ? !memberServerHours : !memberHadHours);
     // What a member's CALENDAR shades as working time: their own saved hours
@@ -612,6 +614,8 @@ const ProviderDashboard = () => {
                 // in time order; a day switched on with no times is closed for
                 // bookings, so it shows switched off.
                 const week = editableWeek(sched);
+                const rotWeeks = res.data.data?.rotation?.weeks;
+                setMemberRotationWeeks(Array.isArray(rotWeeks) && res.data.data?.rotation?.anchor ? rotWeeks.length : 0);
                 setMemberHadHours(!!sched && WEEK_DAYS.some((d) => week[d].enabled));
                 setStaffCalendarHours(sched);
                 setAvailability(week);
@@ -1363,7 +1367,10 @@ const ProviderDashboard = () => {
             const week = sortedWeek(availability);
             if (isStaff) {
                 // A member saves THEIR hours (/team/mine/availability), never the business's.
-                await myAvailabilityService.set(week);
+                // One repeating week: null clears any old rotating cycle, so what
+                // is saved here is exactly what clients can book.
+                await myAvailabilityService.set(week, null);
+                setMemberRotationWeeks(0);
                 setAvailability(week);
                 const weeklyOn = WEEK_DAYS.some((d) => week[d]?.enabled);
                 setMemberHadHours(weeklyOn);
@@ -1378,7 +1385,7 @@ const ProviderDashboard = () => {
                 setAvailabilitySuccess(weeklyOn
                     ? 'Your hours are saved. Clients can book you in these hours.'
                     : serverSays
-                        ? 'Saved. You have no weekly working days — clients can book you on your shifts only.'
+                        ? 'Saved.'
                         : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
@@ -1396,16 +1403,6 @@ const ProviderDashboard = () => {
         } finally {
             setSavingAvailability(false);
         }
-    };
-
-    const handleDayToggle = (day) => {
-        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }));
-    };
-
-    // A day's periods, as DayPeriods edits them: the opening and closing time,
-    // and a split day's second period (added, edited or removed).
-    const handleDayPeriods = (day, slots) => {
-        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots } }));
     };
 
     const handleStatusUpdate = async (id, status) => {
@@ -2115,51 +2112,28 @@ const ProviderDashboard = () => {
 
                 {/* Availability tab — the owner's Working Hours + Blocked Times. A team
                     member gets the same screen over THEIR hours and their own blocked
-                    time (plus their time off). */}
+                    time. One-off days off or shorter days are blocked time. */}
                 {activeTab === 'availability' && (
                     <div data-testid="availability">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Working Hours</h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{!isStaff && activeTeamMembers.length > 0 ? 'Set the days and hours you are available for bookings. Your team members are booked on their own hours (Team), not these.' : 'Set the days and hours you are available for bookings'}</p>
-                            </div>
-                            <button onClick={handleSaveAvailability} disabled={savingAvailability || !availability} className="btn-primary" data-testid="save-hours" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
-                                {savingAvailability ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
-
-                        {memberNotBookable && (
-                            <div style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--charcoal)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-                                Turn on the days you work and set your times. Clients can’t book you until you do.
-                            </div>
-                        )}
-
-                        {availabilitySuccess && (
-                            <div role="status" style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-                                {availabilitySuccess}
-                            </div>
-                        )}
-
-                        {availability && (
-                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-                                {Object.entries(availability).map(([day, config], i) => (
-                                    <div key={day} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '1.05rem 1.25rem', borderBottom: i < 6 ? '1px solid var(--border)' : 'none', background: config.enabled ? 'var(--card-bg)' : 'var(--surface-sunken)', transition: 'background 0.2s' }}>
-                                        <div style={{ minWidth: 0, flex: 1 }}>
-                                            <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
-                                            {config.enabled ? (
-                                                <DayPeriods day={day} periods={config.slots?.length ? config.slots : [{ start: '09:00', end: '17:00' }]}
-                                                    onChange={(slots) => handleDayPeriods(day, slots)} />
-                                            ) : (
-                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
-                                            )}
-                                        </div>
-                                        <button type="button" role="switch" aria-checked={!!config.enabled} onClick={() => handleDayToggle(day)} aria-label={`Open on ${day}`} style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : 'var(--border-input)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, alignSelf: 'center' }}>
-                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: '3px', transform: config.enabled ? 'translateX(20px)' : 'translateX(0)', transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {/* The same Working Hours screen for the owner and a team member
+                            (and for the owner setting a member's hours on Team). */}
+                        <WorkingHoursEditor
+                            week={availability}
+                            onChange={setAvailability}
+                            onSave={handleSaveAvailability}
+                            saving={savingAvailability}
+                            success={availabilitySuccess}
+                            subtitle={isStaff
+                                ? 'Set the days and hours clients can book you.'
+                                : activeTeamMembers.length > 0
+                                    ? 'Set the days and hours you are available for bookings. Your team members are booked on their own hours (Team), not these.'
+                                    : 'Set the days and hours you are available for bookings'}
+                            notice={memberNotBookable
+                                ? 'Turn on the days you work and set your times. Clients can’t book you until you do.'
+                                : isStaff && memberRotationWeeks > 1
+                                    ? `Your hours used to change over a ${memberRotationWeeks}-week cycle. Saving here sets one week that repeats.`
+                                    : null}
+                        />
 
                         {/* Blocked Times section */}
                         <div style={{ marginTop: '2rem' }}>
@@ -2207,11 +2181,6 @@ const ProviderDashboard = () => {
                             )}
                         </div>
 
-                        {isStaff && (
-                            <Suspense fallback={null}>
-                                <TimeOffSection businessName={businessName} />
-                            </Suspense>
-                        )}
                     </div>
                 )}
 
@@ -4277,7 +4246,7 @@ const ProviderDashboard = () => {
                                                         ? `${memberName} has no working hours on ${dayCap}.`
                                                         : `${memberName} has no working hours set — they can set them in Availability, or you can on their Team card.`)
                                             : forMember
-                                                ? `${isStaff ? 'You don’t work' : `${memberName} doesn’t work`} on ${dayCap}${dh?.source === 'shift' ? ' (rostered off that day)' : ''}.`
+                                                ? `${isStaff ? 'You don’t work' : `${memberName} doesn’t work`} on ${dayCap}${dh?.source === 'shift' || dh?.source === 'leave' ? ' (off that day)' : ''}.`
                                                 : `Closed on ${dayCap} in your Working Hours.`;
                                         const note = (closed && !apptOutsideHours)
                                             ? closedText

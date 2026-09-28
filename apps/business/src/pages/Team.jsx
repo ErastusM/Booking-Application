@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Select, DatePicker, TimePicker, useConfirm, Field as LabelledField } from '@bookplus/ui';
+import { Select, DatePicker, useConfirm, Field as LabelledField } from '@bookplus/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera, Share2 } from 'lucide-react';
+import { UserPlus, Mail, ConciergeBell, ChevronDown, Check, User, BarChart3, Wallet, CalendarCheck, ArrowRightLeft, Star, Trash2, Camera, Share2 } from 'lucide-react';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 import { MEMBER_PALETTE, BRAND_ORANGE, memberColorMap, sameColor, isUnsetColor } from '../utils/memberColors';
 import { inviteStatus, resendCooldownLeft } from '../utils/inviteStatus';
-import { editableWeek, sortedWeek, weekProblem, secondPeriodFor, MAX_PERIODS, DEFAULT_PERIOD } from '../utils/workingHours';
+import { editableWeek, sortedWeek, weekProblem, WEEK_DAYS } from '../utils/workingHours';
+import WorkingHoursEditor from '../components/WorkingHoursEditor';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -19,73 +20,6 @@ import { editableWeek, sortedWeek, weekProblem, secondPeriodFor, MAX_PERIODS, DE
  * ([] = performs every service). Backend: /api/team/* (already live).
  */
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-const DEFAULT_DAY = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
-const DEFAULT_SCHED = () => Object.fromEntries(DAYS.map(d => [d, { ...DEFAULT_DAY, slots: [{ start: '09:00', end: '17:00' }] }]));
-// A stored week (from the API, or a fresh add) in the editor's shape: every day,
-// EVERY period kept (a split day's second period too), in time order. A day
-// switched on with no times is closed for bookings, so it shows switched off.
-const normWeek = (raw) => editableWeek(raw);
-
-// One editable week grid — reused for the flat schedule and each rotation week.
-// onToggle(day, checked) / onPeriods(day, slots). Keeps the phone-aligned
-// fixed-column layout the workspace tab already uses; the 24-hour time pickers
-// drop their clock icon so "09:00" fits the narrow columns. A split day's
-// second period sits on its own row under the first, with a remove button, and
-// "+ Add a break / second period" adds one.
-const GRID_COLS = 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px) 28px';
-const HoursGrid = ({ week, onToggle, onPeriods }) => (
-    <div>
-        <div style={{ display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
-            <span aria-hidden="true" />
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
-            <span aria-hidden="true" />
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
-            <span aria-hidden="true" />
-        </div>
-        {DAYS.map(day => {
-            const cfg = week[day] || {};
-            const periods = cfg.slots?.length ? cfg.slots : [{ ...DEFAULT_PERIOD }];
-            const setPeriod = (i, key, value) => onPeriods(day, periods.map((p, j) => (j === i ? { ...p, [key]: value } : p)));
-            const plan = periods.length === 1 ? secondPeriodFor(periods[0]) : null;
-            const pickerStyle = { width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' };
-            return (
-                <div key={day} data-testid={`hours-day-${day}`} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'center', columnGap: '0.45rem', rowGap: '0.35rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={!!cfg.enabled} onChange={e => onToggle(day, e.target.checked)} />
-                        {day}
-                    </label>
-                    {cfg.enabled && periods.map((p, i) => (
-                        <React.Fragment key={i}>
-                            {i > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '1.6rem' }}>then</span>}
-                            <TimePicker aria-label={`${day} ${i ? 'second period ' : ''}starting time`} value={p.start || ''} onChange={e => setPeriod(i, 'start', e.target.value)} sheetTitle={`${cap(day)} ${i ? 'second period ' : ''}starting time`} hideIcon style={pickerStyle} />
-                            <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
-                            <TimePicker aria-label={`${day} ${i ? 'second period ' : ''}ending time`} value={p.end || ''} onChange={e => setPeriod(i, 'end', e.target.value)} sheetTitle={`${cap(day)} ${i ? 'second period ' : ''}ending time`} hideIcon style={pickerStyle} />
-                            {i > 0
-                                ? (
-                                    <button type="button" aria-label={`Remove ${cap(day)}’s second period`} data-testid="remove-period" onClick={() => onPeriods(day, periods.filter((_, j) => j !== i))}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <X size={15} />
-                                    </button>
-                                )
-                                : <span aria-hidden="true" />}
-                        </React.Fragment>
-                    ))}
-                    {cfg.enabled && periods.length < MAX_PERIODS && plan && (
-                        <>
-                            <span aria-hidden="true" />
-                            <button type="button" className="btn-outline" data-testid="add-period" aria-label={`Add a break / second period on ${cap(day)}`}
-                                onClick={() => onPeriods(day, [plan.first, plan.second])}
-                                style={{ gridColumn: '2 / -1', justifySelf: 'start', padding: '0.25rem 0.6rem', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}>
-                                <Plus size={12} aria-hidden="true" /> Add a break / second period
-                            </button>
-                        </>
-                    )}
-                </div>
-            );
-        })}
-    </div>
-);
-
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // A 'YYYY-MM-DD' range read the way people say it: "16 Aug", "16–20 Aug",
 // "28 Aug – 2 Sep".
@@ -96,8 +30,6 @@ const fmtRange = (a, b) => {
     if (pa[0] === pb[0] && pa[1] === pb[1]) return `${pa[2]}–${pb[2]} ${MONTHS[pb[1] - 1]}`;
     return `${pa[2]} ${MONTHS[pa[1] - 1]} – ${pb[2]} ${MONTHS[pb[1] - 1]}`;
 };
-const rangeDays = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000) + 1;
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const Chip = ({ active, disabled, children, ...rest }) => (
     <button type="button" disabled={disabled} {...rest} style={{
@@ -222,6 +154,81 @@ const MemberAvatar = ({ member, size = 26 }) => {
 
 // displayColor: the colour the calendar shows for this member — their own, or a
 // stand-in palette colour while they have none (see memberColorMap).
+/**
+ * A member's weekly hours, as the owner sets them from Team — the SAME Working
+ * Hours screen the owner has for their own hours and the member has for theirs
+ * (components/WorkingHoursEditor). A member with no hours of their own yet shows
+ * every day off: nothing is inherited from the business's hours, so clients
+ * can't book them until a day is switched on. A one-off day off or a shorter
+ * day is blocked time in their lane on the calendar.
+ */
+export const MemberWorkingHours = ({ member, onChanged }) => {
+    const toast = useToast();
+    const first = (member.name || '').trim().split(/\s+/)[0] || 'Their';
+    const [week, setWeek] = useState(null);
+    const [hadHours, setHadHours] = useState(true);
+    const [rotationWeeks, setRotationWeeks] = useState(0);
+    const [saving, setSaving] = useState(false);
+    const [success, setSuccess] = useState('');
+
+    useEffect(() => {
+        let live = true;
+        teamService.getMemberAvailability(member._id)
+            .then((res) => {
+                if (!live) return;
+                const doc = res.data.data;
+                const w = editableWeek(doc?.schedule || null);
+                setWeek(w);
+                setHadHours(WEEK_DAYS.some((d) => w[d].enabled));
+                const rw = doc?.rotation?.weeks;
+                setRotationWeeks(Array.isArray(rw) && doc?.rotation?.anchor ? rw.length : 0);
+            })
+            .catch(() => { if (live) { setWeek(editableWeek(null)); setHadHours(false); } });
+        return () => { live = false; };
+    }, [member._id]);
+
+    const save = async () => {
+        const problem = weekProblem(week, { words: ['start', 'end'] });
+        if (problem) { toast(problem, 'error'); return; }
+        setSaving(true); setSuccess('');
+        try {
+            const next = sortedWeek(week);
+            // One repeating week: null clears any old rotating cycle.
+            await teamService.updateMemberAvailability(member._id, next, null);
+            setWeek(next);
+            setRotationWeeks(0);
+            const on = WEEK_DAYS.some((d) => next[d]?.enabled);
+            setHadHours(on);
+            setSuccess(on ? `${first}’s hours are saved. Clients can book ${first} in these hours.` : `Saved. ${first} has no working days, so clients can’t book them.`);
+            setTimeout(() => setSuccess(''), 4000);
+            onChanged?.(); // the card's "Not bookable — no working hours set" reads the roster
+        } catch (err) {
+            toast(err?.response?.data?.message || 'Could not save hours', 'error');
+        } finally { setSaving(false); }
+    };
+
+    if (!week) return <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>;
+    return (
+        <WorkingHoursEditor
+            title={`${first}’s working hours`}
+            subtitle={`The days and hours clients can book ${first}.`}
+            week={week}
+            onChange={setWeek}
+            onSave={save}
+            saving={saving}
+            success={success}
+            compact
+            headingLevel={3}
+            testId="member-working-hours"
+            notice={!hadHours
+                ? <span data-testid="no-hours-note">No working hours set — {first} can’t be booked until you turn on a day{member.user ? ' (or they set their own)' : ''}.</span>
+                : rotationWeeks > 1
+                    ? `${first}’s hours used to change over a ${rotationWeeks}-week cycle. Saving here sets one week that repeats.`
+                    : null}
+        />
+    );
+};
+
 const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) => {
     const { user } = useAuthContext();
     const confirm = useConfirm();
@@ -243,13 +250,6 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             price: o.price ?? '', duration: o.duration ?? '',
         }])
     ));
-    // null = loading; 'none' = no weekly hours of their own, so clients can't book
-    // them (nothing is inherited from the business's hours); else their week.
-    const [schedule, setSchedule] = useState(null);
-    // Optional rotating (multi-week) schedule, mirroring the staff self-editor.
-    const [rotationOn, setRotationOn] = useState(false);
-    const [rotation, setRotation] = useState({ anchor: new Date().toISOString().slice(0, 10), weeks: [] });
-    const [activeWk, setActiveWk] = useState(0);
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
     const [inviteResult, setInviteResult] = useState(null); // sticky {ok, email, error} after a send
     const [handoverTo, setHandoverTo] = useState('');
@@ -281,21 +281,6 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
     const [primary, setPrimary] = useState(member.isPrimary === true);
-    const todayKey = new Date().toISOString().slice(0, 10);
-    // The shift editor only fetches shifts for today..+60d, so a date beyond that
-    // window would show as "no shift" and silently overwrite an existing far-future
-    // one on save. Cap the picker to the same horizon so the UI and the data it
-    // loaded can never disagree about whether a date already has a shift.
-    const maxShiftKey = (() => { const d = new Date(); d.setDate(d.getDate() + 60); return d.toISOString().slice(0, 10); })();
-    const [shiftDate, setShiftDate] = useState(todayKey);
-    const [shifts, setShifts] = useState(null);          // upcoming shifts already set
-    const [slots, setSlots] = useState([{ start: '09:00', end: '17:00' }]);
-    const [breaks, setBreaks] = useState([]);
-    const [shiftErr, setShiftErr] = useState('');
-    const [timeOff, setTimeOff] = useState(null);        // null = unfetched, false = failed
-    const [toForm, setToForm] = useState({ startDate: todayKey, endDate: todayKey, allDay: true, startTime: '09:00', endTime: '13:00', type: 'vacation', note: '' });
-    const [toBusy, setToBusy] = useState('');
-    const [toErr, setToErr] = useState('');
     const [personal, setPersonal] = useState({
         name: member.name || '', role: member.role || '', email: member.email || '',
         phone: member.phone || '', country: member.country || '', address: member.address || '',
@@ -324,144 +309,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             .catch(() => setStats(false));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => {
-        if (!open || tab !== 'workspace' || schedule !== null) return;
-        teamService.getMemberAvailability(member._id)
-            .then(res => {
-                setSchedule(res.data.data?.schedule ? normWeek(res.data.data.schedule) : 'none');
-                const rot = res.data.data?.rotation;
-                if (rot && Array.isArray(rot.weeks) && rot.weeks.length > 0) {
-                    setRotationOn(true);
-                    setRotation({ anchor: rot.anchor || new Date().toISOString().slice(0, 10), weeks: rot.weeks.map(normWeek) });
-                }
-            })
-            .catch(() => setSchedule('none'));
-    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        if (!open || tab !== 'workspace' || shifts !== null) return;
-        const to = new Date(); to.setDate(to.getDate() + 60);
-        teamService.getMemberShifts(member._id, todayKey, to.toISOString().slice(0, 10))
-            .then(res => setShifts(res.data.data || []))
-            // `false`, not `[]`: a failed fetch must not read as "this member has
-            // no shifts". Saving on top of that assumption replaces a day off the
-            // owner never saw with a default 9-to-5.
-            .catch(() => setShifts(false));
-    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        if (!open || tab !== 'workspace' || timeOff !== null) return;
-        // No date window — fetch all of this member's leave. Windowing it hid leave
-        // the owner had just added (past dates, or further out than the window),
-        // which read as a failed save and produced invisible duplicates on retry.
-        teamService.getMemberTimeOff(member._id)
-            .then(res => setTimeOff(res.data.data || []))
-            .catch(() => setTimeOff(false));
-    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Editing a date that already has a shift should show that shift, not a
-    // blank 9-to-5 that would silently overwrite it on save.
-    useEffect(() => {
-        if (!Array.isArray(shifts)) return;      // not loaded, or failed — don't seed from nothing
-        const existing = shifts.find(sh => sh.date === shiftDate);
-        setSlots(existing ? existing.slots.map(x => ({ start: x.start, end: x.end })) : [{ start: '09:00', end: '17:00' }]);
-        setBreaks(existing ? existing.breaks.map(b => ({ start: b.start, end: b.end, label: b.label || 'Break' })) : []);
-        setShiftErr('');
-    }, [shiftDate, shifts]);
-
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
-
-    const refreshShifts = async () => {
-        const to = new Date(); to.setDate(to.getDate() + 60);
-        const res = await teamService.getMemberShifts(member._id, todayKey, to.toISOString().slice(0, 10));
-        setShifts(res.data.data || []);
-    };
-
-    const saveShift = async () => {
-        setBusy('shift'); setShiftErr('');
-        try {
-            // A day off has no breaks. Sending the leftovers would be refused
-            // ("that break falls outside the working hours") for what the owner
-            // experiences as simply marking someone off — the state is invalid,
-            // so don't let the UI produce it.
-            await teamService.setMemberShift(member._id, { date: shiftDate, slots, breaks: slots.length ? breaks : [] });
-            await refreshShifts();
-            flash(slots.length ? `Shift saved for ${shiftDate}.` : `${member.name} is off on ${shiftDate}.`);
-            onChanged?.(); // a shift is hours of their own — the card's "Not bookable" may clear
-        } catch (err) {
-            setShiftErr(err?.response?.data?.message || 'Could not save that shift.');
-        } finally { setBusy(''); }
-    };
-
-    const clearShift = async () => {
-        setBusy('shift'); setShiftErr('');
-        try {
-            await teamService.clearMemberShift(member._id, shiftDate);
-            await refreshShifts();
-            flash('Back to their usual hours for that day.');
-            onChanged?.();
-        } catch {
-            setShiftErr('Could not clear that shift.');
-        } finally { setBusy(''); }
-    };
-
-    // A failed refetch must NOT be reported as a failed mutation — the write
-    // already succeeded, and telling the owner it failed makes them retry and
-    // create a duplicate. Refresh failures are swallowed (the list just stays as
-    // it was) rather than surfaced as the operation's error.
-    const refreshTimeOff = () => teamService.getMemberTimeOff(member._id)
-        .then(res => setTimeOff(res.data.data || []))
-        .catch(() => {});
-
-    // Approving/adding leave doesn't move existing bookings; the API returns how
-    // many now overlap so the owner knows to reschedule them.
-    const flashOverlap = (res, base) => {
-        const n = res?.data?.overlappingBookings || 0;
-        flash(n > 0 ? `${base} ${n} existing booking${n > 1 ? 's' : ''} overlap — reschedule or cancel ${n > 1 ? 'them' : 'it'}.` : base);
-    };
-
-    const addTimeOff = async () => {
-        if (toForm.endDate < toForm.startDate) { setToErr('The end date can’t be before the start date.'); return; }
-        setToBusy('add'); setToErr('');
-        try {
-            const body = { startDate: toForm.startDate, endDate: toForm.endDate, allDay: toForm.allDay, type: toForm.type, note: toForm.note.trim() };
-            if (!toForm.allDay) { body.startTime = toForm.startTime; body.endTime = toForm.endTime; }
-            const res = await teamService.addMemberTimeOff(member._id, body);
-            setToForm(f => ({ ...f, note: '' }));
-            flashOverlap(res, 'Time off added.');
-        } catch (err) {
-            setToErr(err?.response?.data?.message || 'Could not add that time off.');
-            setToBusy(''); return;
-        }
-        await refreshTimeOff();
-        setToBusy('');
-    };
-
-    const decideTimeOff = async (id, status) => {
-        setToBusy(id); setToErr('');
-        try {
-            const res = await teamService.decideMemberTimeOff(member._id, id, status);
-            if (status === 'approved') flashOverlap(res, 'Leave approved.');
-            else flash('Request declined.');
-        } catch (err) {
-            setToErr(err?.response?.data?.message || 'Could not update that request.');
-            setToBusy(''); return;
-        }
-        await refreshTimeOff();
-        setToBusy('');
-    };
-
-    const removeTimeOff = async (id) => {
-        setToBusy(id); setToErr('');
-        try {
-            await teamService.removeMemberTimeOff(member._id, id);
-        } catch (err) {
-            setToErr(err?.response?.data?.message || 'Could not remove that time off.');
-            setToBusy(''); return;
-        }
-        await refreshTimeOff();
-        setToBusy('');
-    };
 
     const savePersonal = async () => {
         if (!personal.name.trim()) { flash('A name is required.'); return; }
@@ -727,64 +575,6 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
         finally { setBusy(''); }
     };
 
-    const saveHours = async () => {
-        if (schedule === 'none' || !schedule) return;
-        // The same rules as the Working Hours screen and the server: each period
-        // ends after it starts, a split day's two periods don't overlap. Saved in
-        // time order, exactly as shown.
-        const words = { words: ['starting', 'ending'] };
-        const rotating = rotationOn && rotation.weeks.length >= 2;
-        const problem = rotating
-            ? rotation.weeks.map((w, i) => { const p = weekProblem(w, words); return p ? `Week ${i + 1} — ${p}` : null; }).find(Boolean)
-            : weekProblem(schedule, words);
-        if (problem) { flash(problem); return; }
-        setBusy('hours');
-        try {
-            // With rotation on, week 1 doubles as the flat schedule legacy readers
-            // show; pass null when off so any stored rotation is cleared.
-            if (rotating) {
-                const weeks = rotation.weeks.map(sortedWeek);
-                await teamService.updateMemberAvailability(member._id, weeks[0], { anchor: rotation.anchor, weeks });
-            } else {
-                await teamService.updateMemberAvailability(member._id, sortedWeek(schedule), null);
-            }
-            flash('Hours saved');
-            onChanged?.(); // the card's "Not bookable — no working hours set" reads the roster
-        } catch (err) { flash(err?.response?.data?.message || 'Could not save hours'); }
-        finally { setBusy(''); }
-    };
-
-    const startCustomHours = () => {
-        const base = {};
-        DAYS.forEach(d => { base[d] = { ...DEFAULT_DAY, enabled: !['saturday', 'sunday'].includes(d) }; });
-        setSchedule(base);
-    };
-    // Edit one day of the active rotation week.
-    const setWkDay = (day, enabled) => setRotation(r => ({ ...r, weeks: r.weeks.map((w, i) => (i === activeWk ? { ...w, [day]: { ...w[day], enabled } } : w)) }));
-    // A day's periods in the active rotation week (every period kept).
-    const setWkPeriods = (day, slots) => setRotation(r => ({
-        ...r,
-        weeks: r.weeks.map((w, i) => (i === activeWk ? { ...w, [day]: { ...w[day], slots } } : w)),
-    }));
-    const toggleRotation = (on) => {
-        setRotationOn(on);
-        if (on && rotation.weeks.length === 0) {
-            setRotation({ anchor: new Date().toISOString().slice(0, 10), weeks: [normWeek(schedule && schedule !== 'none' ? schedule : DEFAULT_SCHED()), DEFAULT_SCHED()] });
-            setActiveWk(0);
-        }
-    };
-    const addWeek = () => setRotation(r => (r.weeks.length >= 8 ? r : { ...r, weeks: [...r.weeks, DEFAULT_SCHED()] }));
-    const removeWeek = (idx) => setRotation(r => {
-        if (r.weeks.length <= 2) return r;
-        const weeks = r.weeks.filter((_, i) => i !== idx);
-        setActiveWk(a => Math.min(a, weeks.length - 1));
-        return { ...r, weeks };
-    });
-
-    const setDay = (day, patch) => setSchedule(s => ({ ...s, [day]: { ...s[day], ...patch } }));
-    // A day's periods (the first, and a split day's second) — every period kept.
-    const setPeriods = (day, slots) => setSchedule(s => ({ ...s, [day]: { ...s[day], slots } }));
-
     return (
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '1rem', overflow: 'hidden' }} data-testid="team-member-card">
             <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
@@ -870,8 +660,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                         <Stat label="Upcoming" value={stats.upcoming} note="still to come" />
                                     </div>
                                     <p style={{ margin: '0.8rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                        Occupancy counts scheduled hours from their working hours, not from shifts —
-                                        a day taken as time off still counts as scheduled until shifts land.
+                                        Occupancy counts scheduled hours from their working hours.
                                     </p>
                                 </>
                             )}
@@ -1008,7 +797,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                             <Trash2 size={17} /> Remove {member.name}?
                                         </h3>
                                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, margin: '0 0 1rem' }}>
-                                            This permanently removes {member.name} and everything involving them — upcoming bookings, working hours, shifts, time off, blocks and their login. Only completed/paid appointments are kept (as “former staff”) so your earnings stay intact. <strong>This cannot be undone.</strong>
+                                            This permanently removes {member.name} and everything involving them — upcoming bookings, working hours, blocked time and their login. Only completed/paid appointments are kept (as “former staff”) so your earnings stay intact. <strong>This cannot be undone.</strong>
                                         </p>
                                         <LabelledField label={<>Type <strong style={{ color: 'var(--charcoal)' }}>{member.name}</strong> to confirm</>} labelStyle={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
                                             <input
@@ -1280,236 +1069,9 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                 })()}
                             </Section>
 
-                            <Section icon={CalendarDays} title="Shifts" hint="(one date at a time — overrides their usual hours)">
-                                <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                        Date
-                                        <DatePicker value={shiftDate} min={todayKey} max={maxShiftKey}
-                                            onChange={e => setShiftDate(e.target.value)} sheetTitle="Shift date"
-                                            data-testid="shift-date" style={{ width: '200px', padding: '0.4rem 0.5rem', fontWeight: 400 }} />
-                                        {!Array.isArray(shifts)
-                                            ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                                                {shifts === false ? 'Couldn’t load existing shifts' : 'Loading shifts…'}
-                                              </span>
-                                            : shifts.some(sh => sh.date === shiftDate)
-                                                ? <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark)', fontWeight: 600 }}>Shift set</span>
-                                                : <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>Using their usual hours</span>}
-                                    </label>
-
-                                    <div style={{ marginTop: '0.7rem' }}>
-                                        <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Working</p>
-                                        {slots.length === 0 && (
-                                            <p style={{ margin: '0 0 0.4rem', fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 600 }} data-testid="shift-day-off">
-                                                Rostered off — no bookings that day.
-                                            </p>
-                                        )}
-                                        {slots.map((sl, i) => (
-                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                                                <TimePicker value={sl.start} data-testid="shift-start" aria-label="Shift starts"
-                                                    onChange={e => setSlots(v => v.map((x, j) => j === i ? { ...x, start: e.target.value } : x))}
-                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
-                                                <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                <TimePicker value={sl.end} data-testid="shift-end" aria-label="Shift ends"
-                                                    onChange={e => setSlots(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
-                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
-                                                <button type="button" aria-label="Remove working period" onClick={() => setSlots(v => v.filter((_, j) => j !== i))}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.2rem' }}>
-                                                    <X size={15} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        <button type="button" className="btn-outline" data-testid="add-slot"
-                                            onClick={() => setSlots(v => [...v, { start: '09:00', end: '17:00' }])}
-                                            style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                            <Plus size={13} /> {slots.length ? 'Add another' : 'Add hours'}
-                                        </button>
-                                    </div>
-
-                                    {slots.length > 0 && (
-                                    <div style={{ marginTop: '0.8rem' }}>
-                                        <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                            <Coffee size={12} /> Breaks
-                                        </p>
-                                        {breaks.map((b, i) => (
-                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                                                <TimePicker value={b.start} data-testid="break-start" aria-label="Break starts"
-                                                    onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, start: e.target.value } : x))}
-                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
-                                                <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                <TimePicker value={b.end} aria-label="Break ends"
-                                                    onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
-                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
-                                                <input aria-label="Break label" className="input" value={b.label} placeholder="Lunch"
-                                                    onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
-                                                    style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
-                                                <button type="button" aria-label="Remove break" onClick={() => setBreaks(v => v.filter((_, j) => j !== i))}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.2rem' }}>
-                                                    <X size={15} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        <button type="button" className="btn-outline" data-testid="add-break"
-                                            onClick={() => setBreaks(v => [...v, { start: '13:00', end: '14:00', label: 'Lunch' }])}
-                                            style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                            <Plus size={13} /> Add a break
-                                        </button>
-                                    </div>
-                                    )}
-
-                                    {shiftErr && <p style={{ margin: '0.6rem 0 0', fontSize: '0.8rem', color: 'var(--danger, #c2321a)', fontWeight: 600 }} data-testid="shift-error">{shiftErr}</p>}
-
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-                                        <button type="button" className="btn-primary" onClick={saveShift} disabled={busy === 'shift' || !Array.isArray(shifts)} data-testid="save-shift" style={{ padding: '0.5rem 1.2rem' }}>
-                                            {busy === 'shift' ? 'Saving…' : 'Save shift'}
-                                        </button>
-                                        {Array.isArray(shifts) && shifts.some(sh => sh.date === shiftDate) && (
-                                            <button type="button" className="btn-outline" onClick={clearShift} disabled={busy === 'shift'} data-testid="clear-shift" style={{ padding: '0.5rem 1.2rem' }}>
-                                                Back to usual hours
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {Array.isArray(shifts) && shifts.length > 0 && (
-                                        <p style={{ margin: '0.7rem 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                                            Set for: {shifts.map(sh => sh.date + (sh.slots.length ? '' : ' (off)')).join(' · ')}
-                                        </p>
-                                    )}
-                                </div>
-                            </Section>
-
-                            <Section icon={Palmtree} title="Time off" hint="(a leave range — closes their calendar)">
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end' }}>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>From
-                                        <DatePicker value={toForm.startDate} sheetTitle="Time off from"
-                                            onChange={e => setToForm(f => ({ ...f, startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate }))}
-                                            style={{ minWidth: '11.5rem', padding: '0.4rem 0.5rem', marginTop: '0.2rem', fontWeight: 400 }} data-testid="timeoff-from" />
-                                    </label>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>To
-                                        <DatePicker value={toForm.endDate} min={toForm.startDate} sheetTitle="Time off to"
-                                            onChange={e => setToForm(f => ({ ...f, endDate: e.target.value }))}
-                                            style={{ minWidth: '11.5rem', padding: '0.4rem 0.5rem', marginTop: '0.2rem', fontWeight: 400 }} data-testid="timeoff-to" />
-                                    </label>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Type
-                                        <Select value={toForm.type} onChange={e => setToForm(f => ({ ...f, type: e.target.value }))}
-                                            options={['vacation', 'sick', 'unpaid', 'training', 'other'].map(t => ({ value: t, label: cap(t) }))} sheetTitle="Type of time off"
-                                            style={{ minWidth: '8.5rem', padding: '0.42rem 0.5rem', marginTop: '0.2rem', fontWeight: 400 }} />
-                                    </label>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
-                                    <Switch checked={toForm.allDay} onChange={v => setToForm(f => ({ ...f, allDay: v }))} label={toForm.allDay ? 'All day' : 'Set hours'} data-testid="timeoff-allday" />
-                                    {!toForm.allDay && (
-                                        <>
-                                            <TimePicker value={toForm.startTime} onChange={e => setToForm(f => ({ ...f, startTime: e.target.value }))} aria-label="Time off starts" style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
-                                            <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                            <TimePicker value={toForm.endTime} onChange={e => setToForm(f => ({ ...f, endTime: e.target.value }))} aria-label="Time off ends" style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
-                                        </>
-                                    )}
-                                </div>
-                                <input aria-label="Time off note (optional)" className="input" placeholder="Note (optional) — e.g. Family visit" value={toForm.note} maxLength={200}
-                                    onChange={e => setToForm(f => ({ ...f, note: e.target.value }))}
-                                    style={{ marginTop: '0.6rem', padding: '0.45rem 0.6rem', width: '100%', maxWidth: '340px' }} />
-                                <div>
-                                    <button type="button" className="btn-primary" onClick={addTimeOff} disabled={toBusy === 'add'} data-testid="add-timeoff" style={{ marginTop: '0.65rem', padding: '0.5rem 1.2rem' }}>
-                                        {toBusy === 'add' ? 'Adding…' : 'Add time off'}
-                                    </button>
-                                </div>
-                                {toErr && <p style={{ margin: '0.5rem 0 0', color: 'var(--gold-dark)', fontSize: '0.82rem' }}>{toErr}</p>}
-
-                                <div style={{ marginTop: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }} data-testid="timeoff-list">
-                                    {timeOff === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
-                                    {timeOff === false && <p style={{ margin: 0, color: 'var(--gold-dark)', fontSize: '0.85rem' }}>Couldn’t load time off.</p>}
-                                    {Array.isArray(timeOff) && timeOff.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No time off scheduled.</p>}
-                                    {Array.isArray(timeOff) && timeOff.map(t => {
-                                        const pending = t.status === 'pending';
-                                        const nd = rangeDays(t.startDate, t.endDate);
-                                        return (
-                                            <div key={t._id} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.6rem 0.7rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)', flexWrap: 'wrap' }}>
-                                                <div style={{ minWidth: 0, flex: 1 }}>
-                                                    <div style={{ fontWeight: 650, fontSize: '0.9rem', color: 'var(--charcoal)' }}>
-                                                        {fmtRange(t.startDate, t.endDate)} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>· {nd} day{nd > 1 ? 's' : ''}</span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.2rem', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                                                        <span style={{ padding: '0.1rem 0.45rem', borderRadius: '999px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', fontWeight: 650 }}>{cap(t.type)}</span>
-                                                        <span>{t.allDay ? 'All day' : `${t.startTime}–${t.endTime}`}</span>
-                                                        {t.status === 'pending' && <span style={{ color: '#a86a12', fontWeight: 650 }}>Requested — needs your OK</span>}
-                                                        {t.status === 'approved' && <span style={{ color: '#1f8a4c', fontWeight: 650 }}>Approved</span>}
-                                                        {t.status === 'declined' && <span style={{ color: 'var(--text-muted)', fontWeight: 650 }}>Declined</span>}
-                                                        {t.note && <span>· {t.note}</span>}
-                                                    </div>
-                                                </div>
-                                                {pending && (
-                                                    <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                                        <button type="button" className="btn-primary" disabled={toBusy === t._id} onClick={() => decideTimeOff(t._id, 'approved')} style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }} data-testid="approve-timeoff">Approve</button>
-                                                        <button type="button" className="btn-outline" disabled={toBusy === t._id} onClick={() => decideTimeOff(t._id, 'declined')} style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}>Decline</button>
-                                                    </div>
-                                                )}
-                                                <button type="button" aria-label="Remove time off" onClick={() => removeTimeOff(t._id)} disabled={toBusy === t._id} style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.15rem', lineHeight: 1, padding: '0 0.25rem' }}>×</button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </Section>
-
-                            <Section icon={Clock} title="Working hours" hint="(their own — clients can book them in these hours, even on days the business is closed)">
-                                {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
-                                {schedule === 'none' && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }} data-testid="no-hours-note">
-                                            No working hours set — {(member.name || 'they').split(' ')[0]} can’t be booked until you set them{member.user ? ' (or they set their own in Availability)' : ''}.
-                                        </p>
-                                        <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set working hours</button>
-                                    </div>
-                                )}
-                                {schedule && schedule !== 'none' && (
-                                    <div>
-                                        {/* Single week vs a rotating multi-week cycle. The grid below keeps
-                                            the day, both time fields and the column labels aligned in fixed
-                                            columns so the end field never wraps onto its own line on phones. */}
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.7rem', flexWrap: 'wrap' }}>
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>Hours rotate over several weeks</span>
-                                            <Switch checked={rotationOn} onChange={toggleRotation} label={rotationOn ? 'Rotating' : 'Same every week'} data-testid="rotation-switch" />
-                                        </div>
-
-                                        {!rotationOn ? (
-                                            <HoursGrid week={schedule} onToggle={(d, c) => setDay(d, { enabled: c })} onPeriods={setPeriods} />
-                                        ) : (
-                                            <div data-testid="rotation-editor">
-                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', maxWidth: '220px', marginBottom: '0.7rem' }}>
-                                                    Week 1 starts on
-                                                    <DatePicker value={rotation.anchor} onChange={e => setRotation(r => ({ ...r, anchor: e.target.value }))} sheetTitle="Week 1 starts on" style={{ padding: '0.4rem 0.5rem', fontWeight: 400 }} data-testid="rotation-anchor" />
-                                                </label>
-                                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
-                                                    {rotation.weeks.map((_, i) => (
-                                                        <button key={i} type="button" onClick={() => setActiveWk(i)} data-testid="rotation-week-tab"
-                                                            style={{
-                                                                padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                                                                border: `1px solid ${i === activeWk ? 'var(--gold)' : 'var(--border)'}`,
-                                                                background: i === activeWk ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
-                                                                color: i === activeWk ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                                            }}>
-                                                            Week {i + 1}
-                                                        </button>
-                                                    ))}
-                                                    {rotation.weeks.length < 8 && (
-                                                        <button type="button" onClick={addWeek} data-testid="rotation-add" className="btn-outline" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>+ Add week</button>
-                                                    )}
-                                                    {rotation.weeks.length > 2 && (
-                                                        <button type="button" onClick={() => removeWeek(activeWk)} data-testid="rotation-remove" className="btn-outline" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Remove week {activeWk + 1}</button>
-                                                    )}
-                                                </div>
-                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
-                                                    Editing <strong>Week {activeWk + 1}</strong> of {rotation.weeks.length}. The cycle repeats from Week 1’s start date.
-                                                </p>
-                                                <HoursGrid week={rotation.weeks[activeWk] || DEFAULT_SCHED()} onToggle={setWkDay} onPeriods={setWkPeriods} />
-                                            </div>
-                                        )}
-
-                                        <button type="button" className="btn-primary" onClick={saveHours} disabled={busy === 'hours'} data-testid="save-hours" style={{ marginTop: '0.6rem', padding: '0.55rem 1.4rem' }}>
-                                            {busy === 'hours' ? 'Saving…' : 'Save hours'}
-                                        </button>
-                                    </div>
-                                )}
-                            </Section>
+                            <div style={{ marginTop: '1.5rem' }}>
+                                <MemberWorkingHours member={member} onChanged={onChanged} />
+                            </div>
                         </div>
                     )}
 
