@@ -137,6 +137,11 @@ const appointmentSchema = new mongoose.Schema(
         reminderSent5h:  { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },
         walkInName: { type: String, default: null },
+        // Set when an admin deleted the client's account: the booking keeps the
+        // client's name (copied into walkInName, which every calendar and table
+        // already reads) and loses the account link. Only the date is kept here —
+        // no other personal detail — so the admin console can tag the row.
+        clientAccountDeletedAt: { type: Date, default: null },
         /* How the client pays: from their prepaid wallet, or cash at the appointment */
         paymentMethod: { type: String, enum: ['cash', 'wallet'], default: 'cash' },
         /* Staff member performing the appointment (multi-chair scheduling) */

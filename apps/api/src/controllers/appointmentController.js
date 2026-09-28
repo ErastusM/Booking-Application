@@ -32,6 +32,7 @@ const { checkCancellationWindow, DEFAULT_WINDOW_HOURS } = require('../utils/canc
 // double-book). bookingLockKey/withBookingLocks are shared with the waiting-list
 // promoter so both serialize on the same per-member-per-day key.
 const { withBookingLock, withBookingLocks, bookingLockKey, BookingBusyError } = require('../utils/lock');
+const { providerBookingBlock } = require('../utils/publicProvider');
 
 // Thrown inside a booking lock when the authoritative re-check finds the slot
 // was taken by the request that won the lock first.
@@ -903,7 +904,7 @@ exports.getAllAppointments = async (req, res) => {
         const query = scope.query;
 
         const { status } = req.query;
-        if (status && ['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+        if (status && ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].includes(status)) {
             query.status = status;
         }
 
@@ -927,12 +928,19 @@ exports.getAllAppointments = async (req, res) => {
         // document method is ever called on them, so hydrating hundreds of
         // Mongoose documents (each with four populated relations) is pure cost
         // on the request the calendar waits for.
-        const base = () => Appointment.find(query).lean()
-            .populate('customer', 'name email phone')
-            .populate('service', 'name price duration')
-            .populate('teamMember', 'name color')
-            .populate('services.teamMember', 'name color')
-            .sort({ appointmentDate: -1 });
+        // The admin console lists every business's bookings, so it needs to know
+        // WHOSE booking each row is (the Business column). Other callers only
+        // ever see their own business and keep the bare provider id.
+        const isAdmin = req.user.role === 'admin';
+        const base = () => {
+            let q = Appointment.find(query).lean()
+                .populate('customer', 'name email phone')
+                .populate('service', 'name price duration')
+                .populate('teamMember', 'name color')
+                .populate('services.teamMember', 'name color');
+            if (isAdmin) q = q.populate('provider', 'name businessProfile.businessName isActive deactivatedAt');
+            return q.sort({ appointmentDate: -1 });
+        };
 
         const shape = (list) => (scope.memberId ? list.map((a) => redactForMember(a, scope.memberId)) : list);
         if (fetchAll) {
@@ -1102,6 +1110,12 @@ exports.createAppointment = async (req, res) => {
         const svc = await Service.findById(service);
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
+        }
+        // A suspended (or removed) business takes no new bookings; its existing
+        // bookings are left exactly as they are.
+        {
+            const blocked = await providerBookingBlock(svc.provider);
+            if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
         // Guest checkout: no signed-in user (optionalAuth left req.user null). A
         // guest books like a customer but must supply contact details and can't
@@ -1848,6 +1862,10 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // come from the catalogue, never the request body, and each service is laid
         // out back-to-back from startTime.
         const providerId = isStaffActor ? req.user.staffOf : req.user._id;
+        {
+            const blocked = await providerBookingBlock(providerId);
+            if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
+        }
         // A member's booking lands in THEIR column (or, seeing the whole calendar,
         // the colleague/owner they name for an existing client), for the clients
         // they may book — resolved once, before any service is priced.
@@ -3180,6 +3198,10 @@ exports.createGroupBooking = async (req, res) => {
         }
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
+        {
+            const blocked = await providerBookingBlock(svc.provider);
+            if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
+        }
 
         // The group sits in ONE window that must hold the whole service at the
         // performer's own length (their duration override, else the menu). The

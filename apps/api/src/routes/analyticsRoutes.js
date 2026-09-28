@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { getAnalytics, getProviderAnalytics, getProviderRevenueList, getProviderRevenueDetail } = require('../controllers/analyticsController');
+const { getAnalytics, getAdminOverview, getProviderAnalytics, getProviderRevenueList, getProviderRevenueDetail } = require('../controllers/analyticsController');
 const { auth, authorize, allow } = require('../middleware/auth');
 
 // Platform-wide roll-up stays admin-only (no per-business scope).
 router.get('/', auth, authorize('admin'), getAnalytics);
+router.get('/admin/overview', auth, authorize('admin'), getAdminOverview);
 // Per-business operational analytics — reports:view (High tier). The controller
 // scopes to the caller's business (staffOf for a High staff member).
 router.get('/provider', auth, allow({ roles: ['provider', 'admin'], capability: 'reports:view' }), getProviderAnalytics);

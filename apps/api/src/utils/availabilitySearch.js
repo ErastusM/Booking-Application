@@ -21,6 +21,7 @@ const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
 const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms, availabilityHasHours } = require('./staffBooking');
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
+const { publicProviderIds } = require('./publicProvider');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const GRID_STEP = 30; // minutes between offered start times (plus each period's own opening time)
@@ -77,7 +78,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
         byProvider.get(pid).push(s);
     });
 
-    let candidateIds = [...byProvider.keys()];
+    // Suspended businesses are never offered (utils/publicProvider).
+    const visible = await publicProviderIds([...byProvider.keys()]);
+    let candidateIds = [...byProvider.keys()].filter((pid) => visible.has(pid));
     if (q && q.trim()) {
         const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         const matchingProviders = await User.find({

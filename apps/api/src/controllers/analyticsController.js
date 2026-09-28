@@ -8,6 +8,16 @@ const WaitingList = require('../models/WaitingList');
 const ClientPackage = require('../models/ClientPackage');
 const ProviderWallet = require('../models/ProviderWallet');
 
+// ONE definition of "users" for every admin count (Insights cards, the
+// new-users chart, the dashboard's Total users card): the people who signed up
+// themselves — client and business-owner accounts — and not closed. Admins are
+// Bookplus staff, and team member logins are created by a business for its own
+// team, so both are counted separately (never inside "users"). The month/week
+// new-user counts used to include admins while Total excluded them.
+const USER_ACCOUNTS = { role: { $in: ['customer', 'provider'] }, deletedAt: null };
+const TEAM_LOGINS = { role: 'staff', deletedAt: null };
+exports.USER_ACCOUNTS = USER_ACCOUNTS;
+
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 
@@ -31,6 +41,9 @@ exports.getAnalytics = async (req, res) => {
             totalUsers,
             totalCustomers,
             totalProviders,
+            totalTeamLogins,
+            teamBusinesses,
+            pendingAppointments,
             newUsersThisMonth,
             newUsersLastWeek,
             newUsersOverTime,
@@ -56,13 +69,16 @@ exports.getAnalytics = async (req, res) => {
                 { $sort: { _id: 1 } },
             ]),
             // ── Users ──
-            User.countDocuments({ role: { $ne: 'admin' } }),
-            User.countDocuments({ role: 'customer' }),
-            User.countDocuments({ role: 'provider' }),
-            User.countDocuments({ createdAt: { $gte: startOfMonth } }),
-            User.countDocuments({ createdAt: { $gte: last7Days } }),
+            User.countDocuments(USER_ACCOUNTS),
+            User.countDocuments({ ...USER_ACCOUNTS, role: 'customer' }),
+            User.countDocuments({ ...USER_ACCOUNTS, role: 'provider' }),
+            User.countDocuments(TEAM_LOGINS),
+            User.distinct('staffOf', { ...TEAM_LOGINS, staffOf: { $ne: null } }),
+            Appointment.countDocuments({ status: 'pending' }),
+            User.countDocuments({ ...USER_ACCOUNTS, createdAt: { $gte: startOfMonth } }),
+            User.countDocuments({ ...USER_ACCOUNTS, createdAt: { $gte: last7Days } }),
             User.aggregate([
-                { $match: { createdAt: { $gte: last30Days }, role: { $ne: 'admin' } } },
+                { $match: { ...USER_ACCOUNTS, createdAt: { $gte: last30Days } } },
                 {
                     $group: {
                         _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
@@ -134,9 +150,9 @@ exports.getAnalytics = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                appointments: { total: totalAppointments, thisMonth: thisMonthAppointments, byStatus: appointmentsByStatus },
+                appointments: { total: totalAppointments, thisMonth: thisMonthAppointments, pending: pendingAppointments, byStatus: appointmentsByStatus },
                 bookingsOverTime: filledBookings,
-                users: { total: totalUsers, customers: totalCustomers, providers: totalProviders, newThisMonth: newUsersThisMonth, newLastWeek: newUsersLastWeek },
+                users: { total: totalUsers, customers: totalCustomers, providers: totalProviders, teamLogins: totalTeamLogins, teamBusinesses: teamBusinesses.length, newThisMonth: newUsersThisMonth, newLastWeek: newUsersLastWeek },
                 newUsersOverTime: filledUsers,
                 popularServices,
                 busiestDays: busiestDaysMapped,
@@ -148,6 +164,40 @@ exports.getAnalytics = async (req, res) => {
     }
 };
 
+
+/**
+ * GET /api/analytics/admin/overview (admin) — the four cards at the top of the
+ * admin console, counted on the server so they don't change with the table's
+ * filter or page: all bookings, bookings still pending, active services on the
+ * platform, and users (the same definition as Insights — see USER_ACCOUNTS).
+ */
+exports.getAdminOverview = async (req, res) => {
+    try {
+        // Revenue on the same basis as the Revenue tab's "Total revenue": completed
+        // bookings' value + package sales, for the businesses on the platform.
+        const providerIds = await User.distinct('_id', { role: 'provider' });
+        const [appointments, pending, activeServices, users, teamLogins, admins, [svcRev], [pkgRev]] = await Promise.all([
+            Appointment.countDocuments(),
+            Appointment.countDocuments({ status: 'pending' }),
+            Service.countDocuments({ isActive: true }),
+            User.countDocuments(USER_ACCOUNTS),
+            User.countDocuments(TEAM_LOGINS),
+            User.countDocuments({ role: 'admin' }),
+            Appointment.aggregate([
+                { $match: { status: 'completed', provider: { $in: providerIds } } },
+                { $group: { _id: null, total: { $sum: '$totalPrice' } } },
+            ]),
+            ClientPackage.aggregate([
+                { $match: { provider: { $in: providerIds } } },
+                { $group: { _id: null, total: { $sum: '$purchasePrice' } } },
+            ]),
+        ]);
+        const revenue = (svcRev?.total || 0) + (pkgRev?.total || 0);
+        res.status(200).json({ success: true, data: { appointments, pending, activeServices, users, teamLogins, admins, revenue } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
 /**
  * GET /api/analytics/provider  (provider, admin)

@@ -62,6 +62,15 @@ const userSchema = new mongoose.Schema(
             enum: ['customer', 'provider', 'staff', 'admin'],
             default: 'customer'
         },
+        // The role an account had before an admin made it an admin, so "Remove
+        // admin" can put it back exactly (customer or provider). null for every
+        // account that was never promoted — and for admins promoted before this
+        // was recorded, who can only be demoted to customer (the console says so).
+        roleBeforeAdmin: {
+            type: String,
+            enum: ['customer', 'provider', null],
+            default: null,
+        },
         // staff-only: which business (provider User) this staff account works for.
         // null for every other role.
         staffOf: {

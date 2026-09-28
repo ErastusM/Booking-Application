@@ -473,6 +473,12 @@ jobs:
             # the one above it must NEVER fail the deploy: the script always
             # exits 0, and the `|| echo` covers exec itself failing.
             docker compose exec -T server node scripts/report_members_without_hours.js || echo "WARNING: report_members_without_hours.js did not run — nothing was changed (non-fatal)"
+            # What earlier admin deletes left behind: services of a deleted
+            # business (now hidden from clients) and bookings with no client
+            # name. READ-ONLY report — ids and counts only, never a name, email
+            # or phone. Like the reports above it must NEVER fail the deploy:
+            # the script always exits 0, and the `|| echo` covers exec failing.
+            docker compose exec -T server node scripts/report_orphans.js || echo "WARNING: report_orphans.js did not run — nothing was changed (non-fatal)"
 
             # Only now — a fully verified, migrated rollout — move the droplet's
             # LOCAL `:latest` onto it. Nothing in the deploy path reads `:latest`

@@ -12,6 +12,7 @@ const { CURRENCY_CODES } = require('../constants/currencies');
 const { notifyAdmins } = require('../utils/notificationhelper');
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 const staffInvites = require('../utils/staffInvites');
+const { teamBusinessSuspended, TEAM_SUSPENDED_MESSAGE } = require('../utils/publicProvider');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
@@ -373,6 +374,9 @@ exports.login = async (req, res) => {
                 });
             }
         }
+        if (await teamBusinessSuspended(user)) {
+            return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
+        }
 
         const { token, refreshToken } = await issueAuthTokens(user);
         setRefreshCookie(res, refreshToken);
@@ -540,6 +544,9 @@ exports.exchangeOAuthCode = async (req, res) => {
                 return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
             }
         }
+        if (await teamBusinessSuspended(user)) {
+            return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
+        }
 
         user.oauthCode = null;
         user.oauthCodeExpiry = null;
@@ -666,6 +673,9 @@ exports.refresh = async (req, res) => {
 
         if (user.isActive === false) {
             return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+        }
+        if (await teamBusinessSuspended(user)) {
+            return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
         }
 
         // App-scoped sessions: each app sends its accountType so the SSO cookie

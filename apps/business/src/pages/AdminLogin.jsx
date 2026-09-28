@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock, ArrowRight, AlertTriangle } from 'lucide-react';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import { nonAdminNotice, NOTICE_MS } from '../utils/adminPanel';
 
 // Dedicated entrance for the admin console (/bkplus-command). It posts the SAME
 // credentials as the normal business login — admin is just a business role — but
@@ -16,31 +17,42 @@ const AdminLogin = () => {
     const [form, setForm] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [notice, setNotice] = useState('');
+    const [notice, setNotice] = useState(null); // { text, to } for a non-admin
+
+    // Set while THIS page is showing that note, so the effect below doesn't
+    // redirect the instant login() sets the user — which is what used to make
+    // the note never appear at all.
+    const noticeShown = useRef(false);
 
     // Already signed in? An admin goes straight to the console; anyone else is
-    // redirected to where they belong (this page is admin-only real estate).
+    // told this isn't an admin account, then taken to where they belong.
     useEffect(() => {
-        if (authLoading || !user) return;
-        if (user.role === 'admin') navigate('/bkplus-command', { replace: true });
-        else if (user.role === 'staff') navigate('/dashboard', { replace: true });
-        else if (user.role === 'provider') navigate('/dashboard', { replace: true });
+        if (authLoading || !user || noticeShown.current) return undefined;
+        if (user.role === 'admin') { navigate('/bkplus-command', { replace: true }); return undefined; }
+        noticeShown.current = true;
+        const n = nonAdminNotice(user.role);
+        setNotice(n);
+        const t = setTimeout(() => navigate(n.to, { replace: true }), NOTICE_MS);
+        return () => clearTimeout(t);
     }, [user, authLoading, navigate]);
 
     const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true); setError(''); setNotice('');
+        setLoading(true); setError(''); setNotice(null);
         try {
             const res = await authService.login(form);
             const data = res.data.data;
             const role = data?.user?.role;
             if (role !== 'admin') {
-                // Valid credentials, wrong door. Sign them in but send them home.
+                // Valid credentials, wrong door. Sign them in, say so, then send
+                // them home (noticeShown keeps the effect above from jumping first).
+                noticeShown.current = true;
+                const n = nonAdminNotice(role);
+                setNotice(n);
                 login(data);
-                setNotice(`You're signed in as a ${role || 'user'}, which isn't an admin account. Taking you to your dashboard…`);
-                setTimeout(() => navigate('/dashboard', { replace: true }), 1600);
+                setTimeout(() => navigate(n.to, { replace: true }), NOTICE_MS);
                 return;
             }
             login(data);
@@ -117,11 +129,21 @@ const AdminLogin = () => {
                     </div>
                 )}
                 {notice && (
-                    <div role="status" style={{
+                    <div role="status" data-testid="not-admin-notice" style={{
                         marginTop: '1.4rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(230,232,231,0.16)',
-                        color: 'rgba(230,232,231,0.85)', padding: '0.7rem 0.9rem', borderRadius: '10px', fontSize: '0.85rem',
+                        color: 'rgba(230,232,231,0.85)', padding: '0.8rem 0.9rem 0.9rem', borderRadius: '10px', fontSize: '0.85rem',
+                        overflow: 'hidden',
                     }}>
-                        {notice}
+                        <div style={{ fontWeight: 600, color: 'var(--off-white)', marginBottom: '0.2rem' }}>This account isn’t an admin</div>
+                        <div>{notice.text}</div>
+                        <div aria-hidden="true" style={{ height: '3px', borderRadius: '99px', background: 'rgba(230,232,231,0.14)', marginTop: '0.7rem', overflow: 'hidden' }}>
+                            <div className="admin-notice-bar" style={{ height: '100%', background: 'var(--gold)', transformOrigin: 'left', animation: `adminNoticeBar ${NOTICE_MS}ms linear forwards` }} />
+                        </div>
+                        <button type="button" onClick={() => navigate(notice.to, { replace: true })} style={{
+                            marginTop: '0.7rem', background: 'none', border: '1px solid rgba(230,232,231,0.3)', color: 'var(--off-white)',
+                            padding: '0.35rem 0.85rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                        }}>Go now</button>
+                        <style>{'@keyframes adminNoticeBar { from { transform: scaleX(0); } to { transform: scaleX(1); } } @media (prefers-reduced-motion: reduce) { .admin-notice-bar { animation: none !important; transform: scaleX(1); } }'}</style>
                     </div>
                 )}
 

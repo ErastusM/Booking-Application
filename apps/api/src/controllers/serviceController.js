@@ -1,5 +1,6 @@
 const Service = require('../models/Service');
 const { bookableMembersByProvider, hasPerformer } = require('../utils/serviceOffering');
+const { publicProviderIds } = require('../utils/publicProvider');
 
 // The business a catalogue write/read acts on: the owner's own id, or a
 // services:edit (High tier) staff member's employer (staffOf). Ownership checks
@@ -21,11 +22,22 @@ exports.getAllServices = async (req, res) => {
             .populate('provider', 'name avatar')
             .populate('createdBy', 'name')
             .sort({ createdAt: -1 });
-        const providerIds = [...new Set(all.map((s) => s.provider?._id || s.provider).filter(Boolean).map(String))];
-        const membersBy = await bookableMembersByProvider(providerIds);
+        // The STORED provider id. populate() turns a reference to an account
+        // that no longer exists into null, which used to read as "no provider"
+        // — so a deleted business's services were served as global marketplace
+        // services. Only a service stored with provider:null is global (the
+        // admin-create path is the only writer of that); anything else needs a
+        // live, non-suspended business behind it.
+        const storedProvider = (s) => s.populated('provider') || s.provider?._id || s.provider || null;
+        const providerIds = [...new Set(all.map(storedProvider).filter(Boolean).map(String))];
+        const [membersBy, visible] = await Promise.all([
+            bookableMembersByProvider(providerIds),
+            publicProviderIds(providerIds),
+        ]);
         const services = all.filter((s) => {
-            const pid = s.provider?._id || s.provider;
+            const pid = storedProvider(s);
             if (!pid) return true; // a global (admin) service has no roster
+            if (!visible.has(String(pid))) return false; // deleted or suspended business
             return hasPerformer(s, membersBy.get(String(pid)) || []);
         });
 
