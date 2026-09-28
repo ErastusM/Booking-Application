@@ -203,6 +203,12 @@ const outbox = [];
         isVerified: true, provider: 'local', providerSetupComplete: true,
     });
 
+    // The admin console's login (business app /bkplus-command) — admin-panel.spec.
+    await User.create({
+        name: 'E2E Admin', email: 'e2e-admin@bookplus.dev', password: 'Password1!',
+        phone: '+264810000099', role: 'admin', isVerified: true, provider: 'local',
+    });
+
     const app = require('./server');
     app.locals.e2e = {
         providerId: provider._id.toString(),
@@ -338,6 +344,53 @@ const outbox = [];
             date, startTime: '12:00', endTime: '13:00', reason: 'Owner errand',
         });
         res.json({ email, password: 'Password1!', providerId: String(owner._id), moses: String(moses._id) });
+    });
+    // A fresh business for the admin-panel spec (business e2e), built on demand
+    // so suspending / crediting it never touches the seeded business the other
+    // specs book: one bookable service, open every day, a GUEST booking far in
+    // the future (so it heads the admin table, which is newest-date first), a
+    // no-show booking, NO platform wallet row, and a client account the spec
+    // makes an admin and back.
+    let adminSeq = 0;
+    outer.post('/__e2e/admin-fixture', async (req, res) => {
+        adminSeq += 1;
+        const tag = `${adminSeq}-${Date.now()}`;
+        const businessName = `Admin Fixture Salon ${adminSeq}`;
+        const owner = await User.create({
+            name: `Fixture Owner ${adminSeq}`, email: `e2e-adminfx-${tag}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000011', role: 'provider', providerCategory: 'Home services',
+            isVerified: true, provider: 'local', providerSetupComplete: true,
+            businessProfile: { businessName },
+        });
+        const svc = await Service.create({
+            name: 'Fixture Cut', description: 'Half an hour', price: 90, duration: 30,
+            provider: owner._id, createdBy: owner._id, isActive: true, location: 'Windhoek',
+        });
+        const open = { enabled: true, slots: [{ start: '08:00', end: '18:00' }] };
+        await Availability.create({
+            provider: owner._id,
+            schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: open, sunday: open },
+        });
+        const far = new Date(); far.setHours(0, 0, 0, 0); far.setDate(far.getDate() + 700 + adminSeq);
+        const guestName = `Gina Guest ${adminSeq}`;
+        await Appointment.create({
+            service: svc._id, provider: owner._id, guestName, guestEmail: `gina-${tag}@guest.test`,
+            appointmentDate: far, startTime: '09:00', endTime: '09:30', status: 'confirmed', totalPrice: 90,
+        });
+        const past = new Date(); past.setHours(0, 0, 0, 0); past.setDate(past.getDate() - 3);
+        const noShowName = `Nolan NoShow ${adminSeq}`;
+        await Appointment.create({
+            service: svc._id, provider: owner._id, walkInName: noShowName,
+            appointmentDate: past, startTime: '11:00', endTime: '11:30', status: 'no-show', totalPrice: 90,
+        });
+        const client = await User.create({
+            name: `Promo Client ${adminSeq}`, email: `e2e-promo-${tag}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000012', role: 'customer', isVerified: true, provider: 'local',
+        });
+        res.json({
+            providerId: String(owner._id), ownerName: owner.name, ownerEmail: owner.email, businessName,
+            guestName, noShowName, clientName: client.name, clientEmail: client.email,
+        });
     });
     outer.use(app);
 

@@ -6,7 +6,12 @@ import ProofLink from '../components/ProofLink';
 // App-styled replacements for the native <select> and window.confirm, so the
 // admin's pickers and prompts wear the app's colours.
 import { Select, useConfirm, formatDuration, Field } from '@bookplus/ui';
-import { CalendarDays, ConciergeBell, Users, Clock } from 'lucide-react';
+import { ConciergeBell, Users, Clock, Banknote } from 'lucide-react';
+import { useAuthContext } from '../context/AuthContext';
+import { appointmentClient, appointmentBusiness, userActions, roleLabel, suspendDialog, removeAdminConfirmText, businessName, walletToast } from '../utils/adminPanel';
+import AdminTabs from '../components/AdminTabs';
+import DeleteUserDialog from '../components/DeleteUserDialog';
+import WalletAdjustDialog from '../components/WalletAdjustDialog';
 
 
 const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
@@ -24,10 +29,39 @@ const statusConfig = {
 const STATUS_OPTIONS = ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map(v => ({ value: v, label: statusConfig[v].label }));
 const ROLE_FILTER_OPTIONS = [
     { value: '', label: 'All roles' },
-    { value: 'customer', label: 'Customers' },
-    { value: 'provider', label: 'Providers' },
-    { value: 'admin', label: 'Admins' },
+    { value: 'customer', label: 'Customer' },
+    { value: 'provider', label: 'Business owner' },
+    { value: 'staff', label: 'Staff' },
+    { value: 'admin', label: 'Admin' },
 ];
+// Appointment status chips.
+const APPT_CHIPS = [
+    { value: '', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'no-show', label: 'No-show' },
+];
+
+// Role pill colours (status tokens flip for dark mode).
+const ROLE_PILL = {
+    admin: { background: 'var(--warning-bg)', color: 'var(--warning-fg)' },
+    provider: { background: 'var(--info-bg)', color: 'var(--info-fg)' },
+    staff: { background: 'var(--warm-gray)', color: 'var(--text-secondary)' },
+    customer: { background: 'var(--success-bg)', color: 'var(--success-fg)' },
+};
+
+// Small tag next to a client name in the appointments table.
+const CLIENT_TAG = {
+    Guest: { background: 'var(--info-bg)', color: 'var(--info-fg)' },
+    'Walk-in': { background: 'var(--warm-gray)', color: 'var(--text-secondary)' },
+    'Deleted account': { background: 'var(--danger-bg)', color: 'var(--danger-fg)' },
+};
+const tagStyle = (t) => ({
+    display: 'inline-block', marginLeft: '0.4rem', padding: '0.05rem 0.45rem', borderRadius: '99px',
+    fontSize: '0.66rem', fontWeight: 700, verticalAlign: '1px', ...(CLIENT_TAG[t] || CLIENT_TAG['Walk-in']),
+});
 const STATUS_FILTER_OPTIONS = [
     { value: '', label: 'All statuses' },
     { value: 'active', label: 'Active' },
@@ -43,7 +77,7 @@ const chipStyle = (active) => ({
     background: active ? 'rgba(240,62,22,0.12)' : 'white',
     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
     fontSize: '0.78rem', fontWeight: active ? '600' : '400',
-    cursor: 'pointer', fontFamily: 'var(--font-body)', textTransform: 'capitalize',
+    cursor: 'pointer', fontFamily: 'var(--font-body)',
 });
 
 const Pagination = ({ page, pages, onChange }) => (
@@ -65,6 +99,12 @@ const Pagination = ({ page, pages, onChange }) => (
 const AdminDashboard = () => {
     const toast = useToast();
     const confirm = useConfirm();
+    const { user: me } = useAuthContext();
+    // Server-side counts for the four cards (never the current page or filter).
+    const [overview, setOverview] = useState(null);
+    const fetchOverview = async () => {
+        try { setOverview((await analyticsService.getAdminOverview()).data.data); } catch { /* cards show — */ }
+    };
     const [pendingId, setPendingId] = useState(null); // guards per-row actions against double-submit
     const [activeTab, setActiveTab] = useState('appointments');
     const [appointments, setAppointments] = useState([]);
@@ -93,7 +133,10 @@ const AdminDashboard = () => {
     const [pwTopups, setPwTopups] = useState([]);
     const [pwWallets, setPwWallets] = useState([]);
     const [clientTopUps, setClientTopUps] = useState([]); // consumer wallet top-ups awaiting allocation
-    const [pwAdjust, setPwAdjust] = useState(null); // provider wallet being adjusted
+    // Credit / debit dialog: null = closed; { provider } preselects a business,
+    // {} opens the business picker.
+    const [pwAdjust, setPwAdjust] = useState(null);
+    const [deleting, setDeleting] = useState(null); // user whose Delete dialog is open
     const [resolvingTopUpId, setResolvingTopUpId] = useState(null); // top-up _id currently being approved/rejected (provider or client) — blocks a double-click
 
     // Revenue tab — per-provider earnings + platform roll-up
@@ -136,7 +179,10 @@ const AdminDashboard = () => {
         if (resolvingTopUpId) return; // already resolving one — ignore a rapid double-click
         setResolvingTopUpId(id);
         try {
-            approve ? await providerWalletService.approveTopUp(id) : await providerWalletService.rejectTopUp(id);
+            const t = pwTopups.find((x) => x._id === id);
+            const res = approve ? await providerWalletService.approveTopUp(id) : await providerWalletService.rejectTopUp(id);
+            const txn = res.data?.data || {};
+            toast(walletToast(approve ? 'approve' : 'reject', txn.amount ?? t?.amount, businessName(t?.provider), txn.balanceAfter), 'success');
             await fetchProviderWalletData();
         } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
@@ -146,6 +192,7 @@ const AdminDashboard = () => {
         setResolvingTopUpId(id);
         try {
             approve ? await walletService.adminApproveClientTopUp(id) : await walletService.adminRejectClientTopUp(id);
+            toast(approve ? 'Client top-up approved.' : 'Client top-up rejected.', 'success');
             await fetchProviderWalletData();
         } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
@@ -189,7 +236,7 @@ const AdminDashboard = () => {
     useEffect(() => {
         (async () => {
             setLoading(true);
-            await Promise.all([fetchAppointments(), fetchServices(), fetchUsers()]);
+            await Promise.all([fetchAppointments(), fetchServices(), fetchUsers(), fetchOverview()]);
             setLoading(false);
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,6 +266,7 @@ const AdminDashboard = () => {
             await appointmentService.updateAppointmentStatus(id, status);
             setAppointments(appointments.map(a => a._id === id ? { ...a, status } : a));
             toast('Status updated.', 'success');
+            fetchOverview();
         } catch {
             toast('Failed to update status.', 'error'); // toast reaches the user even for a deep row
         } finally { setPendingId(null); }
@@ -262,52 +310,84 @@ const AdminDashboard = () => {
         } finally { setPendingId(null); }
     };
 
-    const handleDeleteUser = async (id) => {
-        if (pendingId === id || !(await confirm({ title: 'Delete this user?', confirmLabel: 'Delete', danger: true }))) return;
+    // Runs from the Delete dialog (which has already said what will happen).
+    const handleDeleteUser = async (u) => {
+        const id = u._id;
+        if (pendingId === id) return;
         setPendingId(id);
         try {
-            await userService.deleteUser(id);
-            setUsers(users.filter(u => u._id !== id));
-            toast('User deleted.', 'success');
-        } catch {
-            toast('Failed to delete user.', 'error');
+            const res = await userService.deleteUser(id);
+            setUsers(users.filter(x => x._id !== id));
+            setDeleting(null);
+            const cancelled = res.data?.data?.cancelled;
+            toast(u.role === 'provider'
+                ? `${u.name} deleted${cancelled ? ` — ${cancelled} upcoming booking${cancelled === 1 ? '' : 's'} cancelled` : ''}.`
+                : `${u.name} deleted — their name stays on their bookings.`, 'success');
+            fetchOverview();
+            fetchAppointments();
+        } catch (err) {
+            toast(err.response?.data?.message || 'Failed to delete user.', 'error');
         } finally { setPendingId(null); }
     };
 
-    const handleRoleChange = async (id, role) => {
+    const handleRoleChange = async (u, role) => {
+        const id = u._id;
         if (pendingId === id) return;
-        if (role === 'admin' && !(await confirm({ title: 'Grant this user admin access?', message: 'Admins can manage all users, services, and platform funds.', confirmLabel: 'Grant access' }))) {
+        if (role === 'admin' && !(await confirm({ title: `Make ${u.name || 'this user'} an admin?`, message: `Admins can manage all users, services, and platform funds. You can remove their admin access later; they go back to being a ${u.role === 'provider' ? 'business owner' : 'customer'}.`, confirmLabel: 'Grant access' }))) {
             return;
         }
+        if (u.role === 'admin' && !(await confirm({ ...removeAdminConfirmText(u), danger: true }))) return;
         setPendingId(id);
         try {
-            await userService.updateUserRole(id, role);
-            setUsers(users.map(u => u._id === id ? { ...u, role } : u));
-            toast(role === 'admin' ? 'User is now an admin.' : 'Role updated.', 'success');
-        } catch {
-            toast('Failed to update role.', 'error');
+            const res = await userService.updateUserRole(id, role);
+            const updated = res.data?.data || {};
+            setUsers(users.map(x => x._id === id ? { ...x, role: updated.role || role, roleBeforeAdmin: updated.roleBeforeAdmin ?? null } : x));
+            toast(role === 'admin' ? `${u.name} is now an admin.` : `Admin access removed — ${u.name} is a ${role === 'provider' ? 'business owner' : 'customer'} again.`, 'success');
+            fetchOverview();
+        } catch (err) {
+            toast(err.response?.data?.message || 'Failed to update role.', 'error');
         } finally { setPendingId(null); }
     };
 
-    const handleToggleActive = async (id) => {
+    const handleToggleActive = async (u) => {
+        const id = u._id;
         if (pendingId === id) return;
+        const d = suspendDialog(u);
+        const ok = await confirm({
+            title: d.title,
+            message: (
+                <>
+                    <ul style={{ margin: 0, paddingLeft: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', textAlign: 'left' }}>
+                        {d.bullets.map((b) => <li key={b}>{b}</li>)}
+                    </ul>
+                    {d.footer && <p style={{ margin: '0.7rem 0 0', textAlign: 'left' }}>{d.footer}</p>}
+                </>
+            ),
+            confirmLabel: d.confirmLabel,
+            danger: d.danger,
+        });
+        if (!ok) return;
         setPendingId(id);
         try {
             const res = await userService.toggleUserActive(id);
             const isActive = res.data.data.isActive;
             setUsers(users.map(u => u._id === id ? { ...u, isActive } : u));
-            toast(isActive ? 'User activated.' : 'User suspended.', 'success');
+            toast(isActive ? `${u.name} is active again.` : `${u.name} is suspended.`, 'success');
         } catch (err) {
             toast(err.response?.data?.message || 'Failed to update user status.', 'error');
         } finally { setPendingId(null); }
     };
 
     const tabs = ['appointments', 'services', 'users', 'revenue', 'wallet'];
+    // Counted on the server, so they never change with a filter or page. "Users"
+    // is the same definition as Insights: client + business accounts (no admins,
+    // no team logins — those are shown underneath).
+    const show = (n) => (overview ? n : '—');
     const stats = [
-        { label: 'Total Appointments', value: apptMeta.total, Icon: CalendarDays },
-        { label: 'Total Services', value: services.length, Icon: ConciergeBell },
-        { label: 'Total Users', value: usersMeta.total, Icon: Users },
-        { label: 'Pending', value: appointments.filter(a => a.status === 'pending').length, Icon: Clock },
+        { label: 'Users', value: show(overview?.users), Icon: Users, sub: 'Clients + business owners' },
+        { label: 'Pending bookings (all)', value: show(overview?.pending), Icon: Clock, sub: `Of ${show(overview?.appointments)} bookings` },
+        { label: 'Active services', value: show(overview?.activeServices), Icon: ConciergeBell, sub: 'On the platform' },
+        { label: 'Revenue', value: overview ? nMoney0(overview.revenue) : '—', Icon: Banknote, sub: 'Services + packages, all time' },
     ];
 
     const inputStyle = {
@@ -327,6 +407,13 @@ const AdminDashboard = () => {
         background: 'var(--card-bg)', borderRadius: 'var(--radius)',
         border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
         overflow: 'hidden',
+    };
+
+    const roleButtonStyle = {
+        background: 'none', border: '1px solid var(--border)',
+        color: 'var(--text-muted)', padding: '0.2rem 0.5rem',
+        borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+        fontSize: '0.7rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap',
     };
 
     const thStyle = {
@@ -384,6 +471,7 @@ const AdminDashboard = () => {
                             <div>
                                 <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
                                 <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                {s.sub && <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.3rem', lineHeight: 1.35 }}>{s.sub}</p>}
                             </div>
                         </div>
                     ))}
@@ -395,22 +483,8 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.35rem' }}>
-                    {tabs.map(tab => (
-                        <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.1)' : 'white', border: '1px solid',
-                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
-                            borderRadius: '999px',
-                            color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            fontWeight: activeTab === tab ? '600' : '500', fontSize: '0.85rem',
-                            cursor: 'pointer', fontFamily: 'var(--font-body)',
-                            textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap',
-                        }}>
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        </button>
-                    ))}
-                </div>
+                {/* Tabs — scroll sideways on a phone, with a fade showing there's more */}
+                <AdminTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
                 {/* Appointments tab */}
                 {activeTab === 'appointments' && (
@@ -418,9 +492,9 @@ const AdminDashboard = () => {
                         {/* Status filter toolbar */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                {['', 'pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map(st => (
-                                    <button key={st || 'all'} onClick={() => { setApptStatusFilter(st); setApptPage(1); }} style={chipStyle(apptStatusFilter === st)}>
-                                        {st === '' ? 'All' : st}
+                                {APPT_CHIPS.map(({ value: st, label }) => (
+                                    <button key={st || 'all'} onClick={() => { setApptStatusFilter(st); setApptPage(1); }} aria-pressed={apptStatusFilter === st} style={chipStyle(apptStatusFilter === st)}>
+                                        {label}{apptStatusFilter === st && st ? ` · ${apptMeta.total}` : ''}
                                     </button>
                                 ))}
                             </div>
@@ -434,7 +508,7 @@ const AdminDashboard = () => {
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                     <thead>
                                         <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
-                                            {['Customer', 'Service', 'Date', 'Time', 'Price', 'Status', 'Action'].map(h => (
+                                            {['Client', 'Business', 'Service', 'Date', 'Time', 'Price', 'Status', 'Action'].map(h => (
                                                 <th key={h} style={thStyle}>{h}</th>
                                             ))}
                                         </tr>
@@ -442,14 +516,23 @@ const AdminDashboard = () => {
                                     <tbody>
                                         {appointments.map((a, i) => {
                                             const s = statusConfig[a.status] || statusConfig.pending;
+                                            const client = appointmentClient(a);
+                                            const biz = appointmentBusiness(a);
                                             return (
                                                 <tr key={a._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(230,232,231,0.5)' }}>
                                                     <td style={{ padding: '0.875rem 1rem' }}>
-                                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{a.customer?.name}</p>
-                                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{a.customer?.email}</p>
+                                                        <p style={{ fontWeight: '600', color: client.missing ? 'var(--text-muted)' : 'var(--charcoal)', fontSize: '0.875rem', fontStyle: client.missing ? 'italic' : 'normal' }}>
+                                                            {client.name}
+                                                            {client.tag && <span style={tagStyle(client.tag)}>{client.tag}</span>}
+                                                        </p>
+                                                        {client.email && <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{client.email}</p>}
                                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: 'monospace', letterSpacing: '0.05em', marginTop: '0.15rem' }}>
                                                             Ref {a.bookingReference || (a._id ? a._id.slice(-8).toUpperCase() : '—')}
                                                         </p>
+                                                    </td>
+                                                    <td style={{ padding: '0.875rem 1rem', color: biz.removed ? 'var(--text-muted)' : 'var(--text-secondary)', fontStyle: biz.removed ? 'italic' : 'normal' }}>
+                                                        {biz.name}
+                                                        {biz.suspended && <span style={tagStyle('Deleted account')}>Suspended</span>}
                                                     </td>
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.service?.name}</td>
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
@@ -496,7 +579,7 @@ const AdminDashboard = () => {
                                     </Field>
                                 </div>
                                 <div>
-                                    <Field label="Price ($)" labelStyle={labelStyle}>
+                                    <Field label="Price (N$)" labelStyle={labelStyle}>
                                         <input required type="number" value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} style={inputStyle} />
                                     </Field>
                                 </div>
@@ -552,7 +635,7 @@ const AdminDashboard = () => {
                                 <input aria-label="Search users by name or email"
                                     value={userSearch}
                                     onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
-                                    placeholder="Search name or email…"
+                                    placeholder="Search name, business or email…"
                                     style={{ ...inputStyle, width: '220px', padding: '0.5rem 0.75rem' }}
                                 />
                                 <Select value={userRoleFilter} onChange={e => { setUserRoleFilter(e.target.value); setUserPage(1); }} options={ROLE_FILTER_OPTIONS} aria-label="Filter by role" style={filterSelectStyle} />
@@ -572,7 +655,7 @@ const AdminDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {users.map((u, i) => (
+                                    {users.map((u, i) => { const act = userActions(u, me, overview?.admins ?? 2); return (
                                         <tr key={u._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(230,232,231,0.5)' }}>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -589,23 +672,28 @@ const AdminDashboard = () => {
                                                     <span style={{
                                                         display: 'inline-block', padding: '0.2rem 0.65rem',
                                                         borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600',
-                                                        background: u.role === 'admin' ? '#fef3c7' : u.role === 'provider' ? '#dbeafe' : '#d1fae5',
-                                                        color: u.role === 'admin' ? '#92400e' : u.role === 'provider' ? '#1e40af' : '#065f46',
-                                                        textTransform: 'capitalize',
+                                                        ...(ROLE_PILL[u.role] || ROLE_PILL.customer),
+                                                        whiteSpace: 'nowrap',
                                                     }}>
-                                                        {u.role}
+                                                        {roleLabel(u)}
                                                     </span>
-                                                    {u.role !== 'admin' && (
+                                                    {act.canMakeAdmin && (
                                                         <button
-                                                            onClick={() => handleRoleChange(u._id, 'admin')}
-                                                            style={{
-                                                                background: 'none', border: '1px solid var(--border)',
-                                                                color: 'var(--text-muted)', padding: '0.2rem 0.5rem',
-                                                                borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                                                                fontSize: '0.7rem', fontFamily: 'var(--font-body)',
-                                                            }}
+                                                            onClick={() => handleRoleChange(u, 'admin')}
+                                                            disabled={pendingId === u._id}
+                                                            style={roleButtonStyle}
                                                         >
                                                             Make Admin
+                                                        </button>
+                                                    )}
+                                                    {act.canRemoveAdmin && (
+                                                        <button
+                                                            onClick={() => handleRoleChange(u, act.removeAdminTo)}
+                                                            disabled={pendingId === u._id}
+                                                            title={act.removeAdminUnrecorded ? 'No earlier role on record — they become a customer' : `They go back to being a ${act.removeAdminTo}`}
+                                                            style={roleButtonStyle}
+                                                        >
+                                                            Remove admin
                                                         </button>
                                                     )}
                                                 </div>
@@ -642,9 +730,12 @@ const AdminDashboard = () => {
                                                 )}
                                             </td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
+                                                {act.self ? (
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Your own account: no actions</span>
+                                                ) : (
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    {u.role !== 'admin' && (
-                                                        <button onClick={() => handleToggleActive(u._id)} style={{
+                                                    {act.canSuspend && (
+                                                        <button onClick={() => handleToggleActive(u)} style={{
                                                             background: u.isActive === false ? '#d1fae5' : '#fef3c7',
                                                             border: u.isActive === false ? '1px solid #6ee7b7' : '1px solid #fcd34d',
                                                             color: u.isActive === false ? '#065f46' : '#92400e',
@@ -654,11 +745,17 @@ const AdminDashboard = () => {
                                                             {u.isActive === false ? 'Activate' : 'Suspend'}
                                                         </button>
                                                     )}
-                                                    <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
+                                                    <button
+                                                        onClick={() => act.canDelete && setDeleting(u)}
+                                                        disabled={!act.canDelete || pendingId === u._id}
+                                                        title={act.deleteBlocked || undefined}
+                                                        style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: act.canDelete ? 'pointer' : 'not-allowed', opacity: act.canDelete ? 1 : 0.45, fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                                    >Delete</button>
                                                 </div>
+                                                )}
                                             </td>
                                         </tr>
-                                    ))}
+                                    ); })}
                                 </tbody>
                             </table>
                             )}
@@ -767,7 +864,7 @@ const AdminDashboard = () => {
                             ) : pwTopups.slice(0, 40).map((t) => (
                                 <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.9rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
                                     <div style={{ minWidth: 0 }}>
-                                        <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.provider?.name || 'Provider'} · {nMoney(t.amount)}</p>
+                                        <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.provider ? businessName(t.provider) : 'Provider'} · {nMoney(t.amount)}</p>
                                         <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                             {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
                                             {t.method === 'cash' ? (
@@ -832,11 +929,13 @@ const AdminDashboard = () => {
 
                         {/* Provider balances + manual credit/debit */}
                         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Provider balances</h3>
+                                {/* Any business — not only those that already sent a top-up. */}
+                                <button onClick={() => setPwAdjust({})} className="btn-primary" style={{ padding: '0.4rem 0.95rem', fontSize: '0.8rem' }}>Credit or debit a business</button>
                             </div>
                             {pwWallets.length === 0 ? (
-                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No provider wallets yet.</div>
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No provider balances yet. Use “Credit or debit a business” to add funds to any business.</div>
                             ) : (
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -844,9 +943,9 @@ const AdminDashboard = () => {
                                         <tbody>
                                             {pwWallets.map((w) => (
                                                 <tr key={w._id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <td style={{ padding: '0.7rem 1rem' }}><div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{w.provider?.name || '—'}</div><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.provider?.email}</div></td>
+                                                    <td style={{ padding: '0.7rem 1rem' }}><div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{w.provider ? businessName(w.provider) : '—'}</div><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.provider?.email}</div></td>
                                                     <td style={{ padding: '0.7rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{nMoney(w.balance)}</td>
-                                                    <td style={{ padding: '0.7rem 1rem', textAlign: 'right' }}><button onClick={() => setPwAdjust(w)} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>Credit / Debit</button></td>
+                                                    <td style={{ padding: '0.7rem 1rem', textAlign: 'right' }}><button onClick={() => w.provider && setPwAdjust({ provider: w.provider })} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>Credit / Debit</button></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -856,63 +955,32 @@ const AdminDashboard = () => {
                         </div>
 
                         {pwAdjust && (
-                            <AdminAdjustModal
-                                wallet={pwAdjust}
+                            <WalletAdjustDialog
+                                initial={pwAdjust.provider || null}
+                                searchProviders={(search) => userService.getAllUsers({ role: 'provider', search, limit: 20 }).then((r) => r.data.data || [])}
+                                walletFor={(pid) => pwWallets.find((w) => String(w.provider?._id || w.provider) === String(pid))}
                                 onClose={() => setPwAdjust(null)}
-                                onDone={() => { setPwAdjust(null); fetchProviderWalletData(); }}
+                                submit={async ({ provider, direction, amount, reason }) => {
+                                    const res = await providerWalletService.adjustBalance({ providerId: provider._id, amount, direction, reason });
+                                    setPwAdjust(null);
+                                    toast(walletToast(direction, amount, businessName(provider), res.data?.data?.balanceAfter), 'success');
+                                    fetchProviderWalletData();
+                                }}
                             />
                         )}
                     </div>
                 )}
             </div>
+            {deleting && (
+                <DeleteUserDialog
+                    user={deleting}
+                    busy={pendingId === deleting._id}
+                    loadPreview={() => userService.getDeletePreview(deleting._id).then((r) => r.data.data)}
+                    onConfirm={() => handleDeleteUser(deleting)}
+                    onClose={() => setDeleting(null)}
+                />
+            )}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-    );
-};
-
-// Admin credits or debits a provider's platform balance (applies immediately).
-const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
-    const [direction, setDirection] = useState('credit');
-    const [amount, setAmount] = useState('');
-    const [reason, setReason] = useState('');
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
-    const submit = async (e) => {
-        e.preventDefault();
-        const amt = parseFloat(amount);
-        if (!(amt > 0)) { setError('Enter a valid amount'); return; }
-        setBusy(true); setError('');
-        try {
-            await providerWalletService.adjustBalance({ providerId: wallet.provider?._id || wallet.provider, amount: amt, direction, reason });
-            onDone();
-        } catch (err) { setError(err.response?.data?.message || 'Could not adjust'); setBusy(false); }
-    };
-    return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '400px', overflow: 'hidden' }}>
-                <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Adjust · {wallet.provider?.name}</h2>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Current balance {nMoney(wallet.balance)}</p>
-                </div>
-                <form onSubmit={submit} style={{ padding: '1.25rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                        {[{ v: 'credit', t: 'Credit (add)' }, { v: 'debit', t: 'Debit (remove)' }].map((o) => (
-                            <button key={o.v} type="button" onClick={() => setDirection(o.v)} style={{
-                                flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
-                                border: `1.5px solid ${direction === o.v ? 'var(--gold)' : 'var(--border)'}`,
-                                background: direction === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            }}>{o.t}</button>
-                        ))}
-                    </div>
-                    <input aria-label="Amount (N$)" type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount (N$)" className="input" style={{ width: '100%', marginBottom: '0.75rem' }} required />
-                    <input aria-label="Reason" type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (e.g. manual deposit, correction)" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
-                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button type="submit" disabled={busy} className="btn-primary" style={{ flex: 1, padding: '0.75rem' }}>{busy ? 'Saving…' : 'Apply'}</button>
-                        <button type="button" onClick={onClose} className="btn-outline" style={{ padding: '0.75rem 1.1rem' }}>Cancel</button>
-                    </div>
-                </form>
-            </div>
         </div>
     );
 };

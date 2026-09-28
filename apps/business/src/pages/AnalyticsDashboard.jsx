@@ -31,8 +31,8 @@ const BarChart = ({ data, valueKey, labelKey, color = 'var(--gold)', height = 16
 };
 
 const DonutChart = ({ data }) => {
-    const colors = { pending: '#fbbf24', confirmed: '#60a5fa', completed: '#34d399', cancelled: '#f87171' };
-    const labels = { pending: 'Pending', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
+    const colors = { pending: '#fbbf24', confirmed: '#60a5fa', completed: '#34d399', cancelled: '#f87171', 'no-show': '#a78bfa' };
+    const labels = { pending: 'Pending', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled', 'no-show': 'No-show' };
     const total = data.reduce((s, d) => s + d.count, 0) || 1;
 
     let cumulative = 0;
@@ -207,19 +207,25 @@ const AnalyticsDashboard = () => {
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: 'var(--page-pad-bottom)' }}>
 
+                {/* ── People ── One definition of "users" everywhere in the admin
+                    console: clients + business owners. Team member logins and
+                    admins are never inside it; team members get their own card. */}
+                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '0.6rem' }}>
+                    <MiniStat label="Users" value={users.total} icon="👥" sub={`${users.customers} client${users.customers === 1 ? '' : 's'} · ${users.providers} owner${users.providers === 1 ? '' : 's'}`} />
+                    <MiniStat label="New This Month" value={users.newThisMonth} icon="🆕" sub="Clients + business owners" />
+                    <MiniStat label="New This Week" value={users.newLastWeek} icon="📅" sub="Last 7 days" />
+                    <MiniStat label="Team Members" value={users.teamLogins ?? 0} icon="🪪" sub={`across ${users.teamBusinesses ?? 0} business${users.teamBusinesses === 1 ? '' : 'es'}`} />
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 1.5rem' }}>
+                    Users = clients + business owners. Team members and admins are counted separately.
+                </p>
+
                 {/* ── Booking KPIs ── */}
-                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <MiniStat label="Total Bookings" value={appointments.total} icon="📋" sub={`${appointments.thisMonth} this month`} />
+                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    <MiniStat label="Bookings" value={appointments.total} icon="📋" sub={`${appointments.pending ?? 0} pending · ${appointments.thisMonth} this month`} />
                     <MiniStat label="Completed" value={completedCount} icon="✅" sub="All time" />
                     <MiniStat label="Cancelled" value={cancelledCount} icon="🚫" sub="All time" />
-                    <MiniStat label="Total Users" value={users.total} icon="👥" sub={`${users.newThisMonth} new this month`} />
-                </div>
-
-                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                    <MiniStat label="Customers" value={users.customers} icon="🧑" />
-                    <MiniStat label="Providers" value={users.providers} icon="🏪" />
-                    <MiniStat label="New This Week" value={users.newLastWeek} icon="🆕" sub="New users" />
-                    <MiniStat label="Completion Rate" value={`${appointments.total ? Math.round((appointments.byStatus.find(s => s._id === 'completed')?.count || 0) / appointments.total * 100) : 0}%`} icon="✅" sub="Of all bookings" />
+                    <MiniStat label="Completion Rate" value={`${appointments.total ? Math.round((appointments.byStatus.find(s => s._id === 'completed')?.count || 0) / appointments.total * 100) : 0}%`} icon="🎯" sub="Of all bookings" />
                 </div>
 
                 {/* ── Time series chart ── */}

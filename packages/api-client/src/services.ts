@@ -121,6 +121,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     userService: {
         getAllUsers: (params?: any) => API.get('/users', { params }),
         deleteUser: (id: string) => API.delete(`/users/${id}`),
+        // What an admin delete will do, in numbers (the confirmation dialog).
+        getDeletePreview: (id: string) => API.get(`/users/${id}/delete-preview`),
         updateUserRole: (id: string, role: string) => API.put(`/users/${id}/role`, { role }),
         toggleUserActive: (id: string) => API.put(`/users/${id}/active`),
     },
@@ -159,6 +161,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     analyticsService: {
         getAnalytics: () => API.get('/analytics'),
         getProviderAnalytics: (params?: any) => API.get('/analytics/provider', { params }),
+        // Admin console's top cards (server-side counts).
+        getAdminOverview: () => API.get('/analytics/admin/overview'),
         // Admin per-provider revenue: leaderboard + single-provider detail.
         getProviderRevenueList: () => API.get('/analytics/admin/providers'),
         getProviderRevenueDetail: (id: string) => API.get(`/analytics/admin/providers/${id}`),
