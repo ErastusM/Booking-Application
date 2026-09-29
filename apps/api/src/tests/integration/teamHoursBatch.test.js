@@ -5,7 +5,7 @@
  * is shaded by that member's own hours, not the business's. The calendar gets
  * them here, once per day shown rather than once per lane per render, by the
  * SAME rules as the single-person GET /api/team/:id/hours (and bookings):
- * leave → shift → weekly hours within the business's → none (closed). The
+ * leave → their own weekly hours → none (closed). Old Shift rows are ignored. The
  * owner's column is the business's Working Hours.
  */
 process.env.TZ = 'UTC';
@@ -34,7 +34,7 @@ const batch = (user, query) => request(app).get('/api/team/hours').query(query).
 const single = (user, id, date) => request(app).get(`/api/team/${id}/hours`).query({ date }).set(authHeader(user));
 
 // Vido Barber, open 08:00–18:00. Erastus works a split day (08:00–12:00,
-// 14:00–18:00), has a shift on Thursday and leave on Friday; John has no hours;
+// 14:00–18:00), has an old (ignored) shift on Thursday and leave on Friday; John has no hours;
 // Hilda has left (archived) but works 09:00–17:00.
 const shop = async () => {
     const owner = await makeProvider({ name: 'Vido Barber' });
@@ -67,12 +67,13 @@ describe('GET /api/team/hours', () => {
         }
     });
 
-    it('a split day keeps its gap; a shift, leave and "no hours" read as bookings do', async () => {
+    it('a split day keeps its gap; an old shift is ignored; leave and "no hours" read as bookings do', async () => {
         const { owner, erastus, john } = await shop();
         const { data } = (await batch(owner, { from: WED, to: FRI, ids: `owner,${erastus._id},${john._id}` }).expect(200)).body;
         const e = data.members[String(erastus._id)];
         expect(e[WED]).toMatchObject({ source: 'weekly', slots: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }] });
-        expect(e[THU]).toMatchObject({ source: 'shift', slots: [{ start: '10:00', end: '19:00' }], busy: [{ startTime: '13:00', endTime: '13:30', kind: 'break' }] });
+        // The Thursday shift row changes nothing: weekly hours, no break.
+        expect(e[THU]).toMatchObject({ source: 'weekly', slots: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }], busy: [] });
         expect(e[FRI]).toMatchObject({ source: 'leave', slots: [] });
         expect(data.members[String(john._id)][WED]).toMatchObject({ source: 'none', slots: [] });
         expect(data.owner[WED]).toMatchObject({ source: 'business', slots: [{ start: '08:00', end: '18:00' }] });

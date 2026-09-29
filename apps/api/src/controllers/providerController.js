@@ -5,7 +5,6 @@ const Review = require('../models/Review');
 const Category = require('../models/Category');
 const TeamMember = require('../models/TeamMember');
 const Availability = require('../models/Availability');
-const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { pickRotationWeek, ownerPerforms, membersHoursReadiness, availabilityHasHours } = require('../utils/staffBooking');
 const { bookableMembersByProvider, performersOf, offeringSummary } = require('../utils/serviceOffering');
@@ -14,8 +13,8 @@ const { memberSlugMap, findMemberIdBySlug } = require('../utils/memberLink');
 const { publicProviderFilter, publicProviderIds } = require('../utils/publicProvider');
 
 // The member's effective week for a given date, or null when they have no weekly
-// schedule at all (then they have no hours of their own and every day without a
-// shift is closed). Rotation aware via the SAME helper the booking validator
+// schedule at all (then they have no hours of their own and every day is
+// closed). Rotation aware via the SAME helper the booking validator
 // uses, so the calendar and the rule it is previewing can never drift apart.
 const pickWeekFor = (availability) => {
     if (!availability) return null;
@@ -94,7 +93,7 @@ exports.getProviderStaff = async (req, res) => {
         // Each professional's personal booking-link handle (/b/<business>/<member>).
         const slugs = await memberSlugMap(req.params.id);
         // Can each professional be booked at all? A member with no working hours of
-        // their own (no weekly hours, no shift from today on) can't — nothing is
+        // their own (no weekly hours) can't — nothing is
         // inherited from the business — so their tile says "Not taking bookings
         // yet" instead of leading the client to a calendar with no times.
         const readiness = await membersHoursReadiness(staff.map((m) => m._id));
@@ -193,11 +192,11 @@ exports.getProviderStaffReviews = async (req, res) => {
 
 /**
  * GET /api/providers/:id/staff/:teamMemberId/shift-days?from=YYYY-MM-DD&to=YYYY-MM-DD
- * Public — the date-specific shifts a member has in a range, reduced to what the
- * customer date picker needs: which days they WORK — by their own shifts, else
- * their own weekly hours (open the day even if the business/owner is closed then)
+ * Public — which days a member WORKS in a range, for the customer date picker:
+ * by their own weekly hours (open the day even if the business/owner is closed then)
  * — and which they are OFF (close the day even if the business is open). The slot times
- * themselves still come from getBookedSlots once a date is chosen.
+ * themselves still come from getBookedSlots once a date is chosen. (The route
+ * keeps its old name; date-specific Shift rows are ignored.)
  *
  * Only date keys are returned — never slot times or notes — so the public
  * calendar learns which days to enable and nothing else about the roster.
@@ -218,7 +217,7 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         }
         // The owner is offered as a professional under the 'owner' sentinel
         // (getProviderStaff), which is not a TeamMember id — nor is any other
-        // non-ObjectId. The owner has no shifts or leave (they work business
+        // non-ObjectId. The owner has no staff hours or leave (they work business
         // hours), so return the same empty payload a missing member gets, BEFORE
         // the id reaches a Mongoose cast that would throw a 500 on this public
         // endpoint. The client then falls back to business hours, which is correct.
@@ -234,36 +233,25 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         if (!member) return res.status(200).json({ success: true, data: { working: [], off: [] } });
 
         const StaffAvailability = require('../models/StaffAvailability');
-        const [shifts, leaves, availability] = await Promise.all([
-            Shift.find({ teamMember: member._id, date: { $gte: from, $lte: to } }).select('date slots').lean(),
+        const [leaves, availability] = await Promise.all([
             // All-day approved leave overlapping the window closes those days.
             TimeOff.find({
                 teamMember: member._id, status: 'approved', allDay: true,
                 startDate: { $lte: to }, endDate: { $gte: from },
             }).select('startDate endDate').lean(),
-            // Their WEEKLY hours — which days they work at all, not just the dates
-            // someone rostered by hand.
-            // Only their own: the business's (owner's) hours never open or close
+            // Their WEEKLY hours — which days they work at all. Only their own: the business's (owner's) hours never open or close
             // a member's day — a member may work a day the owner is closed.
             StaffAvailability.findOne({ teamMember: member._id }).select('schedule rotation').lean(),
         ]);
 
         const workingSet = new Set();
         const offSet = new Set();
-        // An empty-slots shift is a rostered day off; anything else is a working day.
-        const shiftDates = new Set();
-        shifts.forEach((s) => {
-            shiftDates.add(s.date);
-            ((s.slots && s.slots.length) ? workingSet : offSet).add(s.date);
-        });
-
-        // Dates with NO hand-rostered shift fall to the member's weekly schedule —
-        // the same rule the booking validator enforces (staffHoursReason). Without
+        // Every date follows the member's weekly schedule — the same rule the booking validator enforces (staffHoursReason). Without
         // this the calendar left every business-open day selectable, so a member who
         // simply doesn't work Mondays showed Monday as pickable and the customer
         // only found out by opening it to a wall of greyed-out times. A member with
         // NO weekly hours of their own has no hours at all (nothing is inherited
-        // from the business), so every day without a shift is off. Every day
+        // from the business), so every day is off. Every day
         // their own week works is a working day — even one the business (owner)
         // is closed — however small the team.
         const hasWeekly = availabilityHasHours(availability);
@@ -276,7 +264,6 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         };
         for (let d = new Date(`${from}T00:00:00.000Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
             const key = d.toISOString().slice(0, 10);
-            if (shiftDates.has(key)) continue;   // a rostered shift is authoritative for its date
             const own = weekly ? periodsOn(weekly(key), key) : [];
             (own.length ? workingSet : offSet).add(key);
         }
@@ -288,7 +275,7 @@ exports.getProviderStaffShiftDays = async (req, res) => {
                 offSet.add(d.toISOString().slice(0, 10));
             }
         });
-        // Leave wins over a working shift: a member rostered on but on approved
+        // Leave wins over a working day: a member rostered on but on approved
         // leave is still away, so never report that day as workable.
         const working = [...workingSet].filter((d) => !offSet.has(d));
         const off = [...offSet];

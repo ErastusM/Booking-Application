@@ -244,9 +244,14 @@ describe('blocked time, breaks and leave count for the whole service', () => {
         expect((await book(ctx.other, { service: ctx.braids._id, teamMember: String(ctx.erastus._id), startTime: '07:30', endTime: '09:30' })).status).toBe(400);
     });
 
-    it('a shift break and approved leave at 15:00 stop a 2-hour 14:00', async () => {
+    it('blocked time and approved leave at 15:00 stop a 2-hour 14:00 (an old shift break does not)', async () => {
         const ctx = await setup();
-        await Shift.create({ provider: ctx.provider._id, teamMember: ctx.erastus._id, date: DATE, slots: [{ start: '08:00', end: '18:00' }], breaks: [{ start: '15:00', end: '16:00' }] });
+        // An old shift break at 15:00 is ignored…
+        await Shift.create({ provider: ctx.provider._id, teamMember: ctx.hilda._id, date: DATE, slots: [{ start: '08:00', end: '18:00' }], breaks: [{ start: '15:00', end: '16:00' }] });
+        expect((await book(ctx.customer, { service: ctx.braids._id, teamMember: String(ctx.hilda._id), startTime: '14:00', endTime: '16:00' })).status).toBe(201);
+        await Appointment.deleteMany({});
+        // …blocked time in the member's lane and approved leave are not.
+        await BlockedTime.create({ provider: ctx.provider._id, date: DATE, startTime: '15:00', endTime: '16:00', teamMember: ctx.erastus._id });
         await TimeOff.create({ provider: ctx.provider._id, teamMember: ctx.hilda._id, startDate: DATE, endDate: DATE, allDay: false, startTime: '15:00', endTime: '16:00', status: 'approved' });
         for (const m of [ctx.erastus, ctx.hilda]) {
             expect((await book(ctx.customer, { service: ctx.braids._id, teamMember: String(m._id), startTime: '14:00', endTime: '16:00' })).status).toBe(400);

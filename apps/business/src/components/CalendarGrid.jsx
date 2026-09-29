@@ -262,7 +262,7 @@ const CalendarGrid = ({
         // though it had already drawn.
         //
         // One person's own hours for the day (hoursByDate) win when present: their
-        // shift, else their weekly hours, else none — the whole day shaded,
+        // weekly hours, else none — the whole day shaded,
         // since nothing comes from the business's hours — plus their breaks and
         // part-day leave. `slots` null = no hours known (nothing shaded).
         const own = hoursByDate?.[dateKey(d)];

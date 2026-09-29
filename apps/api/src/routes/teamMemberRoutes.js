@@ -88,8 +88,8 @@ router.post('/:id/restore', auth, canManageTeam, restoreTeamMember);
 // nothing, so an old client learns the setting no longer exists.
 router.put('/:id/permissions', auth, ownerOnly, setTeamMemberPermissions);
 router.get('/:id/stats', auth, ownerOnly, getTeamMemberStats);
-// Date-specific working days. A shift replaces the weekly pattern for that
-// date; DELETE hands the date back to the pattern. (Owner-managed for now.)
+// Legacy date-specific shifts: kept so old clients don't break, but they no
+// longer affect anyone's hours (weekly Working Hours only; see models/Shift).
 router.get('/:id/shifts', auth, ownerOnly, getTeamMemberShifts);
 router.put('/:id/shifts', auth, ownerOnly, setTeamMemberShift);
 router.delete('/:id/shifts/:date', auth, ownerOnly, clearTeamMemberShift);

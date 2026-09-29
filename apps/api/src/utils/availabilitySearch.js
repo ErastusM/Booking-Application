@@ -16,7 +16,6 @@ const StaffAvailability = require('../models/StaffAvailability');
 const BlockedTime = require('../models/BlockedTime');
 const TeamMember = require('../models/TeamMember');
 const Appointment = require('../models/Appointment');
-const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
 const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms, availabilityHasHours } = require('./staffBooking');
@@ -110,12 +109,10 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     ]);
     const memberIds = members.map(m => m._id);
     // Roster shape for THIS date, mirroring the booking validator's precedence
-    // (staffHoursReason): approved leave overrides the roster, and a date-specific
-    // Shift REPLACES the weekly pattern. Without these the search surfaced openings
-    // the booking flow then rejects (a member on leave, or rostered off that day).
-    const [staffAvail, shifts, leaves] = await Promise.all([
+    // (staffHoursReason): approved leave overrides the weekly hours. Old Shift
+    // rows are ignored — weekly Working Hours are the only source.
+    const [staffAvail, leaves] = await Promise.all([
         StaffAvailability.find({ teamMember: { $in: memberIds } }).select('teamMember schedule rotation'),
-        Shift.find({ teamMember: { $in: memberIds }, date }).select('teamMember slots breaks'),
         TimeOff.find({
             teamMember: { $in: memberIds }, status: 'approved',
             startDate: { $lte: date }, endDate: { $gte: date },
@@ -126,7 +123,6 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     // Store the whole doc (schedule + rotation) so the rotation week can be
     // selected per date, mirroring the booking validator (staffBooking).
     const staffAvailByMember = new Map(staffAvail.map(a => [a.teamMember.toString(), a]));
-    const shiftByMember = new Map(shifts.map(s => [s.teamMember.toString(), s]));
     const leavesByMember = new Map();
     leaves.forEach((lv) => {
         const k = lv.teamMember.toString();
@@ -186,10 +182,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             });
 
             // Working windows, honouring the booking validator's precedence for a
-            // real member: approved leave → a date-specific Shift (which REPLACES
-            // the weekly pattern, its breaks becoming busy) → their own weekly
-            // pattern → nothing (no hours of their own = not bookable). The owner
-            // column works the business hours and has no Shift/TimeOff.
+            // real member: approved leave → their own weekly pattern → nothing
+            // (no hours of their own = not bookable). The owner column works the
+            // business hours and has no TimeOff.
             let blocks;
             if (memberId) {
                 const memberLeaves = leavesByMember.get(memberId) || [];
@@ -200,20 +195,13 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                 } else {
                     // Windowed leave → busy interval(s).
                     memberLeaves.forEach(lv => busy.push({ start: toMin(lv.startTime), end: toMin(lv.endTime) }));
-                    const shift = shiftByMember.get(memberId);
-                    if (shift) {
-                        blocks = mergeBlocks((shift.slots || [])
-                            .map(sl => ({ start: toMin(sl.start), end: toMin(sl.end) })));
-                        (shift.breaks || []).forEach(b => busy.push({ start: toMin(b.start), end: toMin(b.end) }));
+                    const ownDoc = staffAvailByMember.get(memberId);
+                    if (!availabilityHasHours(ownDoc)) {
+                        blocks = [];                    // no hours of their own: not bookable
                     } else {
-                        const ownDoc = staffAvailByMember.get(memberId);
-                        if (!availabilityHasHours(ownDoc)) {
-                            blocks = [];                    // no hours of their own: not bookable
-                        } else {
-                            // Rotation-aware: the week that applies on THIS date (or
-                            // the flat schedule when the member has no rotation).
-                            blocks = blocksFor(pickRotationWeek(ownDoc, date), date);
-                        }
+                        // Rotation-aware: the week that applies on THIS date (or
+                        // the flat schedule when the member has no rotation).
+                        blocks = blocksFor(pickRotationWeek(ownDoc, date), date);
                     }
                 }
             } else {

@@ -6,8 +6,8 @@ const mongoose = require('mongoose');
  *
  * This is deliberately distinct from the two single-date mechanisms it sits
  * beside:
- *   - a Shift with empty slots is a rostered day off for ONE date (roster
- *     shape), and
+ *   - a (legacy, now ignored) Shift with empty slots was a day off for ONE
+ *     date, and
  *   - a BlockedTime is a one-date timed block (lunch, a meeting).
  * Neither can say "Moses is on leave the 10th to the 20th" without repeating
  * itself eleven times, which is the gap this fills.

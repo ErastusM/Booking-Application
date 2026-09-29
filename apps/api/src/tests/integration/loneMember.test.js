@@ -11,7 +11,7 @@
  *   - lone member WITH hours of their own → THEIR hours, even on a day (or at
  *     an hour) the business is closed; never capped by the business's;
  *   - lone member with NO hours of their own → not bookable anywhere (D2);
- *   - a shift and approved leave apply to them as to anyone.
+ *   - approved leave applies to them as to anyone; old Shift rows are ignored.
  *
  * Every path that decides "who is bookable, when" must agree: named and "any
  * available" bookings, the booking page's busy list and date picker, the
@@ -130,11 +130,13 @@ describe('the only bookable member, with hours of their own: THEIR hours, never 
         expect(await Appointment.countDocuments({ recurrenceGroupId: series.body.data.recurrenceGroupId })).toBe(3);
     });
 
-    it('a shift still replaces her week for its date', async () => {
+    it('an old shift does not change her week for its date', async () => {
         const ctx = await shop();
-        await Shift.create({ provider: ctx.owner._id, teamMember: ctx.lina._id, date: DATE, slots: [{ start: '12:00', end: '16:00' }] });
+        await Shift.create({ provider: ctx.owner._id, teamMember: ctx.lina._id, date: DATE, slots: [{ start: '12:00', end: '19:00' }] });
+        // 18:00 is inside the shift but outside her weekly 09:00–17:00: still refused.
         expect((await book(ctx, { teamMember: String(ctx.lina._id) })).status).toBe(400);
-        expect((await book(ctx, { teamMember: String(ctx.lina._id), startTime: '12:00', endTime: '13:00' })).status).toBe(201);
+        // 10:00 is outside the shift but inside her week: bookable.
+        expect((await book(ctx, { teamMember: String(ctx.lina._id), startTime: '10:00', endTime: '11:00' })).status).toBe(201);
     });
 
     it('with a colleague on the roster, each works their own hours again', async () => {
@@ -199,12 +201,12 @@ describe('the only bookable member with NO hours of their own: not bookable (the
         expect(days.body.data).toEqual({ working: [], off: [DATE] });
     });
 
-    it('a shift ahead is hours of their own: bookable on it, and not "without hours"', async () => {
+    it('an old shift ahead is not hours of their own: still "without hours", not bookable on it', async () => {
         const ctx = await shop({ hours: null });
         await Shift.create({ provider: ctx.owner._id, teamMember: ctx.lina._id, date: NEXT, slots: [{ start: '09:00', end: '13:00' }] });
         const day = await slots(ctx, { teamMember: String(ctx.lina._id) });
         expect(day.hoursSource).toBe('none');
-        expect(day.memberHasHours).toBe(true); // just not on this day
-        expect((await book(ctx, { teamMember: String(ctx.lina._id), appointmentDate: NEXT, startTime: '09:00', endTime: '10:00' })).status).toBe(201);
+        expect(day.memberHasHours).toBe(false);
+        expect((await book(ctx, { teamMember: String(ctx.lina._id), appointmentDate: NEXT, startTime: '09:00', endTime: '10:00' })).status).toBe(400);
     });
 });

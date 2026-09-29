@@ -69,13 +69,13 @@ describe('hours come from the staff who actually work them', () => {
         expect((await bookAny(ctx, '18:00', '18:30')).status).toBe(400);
     });
 
-    it("a member's shift opens the evening for the whole view — and booking succeeds", async () => {
+    it("an old shift does not open the evening — only weekly hours do", async () => {
         const ctx = await setup();
         await Shift.create({ provider: ctx.provider._id, teamMember: ctx.bob._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
         const data = await slots(ctx);
-        // Bob covers 17:00–19:00 now (capped at business close for "any").
-        expect(busyAt(data, ['off_shift', 'appointment'], mins('17:00'), mins('19:00'))).toBe(false);
-        expect((await bookAny(ctx, '18:00', '18:30')).status).toBe(201);
+        // Nobody's weekly hours cover 17:00–19:00, shift or not.
+        expect(busyAt(data, ['off_shift'], mins('17:00'), mins('19:00'))).toBe(true);
+        expect((await bookAny(ctx, '18:00', '18:30')).status).toBe(400);
     });
 });
 

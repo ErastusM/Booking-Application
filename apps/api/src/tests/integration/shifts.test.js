@@ -1,19 +1,12 @@
 /**
- * Date-specific shifts, and the breaks inside them.
+ * Old date-specific shifts no longer change anyone's hours.
  *
- * The contract these exist to pin (models/Shift states it, this proves it):
- *
- *     a Shift for the date  →  the member's weekly pattern  →  no hours (not bookable)
- *
- * A shift REPLACES the pattern for that one date. That is the only way to say
- * "not in this Thursday" without editing every Thursday, so a shift with no
- * slots is a rostered day off — meaningfully different from having no shift row
- * at all, which falls back to the pattern.
- *
- * The second half matters just as much: a break has to be invisible to the
- * customer's slot picker, not merely refused at submit. Slots are computed on
- * the client from opening hours minus the busy list, so a break the client
- * never hears about is a slot the customer picks and is then rejected.
+ * The "Shifts" screen was removed in #249; the weekly Working Hours screen is
+ * now the only place hours are set. Shift rows saved before then are kept (no
+ * data is deleted) but ignored: a member's bookable hours are their weekly
+ * Working Hours only, minus their own blocked time and approved time off.
+ * These tests pin that a shift row — working hours, a break, or an empty
+ * "day off" — changes nothing, and that the legacy /shifts routes still work.
  */
 const request = require('supertest');
 const { futureDate } = require('../helpers/dates');
@@ -42,10 +35,8 @@ const everyDay = (start, end) => {
 const DATE = futureDate(0);
 // Pass the DATE STRING, exactly as production does (createAppointment forwards
 // req.body.appointmentDate untouched). Building `new Date('...T00:00:00')` here
-// made these tests pass only under UTC: in UTC+2 — the app's own production
-// timezone — local midnight is 22:00 the PREVIOUS day, so the shift lookup key
-// came out a day early and five of these tests silently exercised the weekly
-// pattern instead of the shift they had just created.
+// made these tests pass only under UTC (in UTC+2 local midnight is 22:00 the
+// PREVIOUS day, so the date key came out a day early).
 const asDate = () => DATE;
 const OTHER_DATE = futureDate(1);
 
@@ -66,8 +57,8 @@ const tryBook = ({ provider, customer, svc, member }, startTime, endTime) =>
         requestedTeamMember: member._id, requester: { role: 'customer', _id: customer._id },
     });
 
-describe('shift precedence', () => {
-    it('falls back to the weekly pattern when there is no shift', async () => {
+describe('a shift row never changes the weekly hours', () => {
+    it('uses the weekly pattern when there is no shift', async () => {
         const ctx = await setup();
         // A second bookable member, as in a real roster (a lone member is held to
         // their own weekly hours in exactly the same way — staffBookingMath).
@@ -77,15 +68,15 @@ describe('shift precedence', () => {
         expect((await tryBook(ctx, '08:00', '08:30')).error).toMatch(/working hours/i);
     });
 
-    it('a shift replaces the pattern for that date', async () => {
+    it('a shift for the date is ignored: the weekly pattern still decides', async () => {
         const ctx = await setup();
-        // Late start that day: 12:00–20:00 instead of the usual 09:00–17:00.
+        // An old 12:00–20:00 shift, against the usual 09:00–17:00.
         await Shift.create({ provider: ctx.provider._id, teamMember: ctx.member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
 
-        // 10:00 is inside the usual pattern but outside today's shift.
-        expect((await tryBook(ctx, '10:00', '10:30')).error).toMatch(/rostered/i);
-        // 19:00 is outside the pattern but inside today's shift.
-        expect((await tryBook(ctx, '19:00', '19:30')).teamMember).toBeTruthy();
+        // 10:00 is inside the weekly pattern: bookable, whatever the shift says.
+        expect((await tryBook(ctx, '10:00', '10:30')).teamMember).toBeTruthy();
+        // 19:00 is outside the weekly pattern: the shift does not open it.
+        expect((await tryBook(ctx, '19:00', '19:30')).error).toMatch(/working hours/i);
     });
 
     it('leaves other dates on the weekly pattern', async () => {
@@ -101,15 +92,14 @@ describe('shift precedence', () => {
         expect(res.teamMember).toBeTruthy();
     });
 
-    // The case a weekly pattern cannot express.
-    it('a shift with no slots is a day off', async () => {
+    it('a shift with no slots is no longer a day off', async () => {
         const ctx = await setup();
         await Shift.create({ provider: ctx.provider._id, teamMember: ctx.member._id, date: DATE, slots: [] });
 
-        expect((await tryBook(ctx, '10:00', '10:30')).error).toMatch(/rostered/i);
+        expect((await tryBook(ctx, '10:00', '10:30')).teamMember).toBeTruthy();
     });
 
-    it('refuses a booking that lands on a break', async () => {
+    it('a shift break no longer closes time', async () => {
         const ctx = await setup();
         await Shift.create({
             provider: ctx.provider._id, teamMember: ctx.member._id, date: DATE,
@@ -117,17 +107,12 @@ describe('shift precedence', () => {
             breaks: [{ start: '13:00', end: '14:00', label: 'Lunch' }],
         });
 
-        expect((await tryBook(ctx, '13:30', '14:00')).error).toMatch(/break/i);
-        // Either side of it is fine.
-        expect((await tryBook(ctx, '12:00', '12:30')).teamMember).toBeTruthy();
-        expect((await tryBook(ctx, '14:00', '14:30')).teamMember).toBeTruthy();
+        expect((await tryBook(ctx, '13:30', '14:00')).teamMember).toBeTruthy();
     });
 });
 
 describe('what the customer is shown', () => {
-    // Enforcing at submit but not at display means offering a slot and then
-    // refusing it — correct, and a terrible experience.
-    it('reports breaks and off-shift hours as busy', async () => {
+    it('shows only the weekly hours as closed — never a shift or its break', async () => {
         const { provider, member } = await setup();
         await Shift.create({
             provider: provider._id, teamMember: member._id, date: DATE,
@@ -139,17 +124,15 @@ describe('what the customer is shown', () => {
             .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
 
         expect(res.status).toBe(200);
+        expect(res.body.hoursSource).toBe('weekly');
         const kinds = res.body.data.map((b) => b.kind);
-        expect(kinds).toContain('break');
-        expect(kinds).toContain('off_shift');
-
-        const lunch = res.body.data.find((b) => b.kind === 'break');
-        expect(lunch.startTime).toBe('13:00');
-        expect(lunch.endTime).toBe('14:00');
-        // Before and after the shift are both blocked out.
+        expect(kinds).not.toContain('break');
+        // Outside the weekly 09:00–17:00 is closed, and nothing else.
         const off = res.body.data.filter((b) => b.kind === 'off_shift');
-        expect(off.some((b) => b.startTime === '00:00' && b.endTime === '09:00')).toBe(true);
-        expect(off.some((b) => b.startTime === '17:00')).toBe(true);
+        expect(off).toEqual([
+            { startTime: '00:00', endTime: '09:00', kind: 'off_shift' },
+            { startTime: '17:00', endTime: '23:59', kind: 'off_shift' },
+        ]);
     });
 
     it('says nothing about shifts when no staff member is named', async () => {
@@ -165,32 +148,31 @@ describe('what the customer is shown', () => {
         expect(res.body.shiftWindow).toBeNull();
     });
 
-    // The positive half of the picture: the member's working window, so the
-    // customer slot picker can offer a shift that runs past published closing.
-    it('returns the member\'s shift window so the picker can extend its hours', async () => {
+    // shiftWindow stays in the payload for older clients, but is always null:
+    // the member's weekly window (memberWindow) is what the picker uses.
+    it('never hands back a shift window, even with a shift that day', async () => {
         const { provider, member } = await setup();
-        // Business hours are 08:00–18:00 (setup); this shift runs to 20:00.
         await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
 
         const res = await request(app)
             .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
 
-        expect(res.body.shiftWindow).toEqual([{ start: '12:00', end: '20:00' }]);
+        expect(res.body.shiftWindow).toBeNull();
+        expect(res.body.memberWindow).toEqual([{ start: '09:00', end: '17:00' }]);
     });
 
-    // An empty window is a rostered day off — distinct from null (no shift), so
-    // the picker shows nothing rather than falling back to business hours.
-    it('returns an empty window, not null, for a rostered day off', async () => {
+    it('an empty (day off) shift does not close the day', async () => {
         const { provider, member } = await setup();
         await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [] });
 
         const res = await request(app)
             .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
 
-        expect(res.body.shiftWindow).toEqual([]);
+        expect(res.body.shiftWindow).toBeNull();
+        expect(res.body.hoursSource).toBe('weekly');
+        expect(res.body.data.some((b) => b.startTime === '00:00' && b.endTime === '23:59')).toBe(false);
     });
 
-    // No shift for the date → null, and the picker keeps using business hours.
     it('hands back null when the member has no shift that day', async () => {
         const { provider, member } = await setup();
 
@@ -201,14 +183,13 @@ describe('what the customer is shown', () => {
     });
 });
 
-// The customer date picker keys off provider-wide hours, so it needs to know
-// which days a chosen member's roster diverges from them: days they cover that
-// the business is closed for, and days they are off that it is open.
-describe('a member\'s shift days for the customer calendar', () => {
+// The customer date picker's working/off days (the route keeps its old
+// "shift-days" name) come from the weekly hours only.
+describe('a member\'s working days for the customer calendar', () => {
     const shiftDays = (provider, member, from, to) =>
         request(app).get(`/api/providers/${provider._id}/staff/${member._id}/shift-days?from=${from}&to=${to}`);
 
-    it('splits the range into working days and days off', async () => {
+    it('ignores shifts: an empty "day off" shift leaves a weekly working day working', async () => {
         const { provider, member } = await setup();
         await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '09:00', end: '13:00' }] });
         await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [] });
@@ -216,8 +197,8 @@ describe('a member\'s shift days for the customer calendar', () => {
         const res = await shiftDays(provider, member, DATE, OTHER_DATE);
 
         expect(res.status).toBe(200);
-        expect(res.body.data.working).toEqual([DATE]);
-        expect(res.body.data.off).toEqual([OTHER_DATE]);
+        expect(res.body.data.working).toEqual([DATE, OTHER_DATE]);
+        expect(res.body.data.off).toEqual([]);
     });
 
     it('never returns slot times or notes — only which days', async () => {
@@ -263,15 +244,14 @@ describe('a member\'s shift days for the customer calendar', () => {
     });
 });
 
-// Shifts were enforced when a booking was CREATED and nowhere else, so a
-// customer could book a legal slot and then reschedule straight onto the
-// member's rostered day off — auto-confirmed, no override needed.
-describe('rescheduling respects the roster', () => {
+// Rescheduling is held to the member's weekly hours — never to a shift row.
+describe('rescheduling follows the weekly hours', () => {
     const Appointment = require('../../models/Appointment');
 
-    it('refuses a customer moving a booking onto a rostered day off', async () => {
+    it('refuses a customer moving a booking outside the weekly hours', async () => {
         const { provider, customer, svc, member } = await setup();
-        await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [] });
+        // An old shift covering 18:00 does not open it.
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [{ start: '12:00', end: '20:00' }] });
 
         const appt = await Appointment.create({
             customer: customer._id, service: svc._id, provider: provider._id, teamMember: member._id,
@@ -282,16 +262,16 @@ describe('rescheduling respects the roster', () => {
         const res = await request(app)
             .put(`/api/appointments/${appt._id}/reschedule`)
             .set(authHeader(customer))
-            .send({ appointmentDate: OTHER_DATE, startTime: '10:00' });
+            .send({ appointmentDate: OTHER_DATE, startTime: '18:00' });
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/rostered/i);
+        expect(res.body.message).toMatch(/working hours/i);
         // And it really did not move.
         expect((await Appointment.findById(appt._id)).startTime).toBe('10:00');
         expect((await Appointment.findById(appt._id)).appointmentDate.toISOString().slice(0, 10)).toBe(DATE);
     });
 
-    it('refuses a customer moving a booking onto a break', async () => {
+    it('lets a customer move a booking onto an old shift\'s break or day off', async () => {
         const { provider, customer, svc, member } = await setup();
         await Shift.create({
             provider: provider._id, teamMember: member._id, date: OTHER_DATE,
@@ -310,15 +290,14 @@ describe('rescheduling respects the roster', () => {
             .set(authHeader(customer))
             .send({ appointmentDate: OTHER_DATE, startTime: '13:15' });
 
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/break/i);
+        expect(res.status).toBe(200);
+        expect((await Appointment.findById(appt._id)).startTime).toBe('13:15');
     });
 });
 
-// A shift REPLACES business hours for that member on that date, so a member
-// rostered to cover a slot the business is normally closed for must actually be
-// bookable there. Business hours here are 08:00–18:00; the shift runs to 20:00.
-describe('a shift can be sold outside business hours', () => {
+// A shift no longer opens time outside the member's weekly hours. Business
+// hours here are 08:00–18:00; the weekly hours 09:00–17:00; the shift to 20:00.
+describe('a shift no longer opens time outside the weekly hours', () => {
     const Appointment = require('../../models/Appointment');
     // 19:00 is outside the 08:00–18:00 business day but inside a 12:00–20:00 shift.
     const OUT_OF_HOURS = '19:00';
@@ -336,29 +315,18 @@ describe('a shift can be sold outside business hours', () => {
         expect(await Appointment.countDocuments({ teamMember: member._id })).toBe(0);
     });
 
-    it('allows it for a member whose shift covers that time', async () => {
+    it('refuses it even when an old shift covers that time', async () => {
         const { provider, customer, svc, member } = await setup();
         await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
 
         const res = await book(customer, svc, member, OUT_OF_HOURS, '19:30');
 
-        expect(res.status).toBe(201);
-        expect(res.body.data.teamMember).toBe(member._id.toString());
-    });
-
-    // The gate stands down, but the per-staff check does not: a slot the shift
-    // itself doesn't cover is still refused, with the roster's own message.
-    it('still refuses a time the shift does not cover', async () => {
-        const { provider, customer, svc, member } = await setup();
-        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
-
-        // 21:00 is outside business hours AND outside the shift.
-        const res = await book(customer, svc, member, '21:00', '21:30');
         expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/rostered/i);
+        expect(res.body.message).toMatch(/working hours/i);
+        expect(await Appointment.countDocuments({ teamMember: member._id })).toBe(0);
     });
 
-    it('lets a customer reschedule onto a shift-covered out-of-hours slot', async () => {
+    it('refuses a customer rescheduling onto a shift-covered out-of-hours slot', async () => {
         const { provider, customer, svc, member } = await setup();
         await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [{ start: '12:00', end: '20:00' }] });
 
@@ -373,45 +341,61 @@ describe('a shift can be sold outside business hours', () => {
             .set(authHeader(customer))
             .send({ appointmentDate: OTHER_DATE, startTime: OUT_OF_HOURS });
 
-        expect(res.status).toBe(200);
-        expect((await Appointment.findById(appt._id)).startTime).toBe(OUT_OF_HOURS);
+        expect(res.status).toBe(400);
+        expect((await Appointment.findById(appt._id)).startTime).toBe('10:00');
     });
 });
 
-// A single booking is gated by the roster; a recurring series used to insert
-// every occurrence blind, booking straight through a member's rostered day off.
-describe('a recurring series respects the roster', () => {
+// A recurring series is gated by the weekly hours and approved leave per
+// occurrence; an old "day off" shift no longer skips one.
+describe('a recurring series follows the weekly hours and leave', () => {
     const Appointment = require('../../models/Appointment');
     // DATE is a Wednesday; a weekly series lands on the next two Wednesdays too.
     const WEEK_1 = futureDate(7);
     const WEEK_2 = futureDate(14);
 
-    it('skips the occurrences the member is rostered off, keeps the rest', async () => {
+    const series = (customer, svc, member) => request(app)
+        .post('/api/appointments')
+        .set(authHeader(customer))
+        .send({
+            service: svc._id.toString(), appointmentDate: DATE,
+            startTime: '10:00', endTime: '10:30', teamMember: member._id.toString(),
+            isRecurring: true, recurrenceType: 'weekly', recurrenceEndDate: WEEK_2,
+        });
+    const bookedDays = async (member) => (await Appointment.find({ teamMember: member._id }).select('appointmentDate').lean())
+        .map((a) => a.appointmentDate.toISOString().slice(0, 10));
+
+    it('an old "day off" shift no longer skips an occurrence', async () => {
         const { provider, customer, svc, member } = await setup();
-        // Rostered off on the middle occurrence only.
         await Shift.create({ provider: provider._id, teamMember: member._id, date: WEEK_1, slots: [] });
 
-        const res = await request(app)
-            .post('/api/appointments')
-            .set(authHeader(customer))
-            .send({
-                service: svc._id.toString(), appointmentDate: DATE,
-                startTime: '10:00', endTime: '10:30', teamMember: member._id.toString(),
-                isRecurring: true, recurrenceType: 'weekly', recurrenceEndDate: WEEK_2,
-            });
+        const res = await series(customer, svc, member);
+
+        expect(res.status).toBe(201);
+        expect(res.body.skippedDates || []).not.toContain(WEEK_1);
+        expect(await bookedDays(member)).toEqual(expect.arrayContaining([DATE, WEEK_1, WEEK_2]));
+    });
+
+    it('skips an occurrence the member is on approved leave for, keeps the rest', async () => {
+        const { provider, customer, svc, member } = await setup();
+        const TimeOff = require('../../models/TimeOff');
+        await TimeOff.create({ provider: provider._id, teamMember: member._id, startDate: WEEK_1, endDate: WEEK_1, allDay: true, status: 'approved', type: 'vacation' });
+
+        const res = await series(customer, svc, member);
 
         expect(res.status).toBe(201);
         expect(res.body.skippedDates).toContain(WEEK_1);
 
-        const days = (await Appointment.find({ teamMember: member._id }).select('appointmentDate').lean())
-            .map((a) => a.appointmentDate.toISOString().slice(0, 10));
+        const days = await bookedDays(member);
         expect(days).toContain(DATE);       // first occurrence
         expect(days).toContain(WEEK_2);     // last occurrence
-        expect(days).not.toContain(WEEK_1); // the rostered day off
+        expect(days).not.toContain(WEEK_1); // on leave
     });
 });
 
-describe('managing shifts', () => {
+// The legacy routes still work (nothing crashes, nothing is deleted), but what
+// they store has no effect on hours.
+describe('managing shifts (legacy routes)', () => {
     const put = (provider, member, body) =>
         request(app).put(`/api/team/${member._id}/shifts`).set(authHeader(provider)).send(body);
 
@@ -474,17 +458,17 @@ describe('managing shifts', () => {
         expect(res.body.message).toMatch(/end after/i);
     });
 
-    it('clearing a shift hands the date back to the weekly pattern', async () => {
+    it('saving or clearing a shift never changes the weekly hours', async () => {
         const ctx = await setup();
         await put(ctx.provider, ctx.member, { date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
-        expect((await tryBook(ctx, '10:00', '10:30')).error).toMatch(/rostered/i);
+        expect((await tryBook(ctx, '10:00', '10:30')).teamMember).toBeTruthy();
 
         const res = await request(app)
             .delete(`/api/team/${ctx.member._id}/shifts/${DATE}`)
             .set(authHeader(ctx.provider));
         expect(res.status).toBe(200);
 
-        // Back on their usual 09:00–17:00.
+        // Still their usual 09:00–17:00.
         expect((await tryBook(ctx, '10:00', '10:30')).teamMember).toBeTruthy();
     });
 

@@ -1,8 +1,8 @@
 /**
  * Re-audit batch B — MEDIUM correctness (availability / scheduling):
- *   1. Marketplace availability search ignored approved time-off and date-specific
- *      shifts, surfacing openings the booking flow then rejects. It now mirrors the
- *      booking validator's precedence (leave → shift replaces weekly → weekly).
+ *   1. Marketplace availability search ignored approved time-off, surfacing
+ *      openings the booking flow then rejects. It now mirrors the booking
+ *      validator (leave → weekly hours; old Shift rows are ignored).
  *   2. getBookedSlots' "any professional" view re-emitted OWNER-ONLY blocks as
  *      'blocked', greying out slots the team can still take. Now none of the
  *      owner's blocks are re-emitted (they never close a team member).
@@ -52,7 +52,7 @@ const shopWithAlice = async () => {
     return { provider, svc, alice };
 };
 
-describe('B1 — availability search honours approved leave and shifts', () => {
+describe('B1 — availability search honours approved leave, ignores old shifts', () => {
     it('excludes a provider whose only member is on approved all-day leave', async () => {
         const { provider, alice } = await shopWithAlice();
         const date = soon();
@@ -69,17 +69,16 @@ describe('B1 — availability search honours approved leave and shifts', () => {
         expect(results.some(r => r.provider === provider._id.toString())).toBe(false);
     });
 
-    it('a date-specific shift replaces the weekly pattern (openings only within the shift)', async () => {
+    it('an old date-specific shift does not narrow the weekly hours', async () => {
         const { provider, alice } = await shopWithAlice();
         const date = soon();
-        // Alice works only 10:00–11:00 this date, not her usual 08:00–19:00.
+        // An old shift says 10:00–11:00; her weekly hours are 08:00–19:00.
         await Shift.create({ provider: provider._id, teamMember: alice._id, date, slots: [{ start: '10:00', end: '11:00' }], breaks: [] });
 
         const results = await searchAvailability({ date, duration: 30 });
         const mine = results.find(r => r.provider === provider._id.toString());
         expect(mine).toBeTruthy();
-        expect(mine.openings[0]).toBe('10:00'); // not 08:00 — the shift window governs
-        expect(mine.openings.every(o => o >= '10:00' && o <= '10:30')).toBe(true);
+        expect(mine.openings[0]).toBe('08:00'); // the weekly hours govern
     });
 });
 

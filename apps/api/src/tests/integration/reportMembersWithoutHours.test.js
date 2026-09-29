@@ -2,8 +2,8 @@
  * The deploy report of who stops being bookable (scripts/report_members_without_hours.js).
  *
  * Read-only and counts only: per business, how many active, bookable team
- * members have no working hours of their own (no weekly hours, no shift from
- * today on). It must never print a name, email or phone, and never write.
+ * members have no working hours of their own (no weekly hours; old Shift rows
+ * don't count). It must never print a name, email or phone, and never write.
  */
 const testDb = require('../helpers/testDb');
 const { makeProvider, makeUser, makeService, everyDayHours, giveHours } = require('../helpers/factories');
@@ -29,6 +29,7 @@ describe('report_members_without_hours', () => {
         });
         const withHours = await mk(vido, 'Erastus Weekly');
         await giveHours(withHours, everyDayHours('08:00', '17:00'));
+        // Old shifts — future or past — are not hours: both count as without.
         const shiftOnly = await mk(vido, 'Hilda Shift');
         await Shift.create({ provider: vido._id, teamMember: shiftOnly._id, date: '2026-10-01', slots: [{ start: '09:00', end: '13:00' }] });
         const pastShift = await mk(vido, 'Basic Pastshift');
@@ -65,15 +66,15 @@ describe('report_members_without_hours', () => {
         const rows = await membersWithoutHours({ today: TODAY });
 
         expect(rows).toEqual([
-            { business: String(vido._id), withoutHours: 2, bookable: 4, upcomingBookings: 2, waiting: 1 },
+            { business: String(vido._id), withoutHours: 3, bookable: 4, upcomingBookings: 2, waiting: 1 },
             { business: String(other._id), withoutHours: 1, bookable: 1, upcomingBookings: 0, waiting: 0 },
         ]);
         // Read-only.
         expect(await StaffAvailability.countDocuments()).toBe(before);
 
         const lines = report(rows).join('\n');
-        expect(lines).toContain(`business ${vido._id}: 2 of 4 bookable member(s) without hours · 2 upcoming booking(s) and 1 waiting-list place(s) with them`);
-        expect(lines).toContain('3 active, bookable team member(s) in 2 business(es)');
+        expect(lines).toContain(`business ${vido._id}: 3 of 4 bookable member(s) without hours · 2 upcoming booking(s) and 1 waiting-list place(s) with them`);
+        expect(lines).toContain('4 active, bookable team member(s) in 2 business(es)');
         // Counts only — nobody's details in a deploy log.
         ['Lina', 'Basic', 'Sam', 'private.test', '+26481', 'Vido'].forEach((s) => expect(lines).not.toContain(s));
     });

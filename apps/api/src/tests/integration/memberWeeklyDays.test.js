@@ -3,7 +3,7 @@
  *
  * Per-member weekly hours were already enforced when a booking was submitted,
  * and the TIME picker already greyed the hours outside them. But the DAY picker
- * only knew about hand-rostered shifts and approved leave, so a member who
+ * only knew about hand-rostered shifts (now ignored) and approved leave, so a member who
  * simply doesn't work Mondays showed Monday as selectable — the customer found
  * out by opening it to a wall of unavailable times.
  *
@@ -59,7 +59,7 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
         expect(working).not.toEqual(expect.arrayContaining(['2026-09-19', '2026-09-20']));
     });
 
-    it('a hand-rostered shift still wins over the weekly schedule', async () => {
+    it('an old hand-rostered shift no longer changes the weekly days', async () => {
         const { owner, erastus } = await setup(weekdaysOnly);
         // Rostered ON a Saturday he normally has off...
         await Shift.create({ provider: owner._id, teamMember: erastus._id, date: '2026-09-19', slots: [{ start: '09:00', end: '13:00' }] });
@@ -70,13 +70,13 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
             .get(`/api/providers/${owner._id}/staff/${erastus._id}/shift-days?from=2026-09-14&to=2026-09-20`);
 
         const { working, off } = days(res);
-        expect(working).toContain('2026-09-19');
-        expect(off).toContain('2026-09-14');
+        expect(off).toContain('2026-09-19');     // still his Saturday off
+        expect(working).toContain('2026-09-14'); // still his working Monday
     });
 
     // The owner's answer: a member with no hours of their own is not bookable.
     // They used to inherit the business's days here (nothing narrowed).
-    it('a member with no weekly schedule has every day off — except a day they have a shift', async () => {
+    it('a member with no weekly schedule has every day off — a shift changes nothing', async () => {
         const { owner, erastus } = await setup(null);
         await Shift.create({ provider: owner._id, teamMember: erastus._id, date: '2026-09-16', slots: [{ start: '09:00', end: '13:00' }] });
 
@@ -84,8 +84,8 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
             .get(`/api/providers/${owner._id}/staff/${erastus._id}/shift-days?from=2026-09-14&to=2026-09-20`);
 
         const { working, off } = days(res);
-        expect(working).toEqual(['2026-09-16']);
-        expect(off.sort()).toEqual(['2026-09-14', '2026-09-15', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20']);
+        expect(working).toEqual([]);
+        expect(off.sort()).toEqual(['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20']);
     });
 
     // A business's only bookable member works their OWN hours, like anyone (the

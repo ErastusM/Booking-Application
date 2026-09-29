@@ -2,14 +2,14 @@
  * A team member with no working hours of their own can't be booked.
  *
  * The owner's answer: "They shouldn't be bookable." Until now a member with no
- * shift that day and no weekly hours fell back to the BUSINESS's hours, so
+ * weekly hours fell back to the BUSINESS's hours, so
  * clients could book them all day while their own Availability screen said
  * "Clients can't book you until you set your hours". Now nothing is inherited:
  *
- *   - no shift that day + no weekly hours = not bookable that day, everywhere
+ *   - no weekly hours = not bookable, everywhere
  *     the server decides (booking, any professional, search, waiting list,
  *     reschedule, a member's own walk-ins) — reason 'no_hours';
- *   - a shift is hours: a shift-only member is bookable on the shift's date;
+ *   - an old Shift row is NOT hours: a shift-only member is not bookable;
  *   - the owner's own column still works the business's hours, and the owner
  *     can still book anyone outside hours (their override);
  *   - existing bookings are never touched;
@@ -119,26 +119,14 @@ describe('booking a member with no hours of their own', () => {
     });
 });
 
-describe('a shift is hours of their own', () => {
-    it('a shift-only member is bookable on the shift\'s date, and only then', async () => {
+describe('an old shift is not hours of their own', () => {
+    it('a shift-only member is not bookable, not even on the shift\'s date', async () => {
         const ctx = await shop();
         await Shift.create({ provider: ctx.owner._id, teamMember: ctx.john._id, date: DATE, slots: [{ start: '09:00', end: '13:00' }] });
-        expect((await book(ctx, { teamMember: ctx.john._id.toString() })).status).toBe(201);
-        const nextWeek = await book(ctx, { teamMember: ctx.john._id.toString(), appointmentDate: NEXT_WEEK });
-        expect(nextWeek.status).toBe(400);
-        expect(nextWeek.body.message).toMatch(/no working hours/i);
-    });
-
-    it('a weekly series for a shift-only member keeps the shift date and skips the rest', async () => {
-        const ctx = await shop();
-        await Shift.create({ provider: ctx.owner._id, teamMember: ctx.john._id, date: DATE, slots: [{ start: '09:00', end: '13:00' }] });
-        const res = await book(ctx, {
-            teamMember: ctx.john._id.toString(), isRecurring: true, recurrenceType: 'weekly',
-            recurrenceInterval: 1, recurrenceEndDate: futureDate(14),
-        });
-        expect(res.status).toBe(201);
-        expect(res.body.skippedDates).toEqual([NEXT_WEEK, futureDate(14)]);
-        expect(await Appointment.countDocuments({ teamMember: ctx.john._id })).toBe(1);
+        const onShift = await book(ctx, { teamMember: ctx.john._id.toString() });
+        expect(onShift.status).toBe(400);
+        expect(onShift.body.message).toMatch(/no working hours/i);
+        expect(await Appointment.countDocuments({ teamMember: ctx.john._id })).toBe(0);
     });
 });
 
@@ -158,13 +146,13 @@ describe('what the client sees', () => {
         expect(owner.body.hoursSource).toBe('business');
     });
 
-    it('shift-days: every day without a shift is off', async () => {
+    it('shift-days: a member with no weekly hours is off every day, shift or not', async () => {
         const ctx = await shop();
         await Shift.create({ provider: ctx.owner._id, teamMember: ctx.john._id, date: DATE, slots: [{ start: '09:00', end: '13:00' }] });
         const res = await request(app)
             .get(`/api/providers/${ctx.owner._id}/staff/${ctx.john._id}/shift-days?from=${futureDate(-1)}&to=${futureDate(1)}`);
-        expect(res.body.data.working).toEqual([DATE]);
-        expect(res.body.data.off.sort()).toEqual([futureDate(-1), futureDate(1)]);
+        expect(res.body.data.working).toEqual([]);
+        expect(res.body.data.off.sort()).toEqual([futureDate(-1), DATE, futureDate(1)]);
     });
 
     it('the professional tiles say who can be booked (hasHours); the owner always can', async () => {
@@ -176,7 +164,8 @@ describe('what the client sees', () => {
 
         const res = await request(app).get(`/api/providers/${ctx.owner._id}/staff`);
         const by = Object.fromEntries(res.body.data.map((m) => [m.name, m.hasHours]));
-        expect(by).toMatchObject({ 'Vido Barber': true, John: false, Lina: true, Shifty: true, 'Long Ago': false });
+        // Only weekly hours count: a future shift no longer makes anyone ready.
+        expect(by).toMatchObject({ 'Vido Barber': true, John: false, Lina: true, Shifty: false, 'Long Ago': false });
     });
 
     it('search: members with no hours add no openings; the owner\'s column still does', async () => {

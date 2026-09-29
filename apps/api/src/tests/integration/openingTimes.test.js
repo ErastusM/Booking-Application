@@ -70,12 +70,13 @@ describe('booked-slots tells the time list each period\'s opening time', () => {
         expect(body.hoursSource).toBe('weekly');
     });
 
-    it('a shift\'s own periods — even past the business\'s closing', async () => {
+    it('never an old shift\'s periods — the weekly ones', async () => {
         const provider = await makeProvider();
         await Availability.create({ provider: provider._id, schedule: everyDayHours('08:00', '18:00') });
         const erastus = await TeamMember.create({ provider: provider._id, name: 'Erastus' });
+        await giveHours(erastus, everyDayHours('08:00', '19:00'));
         await Shift.create({ provider: provider._id, teamMember: erastus._id, date: DATE, slots: [{ start: '09:15', end: '12:00' }, { start: '17:30', end: '21:00' }] });
-        expect((await slots(provider, { teamMember: erastus._id.toString() })).openings).toEqual(['09:15', '17:30']);
+        expect((await slots(provider, { teamMember: erastus._id.toString() })).openings).toEqual(['08:00']);
     });
 
     it('none for a member with no hours that day', async () => {

@@ -10,7 +10,7 @@
  *     on without times, no closing before opening) and read back identically
  *   - GET /api/team/:id/hours returns one person's hours for a date by the same
  *     rules bookings are checked against (owner = business hours; member =
- *     leave → shift → weekly within business hours → none: not bookable)
+ *     leave → their own weekly hours → none: not bookable; old shifts ignored)
  *   - a Saturday is read as Saturday, and a customer booking agrees with it
  */
 process.env.TZ = 'UTC';
@@ -157,12 +157,12 @@ describe('GET /api/team/:id/hours — one person\'s hours on a date', () => {
         expect(res.body.data.business).toEqual([{ start: '09:00', end: '14:00' }]);
     });
 
-    it('a shift replaces the weekly hours for its date, and its break is busy', async () => {
+    it('an old shift is ignored: the weekly hours stand (Saturday stays off), no break', async () => {
         const { owner, erastus } = await team();
         await Shift.create({ provider: owner._id, teamMember: erastus._id, date: SAT, slots: [{ start: '10:00', end: '16:00' }], breaks: [{ start: '12:00', end: '12:30' }] });
         const res = await hours(owner, erastus._id, SAT).expect(200);
-        expect(res.body.data).toMatchObject({ source: 'shift', slots: [{ start: '10:00', end: '16:00' }] });
-        expect(res.body.data.busy).toEqual([{ startTime: '12:00', endTime: '12:30', kind: 'break' }]);
+        expect(res.body.data).toMatchObject({ source: 'weekly', slots: [] });
+        expect(res.body.data.busy).toEqual([]);
     });
 
     it('approved all-day leave closes the day', async () => {

@@ -172,10 +172,9 @@ describe('team member stats', () => {
         expect(res.body.data.upcoming).toBe(1);
     });
 
-    // Occupancy is shift-aware: a date-specific shift REPLACES the weekly pattern
-    // for its day (models/Shift), so a rostered day off is zero scheduled time,
-    // not a full day that drags the figure down.
-    it('treats a rostered day off as zero scheduled minutes, not a full day', async () => {
+    // Occupancy's scheduled time is the weekly hours only: old Shift rows are
+    // ignored, the same as for bookings.
+    it('ignores an old "day off" shift: the day still counts its weekly hours', async () => {
         const { provider, member } = await setup();
         const everyDay = {};
         DAYS7.forEach((d) => { everyDay[d] = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] }; }); // 480/day
@@ -187,12 +186,11 @@ describe('team member stats', () => {
             .get(`/api/team/${member._id}/stats?days=3`)
             .set(authHeader(provider));
 
-        // Three days at 480, minus the single day off.
-        expect(res.body.data.scheduledMinutes).toBe(3 * 480 - 480);
+        // Three weekly days at 480; the shift changes nothing.
+        expect(res.body.data.scheduledMinutes).toBe(3 * 480);
     });
 
-    // A working shift counts its OWN hours minus its breaks, not the pattern's.
-    it('counts a shift\'s own hours, less its breaks', async () => {
+    it('ignores an old working shift and its break', async () => {
         const { provider, member } = await setup();
         const everyDay = {};
         DAYS7.forEach((d) => { everyDay[d] = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] }; }); // 480/day
@@ -208,8 +206,8 @@ describe('team member stats', () => {
             .get(`/api/team/${member._id}/stats?days=3`)
             .set(authHeader(provider));
 
-        // Two pattern days at 480, plus the shift day at 240 − 30.
-        expect(res.body.data.scheduledMinutes).toBe(2 * 480 + 210);
+        // Three weekly days at 480; the shift and its break change nothing.
+        expect(res.body.data.scheduledMinutes).toBe(3 * 480);
     });
 
     it('refuses another provider\'s team member', async () => {
