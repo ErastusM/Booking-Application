@@ -109,6 +109,40 @@ const MemberBookingLinkCard = ({ profile, userName }) => {
     );
 };
 
+// "Email": whether the owner clicked the confirmation link we emailed at sign-up
+// (user.isVerified). It isn't a business check, so it says what it is, and an
+// unconfirmed address gets a one-tap way to send the link again.
+export const EmailConfirmedRow = ({ user }) => {
+    const toast = useToast();
+    const [sending, setSending] = useState(false);
+    const [sent, setSent] = useState(false);
+    const confirmed = !!user?.isVerified;
+    const resend = async () => {
+        if (!user?.email || sending) return;
+        setSending(true);
+        try {
+            await authService.resendVerification(user.email);
+            setSent(true);
+            toast(`Link sent to ${user.email}. Check your inbox (and spam folder).`, 'success');
+        } catch {
+            toast("Couldn't send the link right now. Please try again shortly.", 'error');
+        } finally { setSending(false); }
+    };
+    return (
+        <div className="acct-detail-row" data-testid="email-confirmed-row">
+            <span className="acct-label">Email status</span>
+            <span className="acct-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.35rem' }}>
+                <span style={{ color: confirmed ? 'var(--success-fg)' : 'var(--warning-fg)', fontWeight: '600' }}>{confirmed ? 'Email confirmed' : 'Email not confirmed'}</span>
+                {!confirmed && (
+                    <button type="button" onClick={resend} disabled={sending || sent} className="btn-outline" style={{ minHeight: '40px', padding: '0 0.9rem', fontSize: '0.85rem' }}>
+                        {sending ? 'Sending…' : sent ? 'Link sent' : 'Send the link again'}
+                    </button>
+                )}
+            </span>
+        </div>
+    );
+};
+
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
     const isStaff = user?.role === 'staff';
@@ -534,10 +568,7 @@ const ProviderAccount = () => {
                                                     <span className="acct-label">Category</span>
                                                     <span className="acct-value">{user?.providerCategory || '—'}</span>
                                                 </div>
-                                                <div className="acct-detail-row">
-                                                    <span className="acct-label">Verified</span>
-                                                    <span className="acct-value" style={{ color: user?.isVerified ? 'var(--success-fg)' : 'var(--warning-fg)', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
-                                                </div>
+                                                <EmailConfirmedRow user={user} />
                                                     </>
                                                 )}
                                             </div>
