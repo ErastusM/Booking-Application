@@ -3,7 +3,7 @@
  *
  * Who stops being bookable. Team members used to fall back to the business's
  * opening hours when they had none of their own; now a member with no working
- * hours of their own (no weekly hours, no shift today or later) can't be booked
+ * hours of their own (no weekly hours) can't be booked
  * at all. This prints, per business, how many active, bookable team members are
  * in that state — and how many upcoming bookings and waiting-list places they
  * hold (those bookings stand; clients just can't move them to a new time until
@@ -18,8 +18,7 @@
  *
  * "Has hours" is the same rule the Team card and the client's tiles use
  * (staffBooking.membersHoursReadiness): weekly hours with at least one working
- * period on some day (any week of a rotation), or a shift with a working period
- * from today (Windhoek) on.
+ * period on some day (any week of a rotation). Old Shift rows don't count.
  *
  * Run it BEFORE the deploy too (read-only, against production) so affected
  * owners can be told ahead of time:
@@ -41,7 +40,7 @@ const { membersHoursReadiness } = require('../src/utils/staffBooking');
 async function membersWithoutHours({ today } = {}) {
     const members = await TeamMember.find({ isActive: true, bookable: { $ne: false } })
         .select('_id provider').lean();
-    const readiness = await membersHoursReadiness(members.map((m) => m._id), { today });
+    const readiness = await membersHoursReadiness(members.map((m) => m._id));
     const byBusiness = new Map();
     const noHoursIds = [];
     members.forEach((m) => {

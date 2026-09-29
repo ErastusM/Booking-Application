@@ -12,28 +12,15 @@ const breakSchema = new mongoose.Schema({
 }, { _id: false });
 
 /**
- * A team member's working day for ONE specific date.
+ * LEGACY: a team member's working day for ONE specific date, saved by the old
+ * "Shifts" screen (removed in #249).
  *
- * StaffAvailability is the weekly pattern — "Moses works 9–6 on Tuesdays". A
- * Shift is the exception for a single date: he came in late, covered a Sunday,
- * or takes lunch at 13:00 that day. It exists because a business is open while
- * an individual is not, and the pattern alone can't express that. (A member's
- * hours are only ever their own: neither a shift nor the weekly pattern is
- * capped by the business's — the owner's — hours.)
- *
- * PRECEDENCE, and this is the whole contract:
- *
- *     a Shift for the date  →  the member's weekly pattern  →  no hours (not bookable)
- *
- * A Shift, when present, REPLACES the pattern for that date rather than adding
- * to it. That is what makes "I'm not in on Thursday" expressible: a shift with
- * no slots is a day off, and there is no way to say that by editing a weekly
- * pattern without changing every other Thursday too.
- *
- * Breaks subtract from the shift's own slots. They are stored on the shift
- * rather than as BlockedTime because they belong to the shape of the working
- * day, not to an interruption of it — and because BlockedTime is what time off
- * uses, which is a different thing the owner manages separately.
+ * These rows NO LONGER affect anything about hours. A member's bookable hours
+ * are their weekly Working Hours (StaffAvailability) only, minus their own
+ * blocked time and approved time off. Every hours reader (booking validation,
+ * slot pickers, search, waiting list, calendar shading, readiness, stats)
+ * ignores Shift. The model and routes are kept so old data and clients don't
+ * break; nothing is deleted.
  */
 const shiftSchema = new mongoose.Schema({
     provider:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -43,10 +30,6 @@ const shiftSchema = new mongoose.Schema({
     // drift that has already bitten the reminder cron and the cancellation
     // window in this codebase.
     date: { type: String, required: true },
-    // Empty slots = rostered off that day. Distinct from having no Shift row at
-    // all, which means "fall back to the weekly pattern" (and a member with no
-    // weekly pattern either has no hours that day — nothing comes from the
-    // business's hours).
     slots:  { type: [periodSchema], default: [] },
     breaks: { type: [breakSchema],  default: [] },
     note:   { type: String, default: '', trim: true, maxlength: 120 },

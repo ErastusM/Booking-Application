@@ -180,7 +180,7 @@ exports.getMyTeam = async (req, res) => {
             for (const u of pendingUsers) invitesByUser.set(String(u._id), staffInvites.inviteSummary(u));
         }
         // Can each member be booked at all? A member with no working hours of their
-        // own (no weekly hours, no shift from today on) can't — the Team card says
+        // own (no weekly hours) can't — the Team card says
         // so, since nothing is inherited from the business's hours.
         const readiness = await membersHoursReadiness(members.map((m) => m._id));
         const data = (redactHR(req, members) || []).map((m) => {
@@ -615,13 +615,9 @@ exports.removeTeamMember = async (req, res) => {
  * PUT  /api/team/:id/shifts   body: { date, slots: [{start,end}], breaks: [{start,end,label}], note }
  * DELETE /api/team/:id/shifts/:date
  *
- * Date-specific working days. See models/Shift for the precedence contract —
- * in short, a shift REPLACES the weekly pattern for that one date, and
- * deleting it hands the date back to the pattern.
- *
- * A shift with no slots is meaningful, not empty: it is a rostered day off,
- * and it is the only way to say "not in this Thursday" without editing every
- * Thursday.
+ * Legacy date-specific shifts. There is no UI for them any more and they no
+ * longer affect anyone's hours — weekly Working Hours are the only source
+ * (see models/Shift). The routes stay so old clients and data don't break.
  */
 const Shift = require('../models/Shift');
 
@@ -731,9 +727,7 @@ exports.clearTeamMemberShift = async (req, res) => {
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
-        // Removing the row is the point: the date falls back to the weekly
-        // pattern, which is different from storing a shift with no slots (a
-        // rostered day off).
+        // Removing the legacy row is harmless: hours come from the weekly pattern.
         await Shift.deleteOne({ teamMember: member._id, date: req.params.date });
         res.status(200).json({ success: true, message: 'Back to their usual hours for that day' });
     } catch (error) {
@@ -752,10 +746,7 @@ exports.clearTeamMemberShift = async (req, res) => {
  * nobody can define is worse than no number:
  *
  *   occupancy = minutes booked ÷ minutes scheduled, over the window. Scheduled
- *               is shift-aware: a date-specific Shift replaces the pattern for
- *               its day (slots minus breaks; an empty shift is a rostered day
- *               off worth zero), and days without a shift fall back to the
- *               member's own weekly hours, then to the business hours. Reported
+ *               = the member's own weekly hours (old Shift rows are ignored). Reported
  *               as null rather than a wrong number when nothing is scheduled at
  *               all — "we cannot say" is not the same as "they were idle".
  *
@@ -807,7 +798,7 @@ const computeMemberStats = async (providerId, member, days) => {
     const inWindow = { provider: providerId, appointmentDate: { $gte: from, $lte: to }, ...memberMatch };
     const inPrevWindow = { provider: providerId, appointmentDate: { $gte: fromPrev, $lte: toPrev }, ...memberMatch };
 
-    const [done, prevDone, upcoming, noShows, cancellations, ratingAgg, staffHours, shifts] = await Promise.all([
+    const [done, prevDone, upcoming, noShows, cancellations, ratingAgg, staffHours] = await Promise.all([
         Appointment.find({ ...inWindow, status: 'completed' })
             .select('totalPrice customer startTime endTime services'),
         // Prior window — only what the trend needs (completed count + revenue).
@@ -831,10 +822,6 @@ const computeMemberStats = async (providerId, member, days) => {
             { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
         ]),
         StaffAvailability.findOne({ teamMember: member._id }),
-        Shift.find({
-            teamMember: member._id,
-            date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
-        }).select('date slots breaks').lean(),
     ]);
 
     const revenue = segmentRevenue(done, member._id);
@@ -860,16 +847,9 @@ const computeMemberStats = async (providerId, member, days) => {
         return acc + (mins > 0 ? mins : 0);
     }, 0);
 
-    const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
     let scheduledMinutes = 0;
     for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
         const dayKey = d.toISOString().slice(0, 10);
-        const shift = shiftByDate.get(dayKey);
-        if (shift) {
-            // A shift is authoritative for its date: slots minus breaks (empty = day off).
-            scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
-            continue;
-        }
         // Rotation-aware: the member's EFFECTIVE week for THIS date (the flat
         // schedule when they have no rotation). No hours of their own = nothing
         // scheduled (they can't be booked), never the business's hours. Mirrors
@@ -1599,7 +1579,7 @@ exports.getMyProfile = async (req, res) => {
                 bio: member.bio, pronouns: member.pronouns, languages: member.languages,
                 // Front desk / managers who don't take bookings skip the "go live" nudge.
                 bookable: member.bookable !== false,
-                // Working hours of their own (weekly, or a shift from today on).
+                // Weekly working hours of their own.
                 // Without them clients can't book this member at all.
                 hasHours: readiness.get(String(member._id)) === true,
             },
@@ -1664,8 +1644,8 @@ const canTouchStaffAvailability = (reqUser, member) =>
 /**
  * GET /api/team/:id/hours?date=YYYY-MM-DD  (owner/admin, or anyone on the team)
  * One person's working hours on one date, as the booking validator reads them
- * (leave → shift → their own weekly hours, never capped by the business's;
- * neither = no hours,
+ * (leave → their own weekly hours, never capped by the business's;
+ * none = no hours,
  * source 'none', closed). The New Appointment time list uses it, so the times
  * offered for a team member are that member's hours rather than the business's.
  * :id is a member id, 'mine' (the signed-in member) or 'owner' (the owner's own

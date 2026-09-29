@@ -110,9 +110,10 @@ describe('Waiting list', () => {
 });
 
 // A booking assigned to a staff member queues waiters against THAT member. If
-// the member's shift changes to a day off after they queue, cancelling the
+// the member's weekly hours change after they queue, cancelling the
 // booking must not auto-promote the next person straight onto a slot the member
-// no longer works — promotion honours the same roster gate a booking does.
+// no longer works — promotion honours the same hours gate a booking does.
+// (Old Shift rows are ignored, as everywhere else.)
 describe('promotion respects the roster', () => {
     const TeamMember = require('../../models/TeamMember');
     const StaffAvailability = require('../../models/StaffAvailability');
@@ -128,14 +129,13 @@ describe('promotion respects the roster', () => {
     };
     const DATE = futureDate(0);
 
-    it('does not promote a waiter onto the member\'s rostered day off', async () => {
+    it('does not promote a waiter onto time outside the member\'s weekly hours', async () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id);
         const waiter = await makeUser();
         const member = await TeamMember.create({ provider: provider._id, name: 'Moses Hamalwa' });
-        await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('09:00', '17:00') });
-        // The member is rostered off that day (empty-slots shift = day off).
-        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [] });
+        // Their weekly hours now start at 12:00; the waiter queued for 10:00.
+        await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('12:00', '17:00') });
 
         await WaitingList.create({
             service: svc._id, provider: provider._id, customer: waiter._id, teamMember: member._id,
@@ -150,12 +150,13 @@ describe('promotion respects the roster', () => {
         expect((await WaitingList.findOne({ customer: waiter._id })).status).toBe('waiting');
     });
 
-    it('still promotes when the member is rostered on', async () => {
+    it('still promotes when the member works then — an old "day off" shift is ignored', async () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id);
         const waiter = await makeUser();
         const member = await TeamMember.create({ provider: provider._id, name: 'Moses Hamalwa' });
         await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('09:00', '17:00') });
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [] });
 
         await WaitingList.create({
             service: svc._id, provider: provider._id, customer: waiter._id, teamMember: member._id,

@@ -198,7 +198,7 @@ const ProviderDashboard = () => {
     // A member with no hours of their own yet starts from a week of days off —
     // and can't be booked until they set some (nothing comes from the business's).
     // Whether they CAN be booked is the server's answer (myMember.hasHours:
-    // weekly hours in any rotation week, or a shift from today on — what the Team
+    // weekly hours in any rotation week — what the Team
     // card and the client's tiles say); the weekly-only read is a fallback for an
     // older API. memberHoursNow is that answer refreshed after a save.
     const [memberHadHours, setMemberHadHours] = useState(true);
@@ -312,7 +312,7 @@ const ProviderDashboard = () => {
     // The owner's override in New Appointment: offer every service, not just what
     // the chosen professional performs.
     const [apptShowAll, setApptShowAll] = useState(false);
-    // The hours New Appointment offers times in, for a team member (their shift,
+    // The hours New Appointment offers times in, for a team member (their
     // weekly hours or the business's — GET /team/:id/hours, the rules bookings are
     // checked against). { key: 'who|date', data } — the owner's own column reads
     // the Working Hours schedule directly.
@@ -1376,8 +1376,8 @@ const ProviderDashboard = () => {
                 setMemberHadHours(weeklyOn);
                 setStaffCalendarHours(week);
                 setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
-                // Ask the server again whether clients can book them now (a shift
-                // from today on counts too), so this screen and the Team card agree.
+                // Ask the server again whether clients can book them now, so this
+                // screen and the Team card agree.
                 refreshMyMember();
                 const me = await loadMyMember(String(user?._id || user?.id || '')).catch(() => null);
                 const serverSays = typeof me?.hasHours === 'boolean' ? me.hasHours : null;
@@ -4153,8 +4153,8 @@ const ProviderDashboard = () => {
                                         // Hours screen saved and bookings are checked against:
                                         //   the owner's own column ("Me") → the business's Working Hours;
                                         //   a team member (picked by the owner, or the member themself) →
-                                        //   that member's hours that day (shift, else their own weekly
-                                        //   hours — never capped by the business's), from the API. A member with neither
+                                        //   that member's own weekly hours that day
+                                        //   (never capped by the business's), from the API. A member with neither
                                         //   has NO hours (source 'none'): nothing comes from the
                                         //   business's, so they can't be booked — only the owner's
                                         //   "Book outside working hours" override offers times.
@@ -4237,9 +4237,8 @@ const ProviderDashboard = () => {
                                         const closedText = dh?.source === 'leave'
                                             ? `${isStaff ? 'You are' : `${memberName} is`} on leave that day.`
                                             : dh?.source === 'none'
-                                                // No shift that day and no weekly hours of their own. A member
-                                                // sets them in Availability; the owner, on the member's Team card.
-                                                // (Someone with only shifts on OTHER days has hours — just not this one.)
+                                                // No weekly hours of their own. A member sets them in
+                                                // Availability; the owner, on the member's Team card.
                                                 ? (isStaff
                                                     ? (myMember?.hasHours ? `You have no working hours on ${dayCap}.` : 'You have no working hours set — set them in Availability.')
                                                     : teamMembers.find(m => String(m._id) === apptHoursWho)?.hasHours

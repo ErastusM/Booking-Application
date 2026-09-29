@@ -24,12 +24,11 @@ const weekPatternSchema = new mongoose.Schema({
  * `schedule` below, where weekIndex = floor(daysSince(anchor)/7) mod weeks.length.
  *
  * `anchor` is the YYYY-MM-DD date on which weeks[0] begins — the same wall-clock
- * date-string basis the Shift/TimeOff keys use, so the rotation week a date
- * falls in never disagrees with its shift/leave rows at a timezone boundary.
+ * date-string basis the TimeOff keys use, so the rotation week a date
+ * falls in never disagrees with its leave rows at a timezone boundary.
  *
  * Empty `weeks` (the default, and every legacy row) means NO rotation: the flat
- * `schedule` is the member's single repeating week, exactly as before. A
- * per-date Shift still overrides whichever rotation week the date lands on.
+ * `schedule` is the member's single repeating week, exactly as before.
  */
 const rotationSchema = new mongoose.Schema({
     anchor: { type: String, default: '' },
@@ -38,8 +37,8 @@ const rotationSchema = new mongoose.Schema({
 
 // Per-staff working hours, mirroring Availability's shape. ABSENCE of a doc
 // means the member has NO weekly hours of their own: nothing is inherited from
-// the business's hours (Availability), so they can only be booked on a date
-// they have a Shift for — with neither, they are not bookable at all.
+// the business's hours (Availability), so they are not bookable at all. These
+// weekly hours are the ONLY source of a member's hours (Shift rows are ignored).
 const staffAvailabilitySchema = new mongoose.Schema({
     // Business owner — denormalized for cheap provider-scoped queries.
     provider: {

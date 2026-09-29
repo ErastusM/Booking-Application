@@ -151,8 +151,8 @@ const StaffLanesDay = ({
     const daySlots = (dayCfg?.enabled && Array.isArray(dayCfg.slots) ? dayCfg.slots : [])
         .filter((s) => s?.start && s?.end);
 
-    // Each lane's own hours for the day, once they have loaded: a member's shift,
-    // else their own weekly hours (never capped by the business's), else none — closed, since
+    // Each lane's own hours for the day, once they have loaded: a member's own
+    // weekly hours (never capped by the business's), else none — closed, since
     // nothing comes from the business's hours; the owner's lane is the business's
     // Working Hours. `slots` null = no hours known to hold them to (no shading).
     // Until the hours arrive every lane keeps the business-hours shading it has
@@ -167,7 +167,7 @@ const StaffLanesDay = ({
     // Time window: working hours ∪ anything already on the calendar, padded an
     // hour each side and snapped to whole hours (same spirit as the FC views'
     // "never hide something booked off-grid" rule). With per-person hours it is
-    // every visible lane's hours — a shift may run past the business's closing.
+    // every visible lane's hours — a member's may run past the business's closing.
     const { windowStart, windowEnd } = useMemo(() => {
         const allSlots = laneHours
             ? lanes.flatMap((l) => laneSlots(l.id) || [])

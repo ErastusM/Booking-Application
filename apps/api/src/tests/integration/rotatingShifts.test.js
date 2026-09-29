@@ -7,7 +7,7 @@
  * `schedule`; an empty rotation (every legacy row) is byte-identical to the
  * single-week behaviour. This suite pins:
  *   - the ON week books, the OFF week is refused ("outside working hours")
- *   - a per-date Shift still overrides whichever rotation week the date lands on
+ *   - an old per-date Shift no longer overrides the rotation week
  *   - an empty rotation behaves exactly like the flat schedule (back-compat)
  *   - the named-member booked-slots picker agrees with the validator (off week
  *     = off_shift), so a slot is never advertised then refused
@@ -81,17 +81,18 @@ describe('rotation resolver — the applicable week governs the booking', () => 
         expect(offWeekRes.body.message).toMatch(/working hours/i);
     });
 
-    it('a per-date Shift overrides the rotation week (works on an OFF week)', async () => {
+    it('an old per-date Shift does not override the rotation week (OFF week stays off)', async () => {
         const { owner, svc, customer, b } = await setup();
         await StaffAvailability.create({
             provider: owner._id, teamMember: b._id, schedule: workingWeek,
             rotation: { anchor: minus7(DATE), weeks: [workingWeek, offWeek] }, // DATE = off week
         });
-        // A shift for DATE rosters them on 09:00–17:00, replacing the off week.
+        // An old shift for DATE (09:00–17:00) changes nothing.
         await Shift.create({ provider: owner._id, teamMember: b._id, date: DATE, slots: [{ start: '09:00', end: '17:00' }] });
 
         const res = await book(customer, svc, { teamMember: b._id });
-        expect(res.status).toBe(201);
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/working hours/i);
     });
 
     it('an empty rotation behaves exactly like the flat schedule (back-compat)', async () => {

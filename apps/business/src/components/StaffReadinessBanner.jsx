@@ -22,7 +22,7 @@ const StaffReadinessBanner = () => {
                     ? (d.services || []).length > 0
                     : (d.selected || []).length > 0;
                 // The server's own answer (the rule bookings use: weekly hours in
-                // any rotation week, or a shift from today on); the local read of
+                // any rotation week); the local read of
                 // the flat weekly schedule is only a fallback for an older API.
                 const schedule = hrs.data.data?.schedule;
                 const hasHours = typeof me.data.data?.hasHours === 'boolean'

@@ -55,13 +55,13 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamM
     const bufferByService = await bufferMapForAppointments(existing);
     if (existing.some(a => overlapsAny(nStart, nEnd, memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)))) return false;
 
-    // Honour the assigned member's roster: leave → shift → their own weekly
+    // Honour the assigned member's roster: leave → their own weekly
     // hours (none of their own = not bookable; never the business's hours, as on
     // create). The create path refuses a booking
-    // onto a rostered day off, an off-shift hour, a break or a member with no
+    // onto a day off, an hour outside their weekly hours or a member with no
     // hours, and promotion must refuse it too — otherwise cancelling a booking
     // auto-promotes the next person in line straight onto a slot that member no
-    // longer works (their shift changed after they queued). Only for a specific
+    // longer works (their hours changed after they queued). Only for a specific
     // member; null is the owner's own column, ungoverned by staff hours.
     // Required lazily to keep the module load order simple.
     if (teamMember) {
