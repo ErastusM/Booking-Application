@@ -61,6 +61,50 @@ describe('GET /api/crm/clients', () => {
         expect(res.body.data.appointments).toHaveLength(1);
         expect(res.body.data.note).toBeNull();
     });
+
+    // A client who booked online without an account (name, email, phone) was
+    // skipped entirely, so the business couldn't find them or their number.
+    it('lists an online guest with their phone and email, and opens their bookings', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const guest = (extra) => Appointment.create({
+            customer: null, service: svc._id, provider: provider._id,
+            startTime: '13:00', endTime: '14:00', totalPrice: 120, status: 'confirmed',
+            guestName: 'William Rittmann', guestEmail: 'william@example.com', ...extra,
+        });
+        await guest({ appointmentDate: new Date(Date.now() - 10 * 864e5), guestPhone: '0810000000' });
+        await guest({ appointmentDate: new Date(Date.now() + 864e5), guestPhone: '0814930280' });
+
+        const res = await request(app).get('/api/crm/clients').set(authHeader(provider));
+        expect(res.status).toBe(200);
+        expect(res.body.data).toHaveLength(1);
+        const row = res.body.data[0];
+        expect(row.customer).toMatchObject({ _id: 'walkin:william rittmann', name: 'William Rittmann', email: 'william@example.com', phone: '0814930280' });
+        expect(row).toMatchObject({ isWalkIn: true, isGuest: true, visits: 2 });
+
+        const detail = await request(app).get('/api/crm/clients/walkin:william rittmann').set(authHeader(provider));
+        expect(detail.status).toBe(200);
+        expect(detail.body.data.appointments).toHaveLength(2);
+    });
+
+    it('fills a walk-in\'s missing phone from a guest booking under the same name', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        await Appointment.create({
+            customer: provider._id, service: svc._id, provider: provider._id,
+            appointmentDate: new Date(Date.now() + 3 * 864e5), startTime: '09:00', endTime: '09:30',
+            totalPrice: 50, status: 'confirmed', walkInName: 'Jane Doe',
+        });
+        await Appointment.create({
+            customer: null, service: svc._id, provider: provider._id,
+            appointmentDate: new Date(Date.now() - 3 * 864e5), startTime: '09:00', endTime: '09:30',
+            totalPrice: 50, status: 'completed', guestName: 'jane doe', guestEmail: 'jane@example.com', guestPhone: '0811111111',
+        });
+        const res = await request(app).get('/api/crm/clients').set(authHeader(provider));
+        expect(res.body.data).toHaveLength(1);
+        expect(res.body.data[0].customer.phone).toBe('0811111111');
+        expect(res.body.data[0].isGuest).toBe(false);
+    });
 });
 
 // The New Appointment client list shows each client's picture, phone, visit

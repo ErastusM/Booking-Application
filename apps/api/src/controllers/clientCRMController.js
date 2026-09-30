@@ -65,19 +65,26 @@ exports.getMyClients = async (req, res) => {
         // to reduce it to one row per client. `avatar` feeds the New Appointment
         // client list's picture (an additive field: older clients ignore it).
         const appointments = await Appointment.find(scope.filter)
-            .select('customer walkInName status totalPrice appointmentDate')
+            .select('customer walkInName guestName guestEmail guestPhone status totalPrice appointmentDate')
             .populate('customer', 'name email phone avatar createdAt')
             .sort({ appointmentDate: -1 })
             .lean();
 
         const clientMap = new Map();
         for (const appt of appointments) {
-            let key, customer, isWalkIn = false;
-            if (appt.walkInName && appt.walkInName.trim()) {
-                const name = appt.walkInName.trim();
-                key = `walkin:${name.toLowerCase()}`;
-                customer = { _id: key, name, email: null, phone: null, avatar: null, isWalkIn: true };
+            let key, customer, isWalkIn = false, isGuest = false;
+            // A client without an account: a walk-in the business logged, or a
+            // guest who booked online with their name, email and phone. Both are
+            // keyed "walkin:<name>" (so the detail view and "book again" work by
+            // name) and a guest's contact details travel with the row, so the
+            // business can search and reach them.
+            const noAccountName = (appt.walkInName && appt.walkInName.trim())
+                || (!appt.customer && appt.guestName && appt.guestName.trim()) || '';
+            if (noAccountName) {
+                key = `walkin:${noAccountName.toLowerCase()}`;
+                customer = { _id: key, name: noAccountName, email: appt.guestEmail || null, phone: appt.guestPhone || null, avatar: null, isWalkIn: true };
                 isWalkIn = true;
+                isGuest = !appt.walkInName;
             } else if (appt.customer && appt.customer._id.toString() !== providerIdStr) {
                 key = appt.customer._id.toString();
                 customer = appt.customer;
@@ -86,9 +93,17 @@ exports.getMyClients = async (req, res) => {
             }
 
             if (!clientMap.has(key)) {
-                clientMap.set(key, { customer, isWalkIn, visits: 0, totalSpend: 0, lastVisit: null, firstVisit: null, statuses: {}, completedVisits: 0, lastCompletedVisit: null });
+                clientMap.set(key, { customer, isWalkIn, isGuest, visits: 0, totalSpend: 0, lastVisit: null, firstVisit: null, statuses: {}, completedVisits: 0, lastCompletedVisit: null });
             }
             const c = clientMap.get(key);
+            if (isWalkIn) {
+                // Newest booking first, so the first contact detail seen is the
+                // latest; older bookings only fill gaps. Any logged walk-in makes
+                // the row a walk-in rather than an online guest.
+                if (!c.customer.email && appt.guestEmail) c.customer.email = appt.guestEmail;
+                if (!c.customer.phone && appt.guestPhone) c.customer.phone = appt.guestPhone;
+                if (!isGuest) c.isGuest = false;
+            }
             c.visits += 1;
             if (appt.status === 'completed') c.totalSpend += appt.totalPrice || 0;
             if (!c.lastVisit || new Date(appt.appointmentDate) > new Date(c.lastVisit)) c.lastVisit = appt.appointmentDate;
@@ -135,7 +150,11 @@ exports.getClientDetail = async (req, res) => {
         // Walk-in client (no account) — resolve by name; no notes.
         if (customerId.startsWith('walkin:')) {
             const name = customerId.slice('walkin:'.length).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const appointments = await Appointment.find({ ...scope.filter, walkInName: new RegExp(`^${name}$`, 'i') })
+            const nameRe = new RegExp(`^${name}$`, 'i');
+            // The walk-ins logged under this name and the online guest bookings
+            // made under it (guest rows have no account behind them).
+            const byName = { $or: [{ walkInName: nameRe }, { customer: null, guestName: nameRe }] };
+            const appointments = await Appointment.find({ $and: [scope.filter, byName] })
                 .populate('service', 'name price duration')
                 .sort({ appointmentDate: -1 });
             // Only when the scope is assignment-narrowed does "no rows" mean
