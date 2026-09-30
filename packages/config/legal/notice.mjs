@@ -31,7 +31,7 @@ export const legalNotice = (audience = 'customer') => {
             ] },
             { id: 'what-we-do', title: 'What Bookplus does', blocks: [
                 `Bookplus lets clients find local businesses, see their prices and availability, book appointments, ${FEATURES.walletEnabled ? 'keep a prepaid wallet with a business, ' : ''}and message it. **The businesses provide the services; Bookplus does not.** Businesses list themselves; we do not vet, license or certify them. Reviews can only be left by clients who completed a booking.`,
-                `Bookplus does not charge clients a booking fee. Prices are set by each business, in the currency it chooses, and shown before you book.${FEATURES.walletEnabled ? '' : ' You pay the business at your appointment; the wallet is coming soon.'}`,
+                `Bookplus does not charge clients a booking fee. Prices are set by each business, in the currency it chooses, and shown before you book.${FEATURES.walletEnabled ? '' : ' You pay the business at your appointment.'}`,
             ] },
             { id: 'legal-documents', title: 'Terms, privacy and complaints', blocks: [
                 { list: [

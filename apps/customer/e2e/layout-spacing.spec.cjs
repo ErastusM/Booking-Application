@@ -143,7 +143,7 @@ async function expectCardCentred(page, path, sel) {
 }
 
 const SIGNED_OUT_SCREENS = ['/manage/not-a-token', '/terms'];
-const CUSTOMER_SCREENS = ['/appointments', '/waiting-list', '/profile', '/wallet'];
+const CUSTOMER_SCREENS = ['/appointments', '/waiting-list', '/profile'];
 // [path, the card (default: everything in <main>)]. Sign-up's progress dots sit
 // above its card, so there the card alone is centred below them.
 const AUTH_SCREENS = [

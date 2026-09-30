@@ -6,7 +6,7 @@ import LegalPage from '../legal/LegalPage';
 const doc = termsOfService('customer');
 
 const TermsOfService = () => (
-    <LegalPage doc={doc} path="/terms" description="The terms for booking with businesses on Bookplus: prices, cancellations, the prepaid wallet, reviews and your rights." />
+    <LegalPage doc={doc} path="/terms" description="The terms for booking with businesses on Bookplus: prices, cancellations, reviews and your rights." />
 );
 
 export default TermsOfService;

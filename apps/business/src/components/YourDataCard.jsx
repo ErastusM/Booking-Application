@@ -31,7 +31,7 @@ const YourDataCard = ({ note }) => {
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem' }}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>Your data</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.9rem', lineHeight: 1.55 }}>
-                Download a copy of everything we hold about your account — profile, bookings, reviews, wallet transactions, messages you sent and your consents — as a JSON file.
+                Download a copy of everything we hold about your account — profile, bookings, reviews, messages you sent and your consents — as a JSON file.
                 {note ? ` ${note}` : ''}
             </p>
             <button type="button" className="btn-outline" onClick={download} disabled={busy} data-testid="download-my-data" style={{ padding: '0.55rem 1.1rem', fontSize: '0.85rem' }}>

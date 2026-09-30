@@ -179,31 +179,30 @@ describe('Privacy Policy content matches what the platform does', () => {
     });
 });
 
-describe('wallet "coming soon" in the legal text', () => {
-    it('the default is the coming-soon state', () => {
+// The payment provider's review treats any wallet as a marketplace feature, so
+// while it is switched off the legal text doesn't mention it at all.
+describe('no wallet in the legal text while it is switched off', () => {
+    it('the wallet is switched off by default', () => {
         expect(FEATURES.walletEnabled).toBe(false);
     });
 
-    it('Terms (client and business) replace the wallet sections with a short coming-soon notice', () => {
+    it('Terms, Privacy Policy and Legal Notice (client and business) never mention a wallet, gift cards or top-ups', () => {
         for (const audience of ['customer', 'business']) {
-            const w = termsOfService(audience).sections.find((sec) => sec.id === 'wallet');
-            expect(w.title).toBe('Wallet (coming soon)');
-            const t = textOf(w);
-            expect(t).toMatch(/not available yet/);
-            expect(t).toMatch(/directly at the appointment/);
-            expect(t).not.toMatch(/top up|non-refundable|6, 12 or 24/i);
+            expect(termsOfService(audience).sections.find((sec) => sec.id === 'wallet')).toBeUndefined();
+            for (const doc of [termsOfService(audience), privacyPolicy(audience), legalNotice(audience)]) {
+                expect(textOf(doc)).not.toMatch(/wallet|gift card|top-up|top up|prepaid/i);
+            }
         }
-        const all = textOf(termsOfService('customer'));
-        expect(all).toMatch(/You pay the business directly at your appointment/);
-        expect(all).not.toMatch(/from your prepaid wallet|proof of payment/);
+        expect(textOf(termsOfService('customer'))).toMatch(/You pay the business directly at your appointment/);
+        // The full wallet terms are kept for when it is switched on.
+        expect(termsOfService('customer', { walletEnabled: true }).sections.find((sec) => sec.id === 'wallet').title).toBe('The prepaid wallet');
     });
 
-    it('Privacy Policy drops wallet transactions and proofs of payment, with the "update first" line', () => {
+    it('Privacy Policy drops wallet transactions and proofs of payment', () => {
         for (const audience of ['customer', 'business']) {
             const t = textOf(privacyPolicy(audience));
             expect(t).not.toMatch(/proof/i);
             expect(t).not.toMatch(/top-up|reservations, deductions/i);
-            expect(t).toMatch(/wallet is coming soon: if we introduce it, we will update this policy first/);
         }
         const on = textOf(privacyPolicy('customer', { walletEnabled: true }));
         expect(on).toMatch(/proof-of-payment/);
@@ -244,7 +243,7 @@ describe('Terms of Service content', () => {
         expect(t).toContain(operatorName());
         expect(t).toMatch(/Reviews/);
         const ids = termsOfService('customer').sections.map((s) => s.id);
-        expect(ids).toEqual(expect.arrayContaining(['wallet', 'cancellations', 'responsibility', 'disputes', 'termination', 'acceptable-use', 'reviews']));
+        expect(ids).toEqual(expect.arrayContaining(['cancellations', 'responsibility', 'disputes', 'termination', 'acceptable-use', 'reviews']));
     });
 
     it('has no liability cap or exclusion (removed pending legal advice), but keeps the platform role and consumer rights', () => {
