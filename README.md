@@ -5,7 +5,7 @@ salons, barbers, spas, beauty & wellness, clinics, trainers and other
 service-based businesses:
 
 - **Customer marketplace** — discover local providers and book in seconds
-  (`www.bookplus.pro`). Guest checkout, real-time availability, wallet, reviews,
+  (`www.bookplus.pro`). Guest checkout, real-time availability, reviews,
   waiting list.
 - **Business management app** — providers, staff and admins run their calendar,
   services, clients, earnings and team (`business.bookplus.pro`).
@@ -132,7 +132,7 @@ declares a Docker `healthcheck`; nginx fronts all three domains + terminates TLS
 | Discover providers & book (incl. **guest checkout**, no account) | ✅ | — | — | — |
 | Reschedule / cancel own bookings; no-login manage via `/manage/:token` | ✅ | — | — | ✅ |
 | Waiting list (queue position, auto-promotion, "slot opened" celebration) | ✅ | — | — | — |
-| Reviews, intake/consent forms, prepaid wallet, memberships/packages | ✅ | sell | — | oversight |
+| Reviews, intake/consent forms | ✅ | — | — | oversight |
 | Service catalogue (sub-options, add-ons, buffers), availability, blocked time | — | ✅ | scoped | ✅ |
 | Calendar (day/3-day/week/month, drag-to-reschedule), walk-in/group/recurring | — | ✅ | scoped | — |
 | Appointment lifecycle incl. no-show + audit trail; per-appointment messaging | — | ✅ | ✅ | ✅ |
@@ -153,9 +153,6 @@ Admins log into the business app; the admin console is role-gated at
 - **Provider calendar** — day/3-day/week/month, drag-to-reschedule with
   server-side conflict rejection, blocked time, buffers, recurring series, group
   bookings, walk-ins, per-staff scheduling and "any available" resolution.
-- **Wallets** — prepaid client↔provider balances (provider/admin-approved
-  top-ups) + a provider↔platform ledger. **No card processing** — money is
-  collected in person; wallets are bookkeeping.
 - **Discovery / SEO** — availability-first search, `/b/:slug` booking links,
   a dynamic sitemap of every provider, per-page meta/OpenGraph + LocalBusiness
   JSON-LD.
@@ -166,8 +163,8 @@ Admins log into the business app; the admin console is role-gated at
 
 ## Intentionally omitted (product decisions, not gaps)
 
-- **No online payment processing** — no checkout, cards, invoices, payouts,
-  refunds or POS. Wallets and earnings are ledgers over money collected in person.
+- **No online payment processing yet** — clients pay the business at the
+  appointment. Earnings are a ledger over money collected in person.
 - **No inventory / stock / product management.**
 - **No marketing campaigns / promotions / ads.**
 
@@ -176,7 +173,7 @@ Admins log into the business app; the admin console is role-gated at
 - Per-provider **social share cards** (Facebook/WhatsApp unfurls) still show the
   generic site card — Googlebot gets per-page tags, but non-JS scrapers would
   need prerendering (tracked follow-up).
-- Reminder + wallet-expiry jobs run in-process on cron, and waitlist
+- Reminder jobs run in-process on cron, and waitlist
   promotion runs inline when a slot frees up (no external queue); a
   Mongo-backed distributed lock (`apps/api/src/utils/lock.js`) plus atomic
   waitlist promotion make them safe across multiple API instances.

@@ -62,8 +62,8 @@ docker exec bookplus-server printenv ADMIN_EMAIL ADMIN_NAME
 
 | Role | Where they use the product | What they can do |
 |---|---|---|
-| **customer** | www.bookplus.pro | Browse, book, manage appointments, waiting list, wallet, reviews |
-| **provider** | business.bookplus.pro | Own calendar, services, hours, clients (CRM), earnings, wallet, team, booking link |
+| **customer** | www.bookplus.pro | Browse, book, manage appointments, waiting list, reviews |
+| **provider** | business.bookplus.pro | Own calendar, services, hours, clients (CRM), earnings, team, booking link |
 | **staff** | business.bookplus.pro | Scoped schedule (`/my-schedule`) under a provider |
 | **admin** | business.bookplus.pro → `/bkplus-command` | Platform oversight, provider top‑ups, insights |
 
@@ -228,14 +228,12 @@ docker restart bookplus-server                        # re-seeds admin, rebuilds
   on next app open.
 - **Reminders** — automatic 24h / ~5h / 1h before each appointment (email + push +
   in‑app), sent by a cron job.
-- **Wallet & payments** — provider wallets, top‑ups (admin), optional per‑provider
-  wallet checkout; balances can expire on an opt‑in schedule. No card processor —
-  in‑person / wallet based. Multi‑currency (business picks at signup; default NAD, N$).
+- **Payments** — clients pay the business at the appointment. Multi‑currency (business picks at signup; default NAD, N$).
 - **Business onboarding** — a guided wizard (address + map pin → hours → services →
   photos → booking link) that produces the `/b/<slug>` share link.
 - **Team / staff** — providers can invite staff with their own availability & scoped
   schedule; customers can pick a specific professional or "any available".
-- **CRM, reviews, packages, blocked times, recurring bookings** — all supported in the
+- **CRM, reviews, blocked times, recurring bookings** — all supported in the
   business suite.
 - **Social share cards** — sharing a `/b/<slug>` link on WhatsApp/Facebook/etc. unfurls
   with the business's name + photo (server‑rendered for crawlers; humans get the app).
@@ -265,7 +263,6 @@ only one instance fires per tick even if the API is scaled to multiple container
 | Job | Schedule | What it does |
 |---|---|---|
 | Reminders | every 15 min | Sends the 24h / 5h / 1h reminders due in each window |
-| Wallet expiry | daily 02:30 | Zeroes opted‑in wallet balances after inactivity |
 
 ---
 

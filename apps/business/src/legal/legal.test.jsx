@@ -186,11 +186,11 @@ describe('no wallet in the legal text while it is switched off', () => {
         expect(FEATURES.walletEnabled).toBe(false);
     });
 
-    it('Terms, Privacy Policy and Legal Notice (client and business) never mention a wallet, gift cards or top-ups', () => {
+    it('Terms, Privacy Policy and Legal Notice (client and business) never mention a wallet, gift cards, top-ups or memberships', () => {
         for (const audience of ['customer', 'business']) {
             expect(termsOfService(audience).sections.find((sec) => sec.id === 'wallet')).toBeUndefined();
             for (const doc of [termsOfService(audience), privacyPolicy(audience), legalNotice(audience)]) {
-                expect(textOf(doc)).not.toMatch(/wallet|gift card|top-up|top up|prepaid/i);
+                expect(textOf(doc)).not.toMatch(/wallet|gift card|top-up|top up|prepaid|membership|session package/i);
             }
         }
         expect(textOf(termsOfService('customer'))).toMatch(/You pay the business directly at your appointment/);

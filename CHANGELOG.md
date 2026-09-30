@@ -43,5 +43,5 @@ navigation (#83).
 
 ## Before v0.3.0
 The foundation: appointment booking with services and availability, JWT auth
-with rotating refresh tokens, payments/wallet, reviews, waitlists, recurring
+with rotating refresh tokens, reviews, waitlists, recurring
 bookings, the admin console, and the security-hardening sweeps (#78–#102).

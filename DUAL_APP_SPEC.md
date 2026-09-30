@@ -14,7 +14,7 @@
 - **Auth:** middleware `auth` (verify JWT, load `req.user`, reject suspended, check `tokenVersion`) + `authorize(...roles)`. Roles enum = **`customer | provider | admin`** only. JWT access token (`{id, tokenVersion}`) + rotating refresh token (`refreshTokenJtis`).
 - **`TeamMember` is a roster stub:** `provider(ref User)`, `name`, `role`(free-text title), `email`/`phone`(plain strings), `color`, `isActive`. **No login, no availability, no service mapping.**
 - **Booking today:** the provider is derived from the chosen `Service.provider`; `Appointment.teamMember` is optional and only set when a provider assigns a chair from their own calendar. `booked-slots` and availability checks are **provider-wide**, never per-staff.
-- **Rich domain already present:** Appointment (recurrence, groups, walk-ins, `manageToken`, payment status/method), Service (`options`, `addOns`, `bufferBefore/After`), Availability (per-provider, unique), BlockedTime (per-provider), Package/ClientPackage (memberships), Review, FormTemplate/FormSubmission (intake/consent), ClientNote (CRM), Message (per-appointment chat), WaitingList, Notification, PushSubscription, Category, and **two wallet ledgers** (client↔provider `Wallet`, provider↔platform `ProviderWallet`).
+- **Rich domain already present:** Appointment (recurrence, groups, walk-ins, `manageToken`, payment status/method), Service (`options`, `addOns`, `bufferBefore/After`), Availability (per-provider, unique), BlockedTime (per-provider), Review, FormTemplate/FormSubmission (intake/consent), ClientNote (CRM), Message (per-appointment chat), WaitingList, Notification, PushSubscription, Category, and **two wallet ledgers** (client↔provider `Wallet`, provider↔platform `ProviderWallet`).
 
 **Consequence:** the backend is already ~80% of a Fresha-class platform. The dual-app work is mostly (a) splitting the frontend, (b) upgrading multi-staff from a label to a first-class actor, and (c) hardening/versioning the API.
 
@@ -55,8 +55,6 @@ Legend: **(exists)** = a current page maps here; **(new)** = net-new.
 | `/b/:providerId/book` | Booking flow: service → **staff (or "any")** → date/time → confirm | BookAppointment (exists) + staff step (new) |
 | `/appointments` | My bookings (upcoming/past) | MyAppointments (exists) |
 | `/appointments/:id` | Booking detail: reschedule/cancel, chat, forms, review | (consolidate existing) |
-| `/wallet` | Client↔provider prepaid balances + top-ups | Wallet (exists) |
-| `/packages` | My purchased packages + redeem | (new UI over ClientPackage) |
 | `/favorites` | Saved businesses | (new UI over `User.favorites`) |
 | `/messages` | Conversations (customer side) | (new UI over Message) |
 | `/profile`, `/profile/edit` | Account, preferences, push opt-in | Profile (exists) |
@@ -74,21 +72,18 @@ Legend: **(exists)** = a current page maps here; **(new)** = net-new.
 | `/services` | Services CRUD; `options`/`addOns`/buffers; **assign staff** | ProviderDashboard services (exists) + staff assign (new) | provider/admin |
 | `/availability` | **Business hours** | Availability (exists) | provider/admin |
 | `/team` | Staff roster CRUD, **invite to log in**, **per-staff hours**, **service assignment** | TeamMember (exists) + big upgrade (new) | provider/admin |
-| `/clients`, `/clients/:id` | CRM: client list, notes, history, packages, forms | clientCRM/ClientNote (exists) | provider/admin, staff(assigned) |
-| `/packages` | Package offerings CRUD + holders | Package (exists) | provider/admin |
+| `/clients`, `/clients/:id` | CRM: client list, notes, history, forms | clientCRM/ClientNote (exists) | provider/admin, staff(assigned) |
 | `/forms` | Intake/consent templates + submissions | FormTemplate/FormSubmission (exists) | provider/admin |
 | `/earnings` | Earnings (+ **per-staff breakdown**, new) | earnings (exists) | provider/admin |
-| `/wallet` | Client wallets held + top-up approvals + adjustments | walletRoutes provider side (exists) | provider/admin |
-| `/platform-wallet` | Provider↔platform balance + top-ups | providerWallet (exists) | provider |
 | `/messages` | Conversations (provider side) | Message (exists) | provider, staff(assigned) |
 | `/reviews` | Reviews of my services | reviewRoutes provider side (exists) | provider/admin |
 | `/waitlist` | Provider waitlist | waitingList provider side (exists) | provider/admin |
 | `/analytics` | Provider analytics | AnalyticsDashboard/analytics (exists) | provider/admin |
-| `/settings` | Business profile, wallet settings, portfolio, onboarding | ProviderAccount (exists) | provider/admin |
+| `/settings` | Business profile, portfolio, onboarding | ProviderAccount (exists) | provider/admin |
 | Onboarding `/setup` | Provider setup wizard | provider-setup (exists) | provider |
 
 ### 2c. Admin — decision (§9)
-Current admin routes `/bkplus-command` + `/bkplus-command/insights` handle user management, wallet approvals, platform analytics. **Recommendation:** a small separate `admin.bookplus.pro` app (or a `role:admin`-gated area inside `business`). Keep out of the customer bundle regardless.
+Current admin routes `/bkplus-command` + `/bkplus-command/insights` handle user management, platform analytics. **Recommendation:** a small separate `admin.bookplus.pro` app (or a `role:admin`-gated area inside `business`). Keep out of the customer bundle regardless.
 
 ---
 
@@ -187,7 +182,7 @@ Auth (staff):
 ## 5. Shared packages (contents)
 - **`design-tokens`**: CSS variables + Tailwind preset for the gold/charcoal/off-white palette, Plus Jakarta Sans (loaded via `<link preconnect>` not `@import` — see perf), spacing/radius/shadow scales. Single source both apps import.
 - **`ui`**: Button, Card, Modal/Sheet, Calendar (extract the provider calendar + the booking month grid), form inputs, StatusBadge, Avatar, EmptyState. Themed via `design-tokens`.
-- **`api-client`**: typed methods per domain (auth, services, appointments, availability, team, wallet, packages, forms, crm, reviews, messages, notifications, push) over one axios instance with the shared refresh interceptor (extract from current `services/api.js`). Consumed identically by web now and native later.
+- **`api-client`**: typed methods per domain (auth, services, appointments, availability, team, forms, crm, reviews, messages, notifications, push) over one axios instance with the shared refresh interceptor (extract from current `services/api.js`). Consumed identically by web now and native later.
 - **`config`**: eslint, tsconfig, tailwind preset, vite preset.
 
 ---
@@ -243,6 +238,5 @@ Each epic lists ordered tasks with **acceptance criteria (AC)** and file pointer
 ## 9. Risk notes
 - **Booking-slot correctness** is the highest-risk change (Epic 2.3): it touches money and double-booking. Cover with tests mirroring `bookingSlots` + the concurrent-write race guard already in `appointmentController`.
 - **`/api` → `/api/v1`**: keep the alias until all clients (incl. the no-login `/manage/:token` links already in the wild) are migrated.
-- **Two wallet ledgers** must land in the correct app: client wallet (`Wallet`) → customer app; provider↔platform (`ProviderWallet`) → business app; approvals span both provider and admin.
 - **Don't fork data or auth** — one API, one identity. The split is experience-only.
 ```
