@@ -434,9 +434,12 @@ const ProviderDashboard = () => {
         const params = new URLSearchParams(location.search);
         const tab = params.get('tab');
         const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet', 'giftcards'];
-        if (tab && validTabs.includes(tab) && tabAllowed(tab)) {
+        // While the wallet is switched off, its screens (and gift cards, which
+        // load it) don't exist: an old link lands on the calendar.
+        const walletTab = tab === 'wallet' || tab === 'giftcards';
+        if (tab && validTabs.includes(tab) && tabAllowed(tab) && (FEATURES.walletEnabled || !walletTab)) {
             setActiveTab(tab);
-        } else if (!tab || !tabAllowed(tab)) {
+        } else if (!tab || !tabAllowed(tab) || walletTab) {
             // Bare /dashboard (e.g. the bottom-nav Dashboard button), or a staff
             // member reaching for a tab their tier can't open → default view.
             setActiveTab('calendar');

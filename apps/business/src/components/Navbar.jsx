@@ -99,14 +99,16 @@ const Navbar = () => {
         { to: '/dashboard?tab=insights', label: 'Insights', cap: null },
         { to: '/dashboard?tab=messages', label: 'Messages', cap: 'calendar:view' },
         { to: '/dashboard?tab=memberships', label: 'Memberships', cap: null },
-        { to: '/dashboard?tab=giftcards', label: 'Gift cards', cap: null, soon: !FEATURES.walletEnabled },
+        // Gift cards load a client's wallet, so both are left out entirely while
+        // the wallet is switched off (no "Soon" either).
+        ...(FEATURES.walletEnabled ? [{ to: '/dashboard?tab=giftcards', label: 'Gift cards', cap: null }] : []),
         { to: '/team', label: 'Team', cap: null },
     ].filter((l) => itemShown(l.cap));
     // Config areas — grouped under the account menu / Settings. For a member,
     // Availability is THEIR hours and blocked time.
     const SETTINGS_LINKS = [
         { to: '/dashboard?tab=availability', label: 'Availability', cap: 'availability:self' },
-        { to: '/dashboard?tab=wallet', label: 'Wallet', cap: null, soon: !FEATURES.walletEnabled },
+        ...(FEATURES.walletEnabled ? [{ to: '/dashboard?tab=wallet', label: 'Wallet', cap: null }] : []),
         { to: '/dashboard?tab=forms', label: 'Forms', cap: null },
     ].filter((l) => itemShown(l.cap));
     // The business suite's own nav (owner + team members); admins have theirs.

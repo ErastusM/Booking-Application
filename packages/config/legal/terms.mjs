@@ -62,8 +62,8 @@ const customerSections = (W) => [
             'Refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business.',
         ] },
     ] },
-    // Wallet "coming soon" (FEATURES.walletEnabled off): the short notice. The full
-    // wallet terms stay here for when it is switched back on.
+    // With the wallet switched off (FEATURES.walletEnabled) there is no wallet
+    // section at all; the full terms stay here for when it is switched on.
     W ? { id: 'wallet', title: 'The prepaid wallet', blocks: [
         'Some businesses let you keep a **prepaid balance** with them. Each wallet is with one business and can only be spent with that business.',
         { list: [
@@ -76,10 +76,7 @@ const customerSections = (W) => [
             '**Gift cards** add a balance to your wallet with the business that sold them and follow that business’s rules.',
         ] },
         'Nothing in these rules takes away a refund you are entitled to by law.',
-    ] } : { id: 'wallet', title: 'Wallet (coming soon)', blocks: [
-        'The Bookplus wallet is **not available yet**. Clients pay the business directly at the appointment.',
-        'If you already hold a balance with a business from before, it stays as it is: it does not expire, and you can see it in the app. Contact that business to use or settle it. We will update these Terms before the wallet is introduced.',
-    ] },
+    ] } : null,
     { id: 'reviews', title: 'Reviews', blocks: [
         'You can review a business once for each completed booking. Reviews must be honest and about your own experience. Do not post reviews that are false, offensive, discriminatory, that include other people’s personal information, or that you were paid or rewarded for. Businesses must not write, buy or reward reviews of themselves.',
         'We may remove reviews that break these rules or the law. We do not edit reviews, and we do not remove a review just because it is negative.',
@@ -150,10 +147,7 @@ const businessSections = (W) => [
             'Refunds and adjustments you propose only apply once the client approves them.',
             'You remain responsible to your clients for their balances, including if you close your account. Settle or refund outstanding balances before you close it.',
         ] },
-    ] } : { id: 'wallet', title: 'Wallet (coming soon)', blocks: [
-        'The client wallet is **not available yet**: clients pay you directly at the appointment. Top-ups, wallet payments and gift cards are switched off.',
-        'Any balance a client already holds with you stays as it is. It does not expire and is shown read-only to you and to the client; settle it with the client directly. We will update these Terms before the wallet is introduced.',
-    ] },
+    ] } : null,
     { id: 'team', title: 'Your team', blocks: [
         'You may invite staff with the permissions you choose. You are responsible for who you give access to, what they do in your account, and removing access when they leave. Team members must accept these Terms when they accept an invitation.',
     ] },
@@ -208,5 +202,5 @@ export const termsOfService = (audience = 'customer', features = FEATURES) => ({
     title: audience === 'business' ? 'Business Terms of Service' : 'Terms of Service',
     updated: TERMS_LAST_UPDATED,
     intro: [],
-    sections: audience === 'business' ? businessSections(!!features.walletEnabled) : customerSections(!!features.walletEnabled),
+    sections: (audience === 'business' ? businessSections(!!features.walletEnabled) : customerSections(!!features.walletEnabled)).filter(Boolean),
 });

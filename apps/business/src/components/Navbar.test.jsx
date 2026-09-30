@@ -70,8 +70,8 @@ describe('Navbar — one app for the owner and the team', () => {
     it("the More menu keeps the owner's order and hides only the business-wide items", async () => {
         const { container: c1, unmount } = renderAs(owner);
         await openMore();
-        // Gift cards carries a "Soon" badge while the wallet is coming soon.
-        expect(moreItems(c1)).toEqual(['Waiting list', 'Insights', 'Messages', 'Memberships', 'Gift cardsSoon', 'Team']);
+        // Gift cards (which load the wallet) is left out while the wallet is off.
+        expect(moreItems(c1)).toEqual(['Waiting list', 'Insights', 'Messages', 'Memberships', 'Team']);
         unmount();
 
         const { container: c2 } = renderAs(member('low'));

@@ -9,11 +9,11 @@ import { Select } from '@bookplus/ui';
 // Listing a business ADDS a business account alongside the customer one
 // (authController.becomeProvider creates a second document on the same email,
 // sharing this account's password). The customer account keeps its bookings,
-// wallet and history, and the website's sign-in then offers a choice of the two.
+// history, and the website's sign-in then offers a choice of the two.
 const PERKS = [
     'Manage your calendar, bookings and clients in one place',
     'Take online bookings 24/7 with automatic reminders',
-    'Keep this customer account — your bookings and wallet stay put',
+    'Keep this customer account — your bookings stay put',
 ];
 
 const BecomeProvider = () => {

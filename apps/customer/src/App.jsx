@@ -11,6 +11,7 @@ import WaitlistCelebration from './components/WaitlistCelebration';
 import SignupSurveyModal from './components/SignupSurveyModal';
 import CookieBanner from './components/CookieBanner';
 import ProtectedRoute from './components/ProtectedRoute';
+import { FEATURES } from '@bookplus/config/features.mjs';
 import { track } from './services/client';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -116,11 +117,13 @@ function AppRoutes() {
                             <MyWaitingList />
                         </ProtectedRoute>
                     } />
-                    <Route path="/wallet" element={
+                    {/* While the wallet is switched off it has no page: old links land on
+                        the client's appointments. */}
+                    <Route path="/wallet" element={FEATURES.walletEnabled ? (
                         <ProtectedRoute allowedRoles={['customer']}>
                             <Wallet />
                         </ProtectedRoute>
-                    } />
+                    ) : <Navigate to="/appointments" replace />} />
                     <Route path="/become-provider" element={
                         <ProtectedRoute allowedRoles={['customer']}>
                             <BecomeProvider />

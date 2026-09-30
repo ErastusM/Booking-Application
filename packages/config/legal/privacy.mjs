@@ -82,7 +82,7 @@ const collectedTable = (audience, W) => {
         ['Messages', 'Messages between you and a business about a booking, and whether they have been read.', 'You and the business'],
         W
             ? ['Wallet and payments', 'Prepaid wallet balances you hold with each business, top-ups, reservations, deductions, refunds and adjustments, payment references and method (bank transfer, eWallet, PayToday or cash), and gift cards (including the recipient’s name and email). We do not collect card numbers.', 'You and the business']
-            : ['Payments', 'You pay the business directly at your appointment; we record the price and whether the booking was paid. We do not collect card numbers. **The Bookplus wallet is coming soon: if we introduce it, we will update this policy first.** Balances some clients already hold with a business from before are kept unchanged and shown to that client and business.', 'You and the business'],
+            : ['Payments', 'You pay the business directly at your appointment; we record the price and whether the booking was paid. We do not collect card numbers.', 'You and the business'],
         W
             ? ['Photos and files', 'Profile photos, business portfolio photos, and proof-of-payment images or PDFs you upload with a top-up.', 'You']
             : ['Photos', 'Profile photos and business portfolio photos.', 'You'],
