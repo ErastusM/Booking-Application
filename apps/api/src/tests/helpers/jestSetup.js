@@ -14,3 +14,6 @@ process.env.GOOGLE_CLIENT_SECRET = 'test_google_client_secret';
 // its behaviour is still maintained for when it is switched back on, so the
 // suite runs with it ON by default. walletComingSoon.test.js covers the OFF state.
 process.env.WALLET_ENABLED = 'true';
+// Same for memberships / packages (MEMBERSHIPS_ENABLED); membershipsOff.test.js
+// covers the OFF state.
+process.env.MEMBERSHIPS_ENABLED = 'true';

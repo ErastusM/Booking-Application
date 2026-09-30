@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth, authorize } = require('../middleware/auth');
+const { requireMemberships } = require('../constants/features');
 const {
     getMyPackages,
     createPackage,
@@ -13,6 +14,8 @@ const {
     getMyPackageClients,
 } = require('../controllers/packageController');
 
+// Memberships are switched off (MEMBERSHIPS_ENABLED): every route is a 404.
+router.use(requireMemberships);
 router.use(auth);
 
 // Provider routes

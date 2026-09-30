@@ -1,5 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { FEATURES } from '@bookplus/config/features.mjs';
+
+// Memberships / packages are switched off (FEATURES.membershipsEnabled): the
+// admin figures leave out package sales and holdings until they return.
+const MEMBERSHIPS = FEATURES.membershipsEnabled;
 import { appointmentService, serviceService, userService, providerWalletService, walletService, analyticsService } from '../services';
 import { useToast } from '../components/Toast';
 import ProofLink from '../components/ProofLink';
@@ -387,7 +391,7 @@ const AdminDashboard = () => {
         { label: 'Users', value: show(overview?.users), Icon: Users, sub: 'Clients + business owners' },
         { label: 'Pending bookings (all)', value: show(overview?.pending), Icon: Clock, sub: `Of ${show(overview?.appointments)} bookings` },
         { label: 'Active services', value: show(overview?.activeServices), Icon: ConciergeBell, sub: 'On the platform' },
-        { label: 'Revenue', value: overview ? nMoney0(overview.revenue) : '—', Icon: Banknote, sub: 'Services + packages, all time' },
+        { label: 'Revenue', value: overview ? nMoney0(overview.revenue) : '—', Icon: Banknote, sub: MEMBERSHIPS ? 'Services + packages, all time' : 'All time' },
     ];
 
     const inputStyle = {
@@ -781,10 +785,10 @@ const AdminDashboard = () => {
                                 {/* Platform revenue roll-up */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
                                     {[
-                                        { label: 'Total revenue', val: nMoney0(revenue.platform.totalRevenue), accent: true, sub: 'Services + packages, all time' },
+                                        { label: 'Total revenue', val: nMoney0(revenue.platform.totalRevenue), accent: true, sub: MEMBERSHIPS ? 'Services + packages, all time' : 'All time' },
                                         { label: 'This month', val: nMoney0(revenue.platform.thisMonthRevenue), sub: 'Service revenue' },
                                         { label: 'Service revenue', val: nMoney0(revenue.platform.servicesRevenue), sub: `${revenue.platform.completedCount} completed` },
-                                        { label: 'Packages & memberships', val: nMoney0(revenue.platform.packageRevenue), sub: 'Package sales' },
+                                        ...(MEMBERSHIPS ? [{ label: 'Packages & memberships', val: nMoney0(revenue.platform.packageRevenue), sub: 'Package sales' }] : []),
                                     ].map((c) => (
                                         <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
                                             <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
@@ -802,7 +806,7 @@ const AdminDashboard = () => {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                             <thead>
                                                 <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
-                                                    {['Provider', 'Completed', 'Service revenue', 'Packages', 'Total revenue', 'Account balance'].map(h => (
+                                                    {['Provider', 'Completed', 'Service revenue', ...(MEMBERSHIPS ? ['Packages'] : []), 'Total revenue', 'Account balance'].map(h => (
                                                         <th key={h} style={thStyle}>{h}</th>
                                                     ))}
                                                 </tr>
@@ -818,7 +822,7 @@ const AdminDashboard = () => {
                                                         </td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{p.completedCount}</td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{nMoney0(p.servicesRevenue)}</td>
-                                                        <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{p.packageCount > 0 ? nMoney0(p.packageRevenue) : '—'}</td>
+                                                        {MEMBERSHIPS && <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{p.packageCount > 0 ? nMoney0(p.packageRevenue) : '—'}</td>}
                                                         <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{nMoney0(p.totalRevenue)}</td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>{nMoney0(p.walletBalance)}</td>
                                                     </tr>
@@ -1040,7 +1044,7 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                                 {[
                                     { label: 'Total revenue', val: nMoney0(data.revenue.total), accent: true },
                                     { label: 'Service revenue', val: nMoney0(data.revenue.services) },
-                                    { label: 'Packages & memberships', val: nMoney0(data.revenue.packages) },
+                                    ...(MEMBERSHIPS ? [{ label: 'Packages & memberships', val: nMoney0(data.revenue.packages) }] : []),
                                     { label: 'This month', val: nMoney0(data.revenue.thisMonth), trend: data.revenue.growthPct },
                                     { label: 'Avg / appointment', val: nMoney0(data.revenue.avgTicket) },
                                     { label: 'Account balance', val: nMoney0(data.walletBalance) },
@@ -1109,15 +1113,17 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                             <span>Unique clients served</span><span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{data.appointments.uniqueClients}</span>
                                         </div>
+                                        {MEMBERSHIPS && (
                                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                                             <span>Active packages</span><span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{data.packages.active} / {data.packages.count}</span>
                                         </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Recent completed appointments */}
-                            <div style={{ marginBottom: data.recentPackages.length > 0 ? '1.5rem' : 0 }}>
+                            <div style={{ marginBottom: MEMBERSHIPS && data.recentPackages.length > 0 ? '1.5rem' : 0 }}>
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Recent completed appointments</h3>
                                 {data.recent.length === 0 ? (
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No completed appointments yet</p>
@@ -1134,7 +1140,7 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                             </div>
 
                             {/* Recent package sales */}
-                            {data.recentPackages.length > 0 && (
+                            {MEMBERSHIPS && data.recentPackages.length > 0 && (
                                 <div>
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Recent package sales</h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

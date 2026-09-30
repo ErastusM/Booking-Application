@@ -98,7 +98,8 @@ const Navbar = () => {
         { to: '/dashboard?tab=waitlist', label: 'Waiting list', cap: 'waitlist:manage' },
         { to: '/dashboard?tab=insights', label: 'Insights', cap: null },
         { to: '/dashboard?tab=messages', label: 'Messages', cap: 'calendar:view' },
-        { to: '/dashboard?tab=memberships', label: 'Memberships', cap: null },
+        // Memberships are switched off (FEATURES.membershipsEnabled): no menu item.
+        ...(FEATURES.membershipsEnabled ? [{ to: '/dashboard?tab=memberships', label: 'Memberships', cap: null }] : []),
         // Gift cards load a client's wallet, so both are left out entirely while
         // the wallet is switched off (no "Soon" either).
         ...(FEATURES.walletEnabled ? [{ to: '/dashboard?tab=giftcards', label: 'Gift cards', cap: null }] : []),

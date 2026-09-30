@@ -47,7 +47,7 @@ Grounded in the current codebase:
 
 - **Backend:** Node/Express, MongoDB/Mongoose, JWT (access + refresh, `tokenVersion` revocation), Stripe. Already role-aware. Deployed via Docker Compose behind Nginx; images `bookplus-server` / `bookplus-client` on Docker Hub; CI/CD via GitHub Actions on push to `main`; domains `bookplus.pro` (web) + `api.bookplus.pro` (API).
 - **Frontend:** React 18 + React Router v6, built with **CRA (react-scripts)**. One SPA serving both personas. Providers toggle `activeRole` between `provider` and `customer` views client-side.
-- **Customer surface (already exists):** Home discovery feed, `/services` marketplace, provider profiles, `BookAppointment`, `MyAppointments`, `Wallet`, `WaitingList`, `Profile`.
+- **Customer surface (already exists):** Home discovery feed, `/services` marketplace, provider profiles, `BookAppointment`, `MyAppointments`, `WaitingList`, `Profile`.
 - **Provider surface (already exists):** `ProviderDashboard` (calendar / services / availability / earnings), `ProviderAccount`, plus admin/analytics dashboards.
 
 **Implication:** the split lines are *already visible in the route/page structure*. Most pages belong cleanly to one persona.
@@ -97,7 +97,7 @@ bookplus/
 ├── packages/
 │   ├── ui/                 # shared components (buttons, cards, calendar, modals)
 │   ├── design-tokens/      # colors (gold/charcoal/off-white), fonts, spacing, radius
-│   ├── api-client/         # typed SDK: auth, services, appointments, wallet, etc.
+│   ├── api-client/         # typed SDK: auth, services, appointments, etc.
 │   └── config/             # shared eslint / tsconfig / tailwind preset
 └── ...
 ```

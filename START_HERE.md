@@ -4,7 +4,7 @@ Bookplus is a **live, dual-app appointment-booking platform** — one shared
 backend, two frontends:
 
 - **Customer marketplace** — `apps/customer` → https://www.bookplus.pro
-  (discover providers, book, guest checkout, wallet, waiting list)
+  (discover providers, book, guest checkout, waiting list)
 - **Business management app** — `apps/business` → https://business.bookplus.pro
   (providers, staff and admins: calendar, services, clients, earnings, team)
 - **Shared API** — `apps/api` (Node/Express/MongoDB) → https://api.bookplus.pro

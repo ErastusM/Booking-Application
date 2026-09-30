@@ -12,6 +12,18 @@
  */
 const walletEnabled = () => String(process.env.WALLET_ENABLED || '').toLowerCase() === 'true';
 
+/**
+ * MEMBERSHIPS_ENABLED — membership plans / session packages (Package,
+ * ClientPackage). Default OFF (owner decision, September 2026, for the payment
+ * provider's review). While off, every /api/packages route answers 404, so
+ * nothing can be sold, bought or redeemed; existing records are kept. The apps
+ * read the same switch from packages/config/features.mjs.
+ */
+const membershipsEnabled = () => String(process.env.MEMBERSHIPS_ENABLED || '').toLowerCase() === 'true';
+const requireMemberships = (req, res, next) => (membershipsEnabled()
+    ? next()
+    : res.status(404).json({ success: false, message: 'Not found' }));
+
 const WALLET_COMING_SOON = {
     success: false,
     code: 'WALLET_COMING_SOON',
@@ -21,4 +33,4 @@ const WALLET_COMING_SOON = {
 // Express guard for routes that move wallet money.
 const requireWallet = (req, res, next) => (walletEnabled() ? next() : res.status(403).json(WALLET_COMING_SOON));
 
-module.exports = { walletEnabled, WALLET_COMING_SOON, requireWallet };
+module.exports = { walletEnabled, WALLET_COMING_SOON, requireWallet, membershipsEnabled, requireMemberships };

@@ -435,11 +435,13 @@ const ProviderDashboard = () => {
         const tab = params.get('tab');
         const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet', 'giftcards'];
         // While the wallet is switched off, its screens (and gift cards, which
-        // load it) don't exist: an old link lands on the calendar.
-        const walletTab = tab === 'wallet' || tab === 'giftcards';
-        if (tab && validTabs.includes(tab) && tabAllowed(tab) && (FEATURES.walletEnabled || !walletTab)) {
+        // load it) don't exist, and nor do Memberships while they are off: an
+        // old link lands on the calendar.
+        const switchedOffTab = (!FEATURES.walletEnabled && (tab === 'wallet' || tab === 'giftcards'))
+            || (!FEATURES.membershipsEnabled && tab === 'memberships');
+        if (tab && validTabs.includes(tab) && tabAllowed(tab) && !switchedOffTab) {
             setActiveTab(tab);
-        } else if (!tab || !tabAllowed(tab) || walletTab) {
+        } else if (!tab || !tabAllowed(tab) || switchedOffTab) {
             // Bare /dashboard (e.g. the bottom-nav Dashboard button), or a staff
             // member reaching for a tab their tier can't open → default view.
             setActiveTab('calendar');
@@ -502,7 +504,7 @@ const ProviderDashboard = () => {
         if (activeTab === 'insights' && !insights) fetchInsights();
         if (activeTab === 'clients' && clients.length === 0) fetchClients();
         if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
-        if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
+        if (activeTab === 'memberships' && FEATURES.membershipsEnabled && myPackages.length === 0) fetchMyPackages();
         if (activeTab === 'team' && teamMembers.length === 0) fetchTeam();
         // The service menu says who performs each service ("Only Erastus").
         if (activeTab === 'services' && !isStaff && teamMembers.length === 0) fetchTeam();
@@ -3363,7 +3365,7 @@ const ProviderDashboard = () => {
             )}
 
             {/* Packages tab */}
-            {activeTab === 'memberships' && (
+            {activeTab === 'memberships' && FEATURES.membershipsEnabled && (
                 <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <div>
