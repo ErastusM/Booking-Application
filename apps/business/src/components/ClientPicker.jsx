@@ -548,11 +548,11 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                                     const isSel = String(value ?? '') === id;
                                     const visits = Number(c.completedVisits) || 0;
                                     const last = visits ? fmtDayMonth(c.lastCompletedVisit) : null;
-                                    const sub = c.customer.phone || (c.isWalkIn ? '' : c.customer.email) || '';
+                                    const sub = c.customer.phone || c.customer.email || '';
                                     const details = (
                                         <>
                                             <span className="cp-sub">
-                                                {c.isWalkIn ? <span className="cp-tag">Walk-in</span> : null}
+                                                {c.isWalkIn ? <span className="cp-tag">{c.isGuest ? 'Guest' : 'Walk-in'}</span> : null}
                                                 {sub ? <span className="cp-phone">{sub}</span> : null}
                                             </span>
                                             <span className="cp-meta">
