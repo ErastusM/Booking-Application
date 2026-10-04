@@ -1,0 +1,29 @@
+# Temporary, read-only: inspect DNS and the TLS certificate each domain serves.
+name: TLS diagnose
+on:
+  push:
+    branches: [claude/last-deploy-time-cjjnu3]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: DNS + certificates
+        run: |
+          sudo apt-get install -y -qq dnsutils >/dev/null 2>&1 || true
+          for h in bookplus.pro www.bookplus.pro app.bookplus.pro business.bookplus.pro api.bookplus.pro; do
+            echo "================ $h"
+            for r in 1.1.1.1 8.8.8.8; do
+              echo "-- resolver $r"
+              for t in A AAAA CNAME CAA; do echo "$t: $(dig +short @$r $h $t | tr '\n' ' ')"; done
+            done
+            for ip in $(dig +short @1.1.1.1 $h A | grep -E '^[0-9.]+$'); do
+              echo "-- cert served on $ip"
+              echo | timeout 15 openssl s_client -connect "$ip:443" -servername "$h" 2>/dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName 2>&1
+              echo | timeout 15 openssl s_client -connect "$ip:443" -servername "$h" 2>&1 | grep -E "Verify return code|depth="
+            done
+          done
+          echo "================ NS / registrar"
+          dig +short NS bookplus.pro
+          whois bookplus.pro 2>/dev/null | grep -iE "registrar:|name server|expir" | head
