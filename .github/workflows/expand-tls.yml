@@ -18,9 +18,15 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /app
+            # --allow-subset-of-names: a name whose DNS record is missing (as
+            # app.bookplus.pro's was in October 2026) is dropped instead of
+            # failing the whole certificate, so the live names keep renewing.
+            # certbot saves the flag, so the 12-hourly `certbot renew` keeps it.
             docker compose run --rm --entrypoint certbot certbot certonly \
               --webroot -w /var/www/certbot --expand --non-interactive --agree-tos \
+              --allow-subset-of-names \
               --cert-name bookplus.pro \
               -d bookplus.pro -d www.bookplus.pro -d api.bookplus.pro \
               -d app.bookplus.pro -d business.bookplus.pro
             docker compose exec nginx nginx -s reload
+            docker compose run --rm --entrypoint certbot certbot certificates --cert-name bookplus.pro
