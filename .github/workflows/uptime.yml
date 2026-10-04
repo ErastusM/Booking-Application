@@ -71,6 +71,32 @@ jobs:
             echo "| ${name} | ${url} | ${code} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
           done
 
+          # TLS certificate expiry. Let's Encrypt certificates last 90 days and
+          # certbot renews them with ~30 left, so under 14 days left means
+          # renewal has been failing (in October 2026 a missing DNS record for
+          # one name on the certificate stopped every renewal, and the site went
+          # down when it expired). Raised like a down target, well before then.
+          for entry in "${targets[@]}"; do
+            name="${entry%%|*}"
+            url="${entry#*|}"
+            host="${url#https://}"; host="${host%%/*}"
+            end="$(echo | timeout 15 openssl s_client -connect "${host}:443" -servername "$host" 2>/dev/null \
+                   | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+            if [ -z "$end" ]; then
+              days='unknown'
+            else
+              days=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+            fi
+            if [ "$days" = 'unknown' ] || [ "$days" -lt 14 ]; then
+              result='RENEW NOW'
+              failed+=("${name} certificate|${url}|expires in ${days} days")
+            else
+              result='ok'
+            fi
+            echo "${name} certificate: ${days} days left (${result})"
+            echo "| ${name} certificate | ${url} | ${days} days left | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
           if [ "${#failed[@]}" -eq 0 ]; then
             echo 'failed=' >> "$GITHUB_OUTPUT"
             echo 'All targets up.'
