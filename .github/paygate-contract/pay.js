@@ -39,34 +39,33 @@ pg.setTransport((a) => new Promise((resolve, reject) => {
   console.log((await describe()).join('\n'));
   console.log('page text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 600));
 
-  // Fill whatever card form PayGate shows, by the usual field names.
-  const fill = async (re, value) => {
-    const els = await page.$$('input:not([type=hidden]), select');
-    for (const el of els) {
-      const key = ((await el.getAttribute('name')) || '') + ' ' + ((await el.getAttribute('id')) || '') + ' ' + ((await el.getAttribute('placeholder')) || '');
-      if (re.test(key)) {
-        const tag = await el.evaluate((n) => n.tagName);
-        if (tag === 'SELECT') {
-          const opts = await el.$$eval('option', (o) => o.map((x) => x.value).filter(Boolean));
-          const pick = opts.find((o) => o.endsWith(value)) || opts[opts.length - 1];
-          await el.selectOption(pick);
-        } else { await el.fill(value); }
-        return key.trim();
-      }
+  const clickIfVisible = async (sel) => { const el = await page.$(sel); if (el && await el.isVisible()) { await el.click(); return true; } return false; };
+  await page.waitForTimeout(1000);
+  console.log('dismissed test notice:', await clickIfVisible('button:visible:has-text("OK")'));
+  console.log('chose Card:', await clickIfVisible('#pmCreditcardBtn'));
+  await page.waitForSelector('#ccNumber', { state: 'visible', timeout: 15000 });
+  await page.fill('#ccNumber', '4000000000000002');
+  await page.fill('#ccName', 'Test Client');
+  await page.selectOption('#ccOpMonth', '12');
+  const years = await page.$$eval('#ccOpYear option', (o) => o.map((x) => x.value));
+  await page.selectOption('#ccOpYear', years[Math.min(2, years.length - 1)]);
+  await page.fill('#ccCvv', '123');
+  await Promise.all([page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {}), page.click('#nextBtn')]);
+  // Any further steps (3-D Secure simulator, confirmation) until PayGate posts back to us.
+  for (let step = 0; step < 6 && !returned; step++) {
+    await page.waitForTimeout(2000);
+    if (returned) break;
+    const frames = page.frames();
+    console.log(`\n-- step ${step}: ${page.url()} (frames: ${frames.length})`);
+    for (const fr of frames) {
+      const t = await fr.innerText('body').catch(() => '');
+      if (t.trim()) console.log('   text:', t.replace(/\s+/g, ' ').slice(0, 300));
+      const btns = await fr.$$eval('button, input[type=submit], input[type=button], a.btn', (els) => els.filter((e) => e.offsetParent !== null).map((e) => (e.innerText || e.value || '').trim()).filter(Boolean)).catch(() => []);
+      if (btns.length) console.log('   buttons:', btns.join(' | '));
+      const pick = await fr.$('button:visible:has-text("Authenticate"), button:visible:has-text("Submit"), input[type=submit]:visible, button:visible:has-text("Continue"), button:visible:has-text("Approve"), button:visible:has-text("Next"), button:visible:has-text("Pay")').catch(() => null);
+      if (pick) { await Promise.all([page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {}), pick.click().catch(() => {})]); break; }
     }
-    return null;
-  };
-  // Some PayGate pages first ask for a payment method.
-  const cardChoice = await page.$('text=/credit card|card/i');
-  console.log('filled:',
-    await fill(/card.?(num|no)|pan|ccnum/i, '4000000000000002'),
-    await fill(/holder|name.?on|cardname/i, 'Test Client'),
-    await fill(/exp.*(mon|mm)|month/i, '12'),
-    await fill(/exp.*(year|yy)|year/i, String(new Date().getFullYear() + 2)),
-    await fill(/^exp(iry)?\b|expir(y|ation)(?!.*(mon|year))/i, '12/' + String((new Date().getFullYear() + 2) % 100)),
-    await fill(/cvv|cvc|security/i, '123'));
-  const submit = await page.$('button[type=submit], input[type=submit], button:has-text("Pay"), button:has-text("Confirm")');
-  if (submit) { await Promise.all([page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {}), submit.click()]); }
+  }
   for (let i = 0; i < 30 && !returned; i++) await page.waitForTimeout(1000);
   console.log('\n== after submit:', page.url());
   console.log('page text:', (await page.innerText('body').catch(() => '')).replace(/\s+/g, ' ').slice(0, 400));
