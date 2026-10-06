@@ -11,6 +11,26 @@ const signupSurveySchema = new mongoose.Schema({
     submittedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
+// How clients pay for ONLINE bookings (PAYMENTS_ENABLED). Absent = at the
+// appointment, as always. Deposit: `percent` (depositValue 1–100) or `fixed`
+// (depositValue in integer cents, capped at the booking's price).
+const paymentSettingsSchema = new mongoose.Schema({
+    mode: { type: String, enum: ['at_appointment', 'deposit', 'full'], default: 'at_appointment' },
+    depositType: { type: String, enum: ['percent', 'fixed'], default: 'percent' },
+    depositValue: { type: Number, default: null },
+    updatedAt: { type: Date, default: null },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+}, { _id: false });
+
+// Where Bookplus pays this business out. Owner-only; never public, never logged.
+const payoutAccountSchema = new mongoose.Schema({
+    accountHolder: { type: String, trim: true, maxlength: 100 },
+    bankName: { type: String, trim: true, maxlength: 100 },
+    branchCode: { type: String, trim: true, maxlength: 12 },
+    accountNumber: { type: String, trim: true, maxlength: 24 },
+    updatedAt: { type: Date, default: null },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -216,6 +236,13 @@ const userSchema = new mongoose.Schema(
             // window here to re-enable enforcement for their business.
             cancellationWindowHours: { type: Number, default: 0, min: 0, max: 168 },
         },
+        // Online payment setting (providers). Deliberately NOT inside
+        // businessProfile, which is served publicly; no default, so accounts
+        // that never chose keep an unchanged document ("at the appointment").
+        paymentSettings: { type: paymentSettingsSchema, default: undefined },
+        // Bank account for payouts (providers). select:false and stripped from
+        // toJSON — only the payments endpoints read it, deliberately.
+        payoutAccount: { type: payoutAccountSchema, default: undefined, select: false },
         // Post-signup friction survey response (null until answered/dismissed).
         signupSurvey: { type: signupSurveySchema, default: null },
         // True only for accounts created AFTER this feature shipped, so the
@@ -284,6 +311,7 @@ const userSchema = new mongoose.Schema(
                 delete ret.refreshTokenJtis;
                 delete ret.oauthCode;
                 delete ret.oauthCodeExpiry;
+                delete ret.payoutAccount;
                 return ret;
             },
         },

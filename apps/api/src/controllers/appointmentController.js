@@ -42,6 +42,8 @@ class SlotTakenError extends Error {
 const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
 const { can } = require('../utils/permissions');
+const payments = require('../services/paymentService');
+const { hiddenFromBusiness, PAYMENT_ABANDONED_REASON } = require('../utils/paymentHold');
 
 // Who a client-facing email/notification for this appointment should go to: the
 // registered customer, or the guest who booked (customer is null for guests).
@@ -127,38 +129,10 @@ const getProviderSchedule = async (providerId) => {
  */
 const memberLane = (teamMemberId) => !!teamMemberId && String(teamMemberId) !== 'owner';
 
-// Every distinct team member a booking should alert, resolved to their own login
-// (+ email + name). A booking assigned to members who have their own logins pings
-// EACH of them — so on a multi-service ticket every performer hears about it, not
-// just the primary — and deep-links to their schedule. If no assigned member has
-// a login (owner-column booking, or roster-only members), the alert falls back to
-// the business owner's dashboard, exactly as before. The owner keeps whole-team
-// oversight through the dashboard; this just re-points the actionable per-booking
-// alert to the people it is about.
-const bookingAlertTargets = async (providerId, teamMemberIds) => {
-    const TeamMember = require('../models/TeamMember');
-    const ids = [...new Set((teamMemberIds || []).filter(Boolean).map(String))];
-    const targets = [];
-    const seenUsers = new Set();
-    for (const id of ids) {
-        const m = await TeamMember.findById(id).select('user name email').populate('user', 'email name').lean();
-        if (m && m.user) {
-            // De-dupe by the LOGIN, not the roster row: two rows pointing at one
-            // user (a data anomaly) must not double-notify that person.
-            const uid = String(m.user._id);
-            if (seenUsers.has(uid)) continue;
-            seenUsers.add(uid);
-            targets.push({
-                userId: m.user._id,
-                link: '/my-schedule',
-                email: m.user.email || m.email || null,
-                name: m.name || m.user.name || null,
-            });
-        }
-    }
-    if (targets.length) return targets;
-    return [{ userId: providerId, link: '/dashboard', email: null, name: null }];
-};
+// Who a new booking alerts, and the new-booking notices themselves, live in
+// utils/bookingNotices so an online-paid booking (confirmed later, when its
+// payment lands) fires exactly the same ones.
+const { bookingAlertTargets, announceNewBooking } = require('../utils/bookingNotices');
 // Exposed for unit tests of the routing/fan-out logic.
 exports._bookingAlertTargets = bookingAlertTargets;
 
@@ -869,8 +843,15 @@ exports.getAllAppointments = async (req, res) => {
         const query = scope.query;
 
         const { status } = req.query;
-        if (status && ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].includes(status)) {
+        if (status && ['pending', 'confirmed', 'completed', 'cancelled', 'no-show', 'pending_payment'].includes(status)) {
             query.status = status;
+        }
+        // A booking still waiting for its online payment (or released unpaid) is
+        // not a booking for the business yet: left out of their calendar lists
+        // unless they ask for the ones awaiting payment (?status=pending_payment).
+        // Clients (their own bookings) and admins see everything.
+        if ((req.user.role === 'provider' || req.user.role === 'staff') && status !== 'pending_payment') {
+            Object.assign(query, hiddenFromBusiness());
         }
 
         // Optional date window (ADDITIVE — absent params keep the old "everything"
@@ -952,9 +933,13 @@ exports.getAppointmentsSummary = async (req, res) => {
         const emptyData = { total: 0, byStatus: {}, byService: [], uniqueClients: 0 };
         if (scope.empty) return res.status(200).json({ success: true, data: emptyData });
 
+        // Unpaid online holds are not the business's bookings (paymentHold.js).
+        const match = (req.user.role === 'provider' || req.user.role === 'staff')
+            ? { ...scope.query, ...hiddenFromBusiness() }
+            : scope.query;
         // $facet: one pass over the scoped bookings, four independent rollups.
         const [agg] = await Appointment.aggregate([
-            { $match: scope.query },
+            { $match: match },
             {
                 $facet: {
                     total: [{ $count: 'n' }],
@@ -1514,6 +1499,25 @@ exports.createAppointment = async (req, res) => {
         // wallet prepayment for recurring is a separate feature if ever wanted.)
         if (isRecurring && chosenMethod === 'wallet') chosenMethod = 'cash';
 
+        // Online payment (PAYMENTS_ENABLED): a business may ask clients who book
+        // online for a deposit or the full price upfront. Only a client's own
+        // online booking (a guest, a customer, or another business's account
+        // booking here) is asked — the owner and team members booking from the
+        // calendar, walk-ins and bookings made for an existing client stay as
+        // they are. A wallet-paid booking is already prepaid. With the switch off
+        // (or the business not in NAD) planForBooking is null: unchanged booking.
+        const isOnlineClient = isCustomerLike && req.user?.role !== 'staff';
+        const paymentPlan = isOnlineClient && chosenMethod !== 'wallet' && svc.provider
+            ? await payments.planForBooking(svc.provider, basePrice)
+            : null;
+        if (paymentPlan && isRecurring) {
+            return res.status(400).json({
+                success: false,
+                code: 'online_payment_recurring_unsupported',
+                message: 'This business takes payment online when you book, which isn’t available for repeat bookings yet. Please book one appointment at a time.',
+            });
+        }
+
         // Multi-location (write threading): a booking may name one of the
         // provider's own active locations; absent → null (resolves to the primary
         // "Main"), the single-location path, which touches no DB. A foreign or
@@ -1534,8 +1538,16 @@ exports.createAppointment = async (req, res) => {
             selectedAddOns: resolvedAddOns,
             selectedOptionName: chosenOption ? chosenOption.name : null,
             totalPrice: basePrice,
-            status: 'confirmed',
-            statusHistory: [{ status: 'confirmed', changedBy: req.user?._id || null }],
+            status: paymentPlan ? 'pending_payment' : 'confirmed',
+            statusHistory: [{ status: paymentPlan ? 'pending_payment' : 'confirmed', changedBy: req.user?._id || null }],
+            // Held for the client to pay online (only when the business asks).
+            ...(paymentPlan ? {
+                paymentKind: paymentPlan.kind,
+                amountDueOnlineCents: paymentPlan.amountCents,
+                amountPaidOnlineCents: 0,
+                currency: paymentPlan.currency,
+                paymentHoldExpiresAt: new Date(Date.now() + payments.holdMinutes() * 60 * 1000),
+            } : {}),
             // Guest contact (no account) — the manageToken is their access credential.
             guestName: isGuest ? bookingClient.name : null,
             guestEmail: isGuest ? bookingClient.email : null,
@@ -1697,6 +1709,40 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
+        // Online payment: open the PayGate session for the hold. The booking is
+        // not confirmed — and nobody is told about it — until the payment lands
+        // (paymentService.ensurePaidEffects fires the usual notices then). If
+        // PayGate can't be reached the hold is released at once (no orphan).
+        if (paymentPlan) {
+            try {
+                const session = await payments.startSession({
+                    appointment,
+                    kind: paymentPlan.kind,
+                    amountCents: paymentPlan.amountCents,
+                    currency: paymentPlan.currency,
+                    payer: isGuest
+                        ? { userId: null, name: bookingClient.name, email: bookingClient.email }
+                        : { userId: req.user._id, name: req.user.name, email: req.user.email },
+                });
+                return res.status(201).json({
+                    success: true,
+                    code: 'payment_required',
+                    message: 'Your time is held. Complete the payment to confirm your booking.',
+                    data: appointment,
+                    payment: payments.checkoutPayload(session, appointment),
+                });
+            } catch (payErr) {
+                await Appointment.deleteOne({ _id: appointment._id, status: 'pending_payment' });
+                return res.status(502).json({
+                    success: false,
+                    code: 'payment_unavailable',
+                    message: payErr instanceof payments.PaymentStartError
+                        ? payErr.message
+                        : 'Online payment is unavailable right now. Please try again in a few minutes.',
+                });
+            }
+        }
+
         // Respond immediately — notifications and email run in the background.
         // A recurring series reports any dates it had to skip (blocked, closed or
         // already taken) so the customer isn't silently missing a week.
@@ -1710,89 +1756,21 @@ exports.createAppointment = async (req, res) => {
         });
 
         // Notify the provider (in-app) and alert admins of the new booking (fire-and-forget)
-        setImmediate(async () => {
-            try {
-                const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                // Who the booking is for, in human terms — the registered client, the
-                // walk-in's name, or (for a self-booking) the customer themselves.
-                const clientLabel = (isProviderBooking || isStaffWalkIn || isStaffOnBehalf)
-                    ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
-                    : (req.user?.name || bookingClient.name);
-                const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
-                if (svc.provider) {
-                    const targets = await bookingAlertTargets(svc.provider, [appointment.teamMember]);
-                    const alertMsg = `🎉 New booking — ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`;
-                    for (const t of targets) {
-                        await createNotification(t.userId, alertMsg, 'appointment', t.link);
-                        // Member gets an email too (owner fallback has no email → in-app/push only, as before).
-                        // Guarded so a partial emailService mock in a test can't throw and skip the notices below.
-                        if (t.email && typeof sendStaffBookingAlert === 'function') {
-                            sendStaffBookingAlert(t.email, t.name, svc.name, bookingDate, `${startTime} – ${bookingEnd}`, clientLabel).catch(() => {});
-                        }
-                    }
-                }
+        setImmediate(() => {
+            // Who the booking is for, in human terms — the registered client, the
+            // walk-in's name, or (for a self-booking) the customer themselves.
+            const clientLabel = (isProviderBooking || isStaffWalkIn || isStaffOnBehalf)
+                ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
+                : (req.user?.name || bookingClient.name);
+            announceNewBooking({
+                appointment, svc, bookingClient, clientLabel, price: basePrice,
+                appointmentDate, startTime, endTime: bookingEnd,
                 // When a provider (or a staff member on their behalf) books an
                 // existing client, let that client know.
-                if ((isProviderBooking || isStaffOnBehalf) && customerId) {
-                    await createNotification(
-                        bookingClient._id,
-                        `✅ You’re booked for ${servicePhrase(svc.name)} with ${req.user.name} on ${bookingDate} at ${startTime}.`,
-                        'appointment',
-                        '/appointments'
-                    );
-                }
-                await notifyAdmins(
-                    `New booking: ${servicePhrase(svc.name)} by ${clientLabel} on ${bookingDate} at ${startTime}`,
-                    'system',
-                    '/bkplus-command'
-                );
-            } catch (err) { logger.error({ err }, 'Booking notification failed'); }
-
-            try {
-                const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                const timeStr = `${startTime} – ${bookingEnd}`;
-                // Shared helper: emits a real UTC instant. The old inline builder wrote a
-                // floating stamp with no zone, which Google reads as UTC — showing a 10:00
-                // booking as 12:00 to a CAT (UTC+2) reader.
-                const gcalUrl = calendarHelper.googleCalendarUrl({
-                    title: svc.name, appointmentDate, startTime, endTime: bookingEnd,
-                    details: 'Booked via Bookplus',
-                });
-
-                // Extras for the confirmation email: venue, manage link, directions
-                const providerDoc = svc.provider ? await User.findById(svc.provider).select('name businessProfile') : null;
-                const address = providerDoc?.businessProfile?.address || '';
-                const clientBase = primaryOrigin() || '';
-                const extras = {
-                    price: basePrice,
-                    currency: providerDoc?.businessProfile?.currency || 'NAD',
-                    bookingRef: String(appointment._id).slice(-8).toUpperCase(),
-                    manageUrl: appointment.manageToken ? `${clientBase}/manage/${appointment.manageToken}` : undefined,
-                    directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,
-                    venue: providerDoc?.name || undefined,
-                    address: address || undefined,
-                    // Downloadable .ics so the booking drops straight into any calendar app.
-                    ics: calendarHelper.buildIcs({
-                        uid: `${appointment._id}@bookplus`, title: svc.name,
-                        appointmentDate, startTime, endTime: bookingEnd,
-                        description: 'Booked via Bookplus', location: address || undefined, status: 'CONFIRMED',
-                    }),
-                };
-                // Send the confirmation to whoever the booking is for: the registered
-                // client when a provider booked on their behalf, otherwise the requester.
-                // A walk-in has no account/email (staff walk-in) — nothing to send.
-                if (bookingClient.email) {
-                    await sendAppointmentConfirmed(
-                        bookingClient.email,
-                        bookingClient.name,
-                        svc.name,
-                        dateStr,
-                        timeStr,
-                        gcalUrl,
-                        extras
-                    );
-                }
-            } catch (err) { logger.error({ err }, 'Booking confirmation email failed'); }
+                bookedFor: (isProviderBooking || isStaffOnBehalf) && customerId
+                    ? { clientUserId: bookingClient._id, bookerName: req.user.name }
+                    : null,
+            });
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -2158,6 +2136,7 @@ exports.updateAppointment = async (req, res) => {
         // Snapshot the slot so a lost race can be undone (the same post-write
         // backstop every other reschedule path uses — this one had none).
         const previousSlot = slotSnapshot(appointment);
+        const wasCancelled = appointment.status === 'cancelled';
         // Shift multi-service segments by the same delta BEFORE reassigning startTime.
         const shifted = shiftedSegments(appointment, parseTimeToMinutes(newStart));
         appointment.appointmentDate = appointmentDate ? new Date(appointmentDate) : appointment.appointmentDate;
@@ -2172,6 +2151,10 @@ exports.updateAppointment = async (req, res) => {
         if (timingChanged && appointment.status !== 'cancelled'
             && await revertRescheduleIfRaced(appointment, previousSlot)) {
             return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
+        }
+        // An admin cancelling here counts as the business: refund what was paid online.
+        if (!wasCancelled && appointment.status === 'cancelled') {
+            await payments.onAppointmentCancelled(appointment._id, { actor: req.user.role === 'admin' ? 'business' : 'client', withinWindow: req.user.role === 'admin', by: req.user._id });
         }
         res.status(200).json({ success: true, message: 'Appointment updated successfully', data: appointment });
     } catch (error) {
@@ -2192,6 +2175,15 @@ exports.cancelAppointment = async (req, res) => {
         if ((!appointment.customer || appointment.customer._id.toString() !== req.user._id.toString()) && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
         }
+        // A booking still waiting for its online payment: the client is walking
+        // away before paying. Release the hold — the business never saw it, so
+        // nobody is notified — and close the payment attempt.
+        if (appointment.status === 'pending_payment') {
+            const released = await payments.releaseHold(appointment._id, {
+                reason: PAYMENT_ABANDONED_REASON, paymentStatus: 'cancelled', source: 'cancel', by: req.user._id,
+            });
+            return res.status(200).json({ success: true, message: 'Appointment cancelled successfully', data: released || appointment });
+        }
         if (req.user.role !== 'admin') {
             // A booking whose start time has passed is history — it can be
             // completed or disputed with the business, but not cancelled.
@@ -2211,6 +2203,13 @@ exports.cancelAppointment = async (req, res) => {
         appointment.cancellationReason = req.body.cancellationReason || '';
         appointment.statusHistory.push({ status: 'cancelled', changedBy: req.user._id });
         await appointment.save();
+
+        // Paid online: the client cancelled within the business's window (it was
+        // enforced above) → full refund; an admin cancelling counts as the
+        // business. A refund problem never undoes the cancellation.
+        await payments.onAppointmentCancelled(appointment._id, {
+            actor: req.user.role === 'admin' ? 'business' : 'client', withinWindow: true, by: req.user._id,
+        });
 
         // Release any held wallet funds back to available (idempotent; spec §6).
         try {
@@ -2311,7 +2310,7 @@ exports.getAppointmentHistory = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const { status } = req.query;
-        const query = { provider: req.user._id };
+        const query = { provider: req.user._id, ...hiddenFromBusiness() };
         if (status) {
             query.status = status;
         } else {
@@ -2376,6 +2375,17 @@ exports.updateAppointmentStatus = async (req, res) => {
         if (appointment.status === status) {
             return res.status(200).json({ success: true, data: appointment });
         }
+        // Waiting for the client's online payment: it is confirmed by the payment
+        // itself, never by hand. The business may only turn it down.
+        if (appointment.status === 'pending_payment') {
+            if (status !== 'cancelled') {
+                return res.status(409).json({ success: false, code: 'awaiting_payment', message: 'This booking is waiting for the client’s online payment. It confirms itself once they pay.' });
+            }
+            const released = await payments.releaseHold(appointment._id, {
+                reason: 'Cancelled by the business before payment', paymentStatus: 'cancelled', source: 'cancel', by: req.user._id,
+            });
+            return res.status(200).json({ success: true, data: released || appointment });
+        }
         // Reviving a cancelled booking (cancelled → confirmed/pending) drops it back
         // into a slot the system already treated as free — and likely re-sold, since
         // cancellation triggers waiting-list promotion below. Re-run the same conflict
@@ -2402,6 +2412,12 @@ exports.updateAppointmentStatus = async (req, res) => {
         appointment.status = status;
         appointment.statusHistory.push({ status, changedBy: req.user._id });
         await appointment.save();
+
+        // The business (owner, team member or admin) cancelled: whatever the
+        // client paid online goes back in full. No-show/completed keep it.
+        if (status === 'cancelled') {
+            await payments.onAppointmentCancelled(appointment._id, { actor: 'business', by: req.user._id });
+        }
 
         // Wallet money movement on status change — idempotent, and a no-op when the
         // booking carried no reservation. Completing turns the hold into a permanent
@@ -3432,6 +3448,17 @@ exports.getAppointmentByToken = async (req, res) => {
                 // Same fallback the server enforces (0 = anytime), so the page never shows a
                 // stricter policy than the one actually applied.
                 cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
+                // Online payment (only on bookings the business asked to be paid online).
+                ...(appt.paymentKind ? {
+                    onlinePayment: {
+                        kind: appt.paymentKind,
+                        currency: appt.currency || 'NAD',
+                        amountDueOnlineCents: appt.amountDueOnlineCents || 0,
+                        amountPaidOnlineCents: appt.amountPaidOnlineCents || 0,
+                        amountRefundedOnlineCents: appt.amountRefundedOnlineCents || 0,
+                        holdExpiresAt: appt.status === 'pending_payment' ? appt.paymentHoldExpiresAt || null : null,
+                    },
+                } : {}),
             },
         });
     } catch (error) {
@@ -3445,6 +3472,13 @@ exports.cancelAppointmentByToken = async (req, res) => {
             .populate('service', 'name')
             .populate('customer', 'name email');
         if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
+        // Walking away from a booking before paying for it (see cancelAppointment).
+        if (appt.status === 'pending_payment') {
+            await payments.releaseHold(appt._id, {
+                reason: PAYMENT_ABANDONED_REASON, paymentStatus: 'cancelled', source: 'cancel', by: appt.customer?._id || null,
+            });
+            return res.status(200).json({ success: true, message: 'Your booking has been cancelled.' });
+        }
         if (!['pending', 'confirmed'].includes(appt.status)) {
             return res.status(400).json({ success: false, message: 'This booking can no longer be cancelled.' });
         }
@@ -3461,6 +3495,9 @@ exports.cancelAppointmentByToken = async (req, res) => {
         appt.cancellationReason = 'Cancelled by client via link';
         appt.statusHistory.push({ status: 'cancelled', changedBy: appt.customer?._id || null });
         await appt.save();
+
+        // Paid online and cancelled within the window (enforced above) → full refund.
+        await payments.onAppointmentCancelled(appt._id, { actor: 'client', withinWindow: true, by: appt.customer?._id || null });
 
         // Release any held wallet funds back to available (idempotent; spec §6).
         try {

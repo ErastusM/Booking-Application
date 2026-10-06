@@ -50,6 +50,8 @@ async function cancelUpcomingForBusiness(providerId, adminId) {
         // Guest/walk-in rows were valid when made; skip re-validation of old shapes.
         await appt.save({ validateBeforeSave: false });
         try { await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: adminId }); } catch (_) { /* keep going */ }
+        // Paid online: the business is gone, so the client gets it all back.
+        await require('../services/paymentService').onAppointmentCancelled(appt._id, { actor: 'business', by: adminId || null });
         if (appt.customer) {
             notices.push({
                 user: appt.customer, type: 'appointment', link: '/appointments',

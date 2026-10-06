@@ -3,6 +3,7 @@ const Appointment = require('../models/Appointment');
 const ClientNote = require('../models/ClientNote');
 const TeamMember = require('../models/TeamMember');
 const { memberInvolvedFilter } = require('../utils/staffBooking');
+const { hiddenFromBusiness } = require('../utils/paymentHold');
 
 // The business a request acts on. For an owner it's their own id; for a staff
 // member (Medium tier, clients:* capability) it's the business they work for, so
@@ -64,7 +65,8 @@ exports.getMyClients = async (req, res) => {
         // hydrating the provider's whole appointment history (two populates) just
         // to reduce it to one row per client. `avatar` feeds the New Appointment
         // client list's picture (an additive field: older clients ignore it).
-        const appointments = await Appointment.find(scope.filter)
+        // Unpaid online holds never became the business's bookings (paymentHold.js).
+        const appointments = await Appointment.find({ ...scope.filter, ...hiddenFromBusiness() })
             .select('customer walkInName guestName guestEmail guestPhone status totalPrice appointmentDate')
             .populate('customer', 'name email phone avatar createdAt')
             .sort({ appointmentDate: -1 })
@@ -154,7 +156,7 @@ exports.getClientDetail = async (req, res) => {
             // The walk-ins logged under this name and the online guest bookings
             // made under it (guest rows have no account behind them).
             const byName = { $or: [{ walkInName: nameRe }, { customer: null, guestName: nameRe }] };
-            const appointments = await Appointment.find({ $and: [scope.filter, byName] })
+            const appointments = await Appointment.find({ $and: [scope.filter, byName, hiddenFromBusiness()] })
                 .populate('service', 'name price duration')
                 .sort({ appointmentDate: -1 });
             // Only when the scope is assignment-narrowed does "no rows" mean
@@ -169,7 +171,7 @@ exports.getClientDetail = async (req, res) => {
 
         // The history and the CRM note are independent — fetch them together.
         const [appointments, note] = await Promise.all([
-            Appointment.find({ ...scope.filter, customer: customerId })
+            Appointment.find({ ...scope.filter, customer: customerId, ...hiddenFromBusiness() })
                 .populate('service', 'name price duration')
                 .sort({ appointmentDate: -1 }),
             ClientNote.findOne({ provider: providerId, customer: customerId }),
