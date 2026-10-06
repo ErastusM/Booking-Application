@@ -67,7 +67,7 @@ jobs:
           openssl req -x509 -nodes -newkey rsa:2048 -days 1 -subj '/CN=ci' \
             -keyout "$le/live/bookplus.pro/privkey.pem" -out "$le/live/bookplus.pro/fullchain.pem" 2>/dev/null
           echo 'ssl_protocols TLSv1.2 TLSv1.3;' > "$le/options-ssl-nginx.conf"
-          openssl dhparam -dsaparam -out "$le/ssl-dhparams.pem" 1024 2>/dev/null
+          openssl dhparam -dsaparam -out "$le/ssl-dhparams.pem" 2048 2>/dev/null
           docker run --rm \
             --add-host server:127.0.0.1 --add-host customer:127.0.0.1 --add-host business:127.0.0.1 \
             -v "$PWD/nginx/conf.d:/etc/nginx/conf.d:ro" -v "$le:/etc/letsencrypt:ro" \
