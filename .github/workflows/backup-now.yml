@@ -1,0 +1,24 @@
+# Temporary one-off: take a database backup NOW (the scheduled job has been
+# failing with "Permission denied"). Public log: prints only file names/sizes.
+name: Backup now (one-off)
+on:
+  push:
+    branches: [claude/last-deploy-time-cjjnu3]
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -e
+            docker exec bookplus-backup sh /ops/backup.sh 2>&1 | grep -E '^\[backup\]' | sed -E 's#/backups/#/app/backups/#'
+            ls -la /app/backups | tail -n 3
+            # Off the box too: a copy on the droplet's other disk path does not
+            # protect against losing the droplet, so this is only step one.
