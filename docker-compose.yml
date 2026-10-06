@@ -8,7 +8,11 @@ x-logging: &default-logging
 
 services:
   mongodb:
-    image: mongo:6.0
+    # MONGO_VERSION lives in /app/.env (the compose interpolation file the deploy
+    # keeps), so a deploy never changes the database version by itself: only
+    # the "MongoDB upgrade" workflow does, one major version at a time, with a
+    # backup first and the data-format (featureCompatibilityVersion) step after.
+    image: mongo:${MONGO_VERSION:-6.0}
     container_name: bookplus-mongo
     logging: *default-logging
     restart: always
@@ -77,7 +81,8 @@ services:
   # The safety net: mongo_data lives on this one host — without this, a disk
   # failure loses the business.
   backup:
-    image: mongo:6.0
+    # Same version as the database, so mongodump always matches the server.
+    image: mongo:${MONGO_VERSION:-6.0}
     container_name: bookplus-backup
     logging: *default-logging
     # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).

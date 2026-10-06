@@ -1,0 +1,100 @@
+# Upgrades the production MongoDB by ONE major version (6.0 → 7.0 → …), the
+# only supported path. Run by hand at a quiet time:
+#   Actions → "MongoDB upgrade" → Run workflow → choose the target version.
+# The database restarts once (the app is unavailable for roughly 10–30 s).
+#
+# Steps, each checked before the next:
+#   1. Confirm the running version is exactly one major below the target and
+#      the data format (featureCompatibilityVersion) matches it.
+#   2. Back up.
+#   3. Start the new version on the same data. If it is not healthy within
+#      3 minutes, switch back to the old version (safe: the data format has
+#      not changed yet) and fail.
+#   4. Raise featureCompatibilityVersion to the new version. From here a
+#      downgrade needs the backup, so this happens only after step 3 passed.
+#   5. Wait for the API to be healthy again (restart it if it doesn't recover).
+# The repo is public, so this log is public: it prints versions and yes/no only.
+name: MongoDB upgrade
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Target MongoDB version (one major above the current one)
+        required: true
+        type: choice
+        options: ['7.0']
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        env:
+          TARGET: ${{ inputs.target }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: TARGET
+          command_timeout: 20m
+          script: |
+            set -eu
+            cd /app
+            case "$TARGET" in 7.0) PREV=6.0 ;; *) echo "unsupported target $TARGET" >&2; exit 1 ;; esac
+
+            # Admin commands as the root user the image was initialised with.
+            js() { docker compose exec -T -e JS="$1" mongodb sh -c 'mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "$JS"'; }
+            set_version() {
+              { grep -v '^MONGO_VERSION=' .env 2>/dev/null || true; echo "MONGO_VERSION=$1"; } > .env.next && mv .env.next .env && chmod 600 .env
+            }
+            wait_healthy() {  # container, seconds
+              for i in $(seq 1 $(( $2 / 5 ))); do
+                [ "$(docker inspect -f '{{.State.Health.Status}}' "$1" 2>/dev/null)" = healthy ] && return 0
+                sleep 5
+              done
+              return 1
+            }
+
+            echo "== 1. Check"
+            running=$(js 'db.version()' | tail -n1)
+            fcv=$(js 'db.adminCommand({getParameter:1,featureCompatibilityVersion:1}).featureCompatibilityVersion.version' | tail -n1)
+            echo "running $running, data format $fcv, target $TARGET"
+            case "$running" in "$PREV".*) ;; "$TARGET".*) echo "already on $TARGET"; ;; *) echo "UPGRADE STOPPED: expected $PREV.x, found $running" >&2; exit 1 ;; esac
+            if [ "${running%.*}" = "$PREV" ] && [ "$fcv" != "$PREV" ]; then
+              echo "UPGRADE STOPPED: data format is $fcv, expected $PREV" >&2; exit 1
+            fi
+
+            if [ "${running%.*}" = "$PREV" ]; then
+              echo "== 2. Back up"
+              docker compose exec -T backup sh /ops/backup.sh | grep -E '^\[backup\] (starting|done)' | sed -E 's#.*/##'
+
+              echo "== 3. Start MongoDB $TARGET on the same data"
+              set_version "$TARGET"
+              docker compose pull -q mongodb backup
+              docker compose up -d mongodb backup
+              if ! wait_healthy bookplus-mongo 180; then
+                echo "MongoDB $TARGET did not become healthy: switching back to $PREV" >&2
+                docker logs --tail 20 bookplus-mongo 2>&1 | grep -iE 'error|fatal|incompatible' | head -n 5 >&2 || true
+                set_version "$PREV"
+                docker compose up -d mongodb backup
+                wait_healthy bookplus-mongo 180 && echo "back on $PREV and healthy" >&2
+                exit 1
+              fi
+              echo "running $(js 'db.version()' | tail -n1)"
+            fi
+
+            echo "== 4. Raise the data format to $TARGET"
+            js "printjson(db.adminCommand({setFeatureCompatibilityVersion: '$TARGET', confirm: true}).ok)" | tail -n1
+            echo "data format now $(js 'db.adminCommand({getParameter:1,featureCompatibilityVersion:1}).featureCompatibilityVersion.version' | tail -n1)"
+
+            echo "== 5. API health"
+            if ! wait_healthy bookplus-server 90; then
+              echo "API not healthy yet: restarting it"
+              docker compose restart server
+              wait_healthy bookplus-server 120 || { echo "UPGRADE DONE BUT API UNHEALTHY — check now" >&2; exit 1; }
+            fi
+            echo "API healthy. MongoDB upgrade to $TARGET complete."
