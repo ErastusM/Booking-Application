@@ -1,0 +1,93 @@
+# Temporary, read-only: do the passwords and keys that leaked into old public
+# commits still work in production? The leaked values are read from the git
+# history at run time and masked; the server compares them and prints only
+# "STILL THE LEAKED VALUE" / "changed". No secret is written or printed.
+name: Leaked secrets check (read-only)
+on:
+  push:
+    branches: [claude/last-deploy-time-cjjnu3]
+    paths: [.github/workflows/leak-check.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { fetch-depth: 0 }
+      - name: Read the leaked values from history (masked)
+        run: |
+          python3 - <<'PY'
+          import subprocess, re, os
+          def show(rev, path):
+              return subprocess.run(['git','show',f'{rev}:{path}'],capture_output=True,text=True).stdout
+          c = show('82a2435','docker-compose.yml')
+          def grab(src, key):
+              m = re.search(r'^\s*'+key+r':\s*"?([^"\n]+?)"?\s*$', src, re.M)
+              return m.group(1) if m else ''
+          vals = {
+            'L_JWT': grab(c,'JWT_SECRET'), 'L_REFRESH': grab(c,'REFRESH_TOKEN_SECRET'),
+            'L_GOOGLE': grab(c,'GOOGLE_CLIENT_SECRET'), 'L_EMAIL': grab(c,'EMAIL_PASS'),
+            'L_MONGO_OLD': grab(show('938ba45','docker-compose.yml'),'MONGO_INITDB_ROOT_PASSWORD'),
+          }
+          m = re.search(r"password:\s*'([^']+)'", show('75409f0','server/server.js'))
+          vals['L_ADMIN'] = m.group(1) if m else ''
+          m = re.search(r"password:\s*'([^']+)'", show('52c5690','server/src/utils/seed.js'))
+          vals['L_SEED'] = m.group(1) if m else ''
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              for k,v in vals.items():
+                  if v: print(f'::add-mask::{v}')
+                  env.write(f'{k}={v}\n')
+                  print(k, 'found' if v else 'NOT FOUND')
+          PY
+      - name: Compare on the server
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: L_JWT,L_REFRESH,L_GOOGLE,L_EMAIL,L_MONGO_OLD,L_ADMIN,L_SEED
+          command_timeout: 5m
+          script: |
+            set +e
+            cd /app
+            cur(){ grep -E "^$1=" .env.production | tail -n1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/'; }
+            cmp(){ name="$1"; leaked="$2"; now="$(cur "$3")";
+              if [ -z "$leaked" ]; then echo "$name: (no leaked value to compare)";
+              elif [ "$now" = "$leaked" ]; then echo "$name: STILL THE LEAKED VALUE";
+              else echo "$name: changed"; fi; }
+            echo "== Settings on the server compared with the leaked values"
+            cmp "Login signing key (JWT_SECRET)" "$L_JWT" JWT_SECRET
+            cmp "Refresh signing key (REFRESH_TOKEN_SECRET)" "$L_REFRESH" REFRESH_TOKEN_SECRET
+            cmp "Google sign-in secret (GOOGLE_CLIENT_SECRET)" "$L_GOOGLE" GOOGLE_CLIENT_SECRET
+            cmp "Gmail app password (EMAIL_PASS)" "$L_EMAIL" EMAIL_PASS
+            cmp "Database root password (MONGO_INITDB_ROOT_PASSWORD)" "$L_MONGO_OLD" MONGO_INITDB_ROOT_PASSWORD
+
+            echo "== Can the leaked database logins still sign in?"
+            for u in admin root; do
+              for p in "$L_MONGO_OLD"; do
+                [ -n "$p" ] || continue
+                r=$(docker exec -e P="$p" bookplus-mongo sh -c "mongosh --quiet -u $u -p \"\$P\" --authenticationDatabase admin --eval 'db.adminCommand(\"ping\").ok'" 2>&1 | tail -n1)
+                [ "$r" = "1" ] && echo "database user '$u' with the leaked password: STILL WORKS" || echo "database user '$u' with the leaked password: refused"
+              done
+            done
+
+            echo "== App accounts with leaked passwords"
+            docker exec -e LA="$L_ADMIN" -e LS="$L_SEED" bookplus-server node -e '
+              const mongoose=require("mongoose"), bcrypt=require("bcryptjs");
+              (async()=>{
+                await mongoose.connect(process.env.MONGODB_URI);
+                const users=mongoose.connection.db.collection("users");
+                const check=async(label,email,pw)=>{
+                  if(!pw){console.log(label+": (no leaked value)");return;}
+                  const u=await users.findOne({email},{projection:{password:1,role:1}});
+                  if(!u){console.log(label+": account does not exist");return;}
+                  const ok=u.password&&await bcrypt.compare(pw,u.password);
+                  console.log(label+" ("+u.role+"): "+(ok?"LEAKED PASSWORD STILL WORKS":"password changed"));
+                };
+                await check("Admin account bookplusdigitalsolutions@gmail.com","bookplusdigitalsolutions@gmail.com",process.env.LA);
+                for (const e of ["marcus","james","david","sam"]) await check("Demo account "+e+"@barbershop.com",e+"@barbershop.com",process.env.LS);
+                const anyAdmins=await users.countDocuments({role:"admin"});
+                console.log("admin accounts in total: "+anyAdmins);
+                await mongoose.disconnect();
+              })().catch(e=>{console.log("check failed: "+e.message);process.exit(0)});'
