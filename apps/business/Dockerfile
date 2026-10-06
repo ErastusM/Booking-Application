@@ -1,5 +1,5 @@
 # Built from the REPO ROOT context (see ci-cd.yml) — workspace packages live in packages/*.
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 
 RUN npm install -g pnpm@10
 
@@ -22,7 +22,7 @@ ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 
 RUN pnpm --filter "@bookplus/*" build && pnpm --filter @bookplus/business build
 
-FROM node:24-alpine
+FROM node:26-alpine
 
 WORKDIR /app
 
