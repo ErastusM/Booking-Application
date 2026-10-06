@@ -1,7 +1,16 @@
+# Every container's log is capped (3 files x 10 MB) so logs can never fill the
+# disk. Docker's default json-file driver keeps logs forever.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mongodb:
     image: mongo:6.0
     container_name: bookplus-mongo
+    logging: *default-logging
     restart: always
     volumes:
       - mongo_data:/data/db
@@ -37,6 +46,9 @@ services:
   server:
     image: erastusm/bookplus-server:${IMAGE_TAG:-latest}
     container_name: bookplus-server
+    logging: *default-logging
+    # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).
+    mem_limit: 640m
     restart: always
     # NOT published to the host. nginx reaches the API as http://server:5000 over
     # the compose network, so nothing needs the port on 0.0.0.0. Publishing it
@@ -67,6 +79,9 @@ services:
   backup:
     image: mongo:6.0
     container_name: bookplus-backup
+    logging: *default-logging
+    # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).
+    mem_limit: 384m
     restart: always
     depends_on:
       - mongodb
@@ -77,10 +92,32 @@ services:
       - .env.production
     entrypoint: ["/bin/sh", "/ops/entrypoint.sh"]
 
+  # Encrypted off-site copies of /backups + an alert when backups go stale.
+  # Does nothing until OFFSITE_REMOTE and RCLONE_CONFIG_* are set in
+  # .env.production (ops/backup/README.md). A backup that only lives on this
+  # droplet is lost with the droplet.
+  backup-offsite:
+    image: rclone/rclone:1.68
+    container_name: bookplus-backup-offsite
+    restart: always
+    logging: *default-logging
+    mem_limit: 128m
+    depends_on:
+      - backup
+    volumes:
+      - ./ops/backup:/ops:ro
+      - ./backups:/backups:ro
+    env_file:
+      - .env.production
+    entrypoint: ["/bin/sh", "/ops/offsite.sh"]
+
   # Dual-app split (Epic 1): customer marketplace + business suite.
   customer:
     image: erastusm/bookplus-customer:${IMAGE_TAG:-latest}
     container_name: bookplus-customer
+    logging: *default-logging
+    # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).
+    mem_limit: 160m
     restart: always
     depends_on:
       - server
@@ -96,6 +133,9 @@ services:
   business:
     image: erastusm/bookplus-business:${IMAGE_TAG:-latest}
     container_name: bookplus-business
+    logging: *default-logging
+    # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).
+    mem_limit: 160m
     restart: always
     depends_on:
       - server
@@ -109,6 +149,9 @@ services:
   nginx:
     image: nginx:alpine
     container_name: bookplus-nginx
+    logging: *default-logging
+    # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).
+    mem_limit: 128m
     restart: always
     ports:
       - "80:80"
@@ -125,7 +168,9 @@ services:
     # Hits the plain-HTTP /healthz location (added in bookplus.conf) — proves nginx
     # is up and its config parsed, without needing TLS/SNI on the healthcheck.
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/healthz"]
+      # 127.0.0.1, not localhost: busybox wget tries ::1 first and nginx listens on
+      # IPv4 only, so "localhost" marked a healthy nginx unhealthy.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -133,6 +178,9 @@ services:
 
   certbot:
     image: certbot/certbot
+    logging: *default-logging
+    # Ceiling so one runaway container can't starve MongoDB (1 vCPU / 2 GB droplet).
+    mem_limit: 192m
     restart: unless-stopped
     volumes:
       - ./certbot/conf:/etc/letsencrypt

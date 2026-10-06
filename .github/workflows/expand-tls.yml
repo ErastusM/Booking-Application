@@ -6,12 +6,17 @@ name: Expand TLS certificate (one-off)
 on:
   workflow_dispatch:
 
+# Least privilege: the jobs only read the repo (Docker Hub and the server use
+# their own secrets), so the workflow token can't be used to change the repo.
+permissions:
+  contents: read
+
 jobs:
   expand:
     runs-on: ubuntu-latest
     steps:
       - name: Expand certificate over SSH
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
