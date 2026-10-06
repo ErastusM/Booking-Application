@@ -1,0 +1,50 @@
+# Proves the newest database backup actually restores. Run it by hand
+# (Actions → "Backup restore test" → Run workflow), and after any change to
+# the backup setup. It takes a fresh backup, restores it into a throwaway
+# MongoDB container on the server (never the live one), compares collection
+# and document totals with the live database, then deletes the copy.
+# The repo is public, so this log is public: it prints only totals.
+name: Backup restore test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Back up, restore into a throwaway container, compare
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -eu
+            cd /app
+            cleanup() { docker rm -f bp-restore-test >/dev/null 2>&1 || true; }
+            trap cleanup EXIT
+            COUNT='let c=0,d=0; db.getMongo().getDBNames().filter(n=>!["admin","local","config"].includes(n)).forEach(n=>{const x=db.getSiblingDB(n); x.getCollectionNames().forEach(k=>{c++; d+=x[k].countDocuments()})}); print(c+" collections, "+d+" documents")'
+
+            docker compose exec -T backup sh /ops/backup.sh | grep -E '^\[backup\] (starting|done)' | sed -E 's#.*/##'
+            latest=$(ls -1t backups/bookplus-*.archive.gz | head -n1)
+            echo "restoring $(basename "$latest") ($(du -h "$latest" | cut -f1))"
+
+            docker run -d --name bp-restore-test --memory 512m mongo:6.0 --wiredTigerCacheSizeGB 0.25 >/dev/null
+            for i in $(seq 1 30); do docker exec bp-restore-test mongosh --quiet --eval 'db.adminCommand("ping").ok' >/dev/null 2>&1 && break; sleep 2; done
+            docker cp "$latest" bp-restore-test:/tmp/backup.archive.gz
+            docker exec bp-restore-test mongorestore --archive=/tmp/backup.archive.gz --gzip --quiet
+
+            restored=$(docker exec bp-restore-test mongosh --quiet --eval "$COUNT")
+            live=$(docker compose exec -T backup sh -c "mongosh \"\$MONGODB_URI\" --quiet --eval '$COUNT'" | tail -n1)
+            echo "live database:     $live"
+            echo "restored backup:   $restored"
+            # Bookings can arrive between the dump and the count, so documents
+            # may differ by a little; collections must match.
+            [ "$(echo "$live" | cut -d' ' -f1)" = "$(echo "$restored" | cut -d' ' -f1)" ] \
+              || { echo "RESTORE TEST FAILED: collection counts differ" >&2; exit 1; }
+            echo "RESTORE TEST PASSED"

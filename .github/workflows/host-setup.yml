@@ -1,0 +1,56 @@
+# One-time server hardening, safe to re-run (every step checks first).
+# Run by hand: Actions → "Server setup (one-time)" → Run workflow.
+# It never reboots and never touches the app containers or data.
+name: Server setup (one-time)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -eu
+            SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo -n"
+
+            # 1. Swap: the droplet has 2 GB RAM and no swap, so a memory spike
+            #    gets a process (often MongoDB) killed instead of slowed down.
+            if [ -z "$($SUDO swapon --show --noheadings)" ]; then
+              $SUDO fallocate -l 2G /swapfile && $SUDO chmod 600 /swapfile
+              $SUDO mkswap /swapfile >/dev/null && $SUDO swapon /swapfile
+              grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | $SUDO tee -a /etc/fstab >/dev/null
+              echo "swap: 2 GB added"
+            else
+              echo "swap: already on"
+            fi
+            echo 'vm.swappiness=10' | $SUDO tee /etc/sysctl.d/99-bookplus-swap.conf >/dev/null
+            $SUDO sysctl -q -p /etc/sysctl.d/99-bookplus-swap.conf
+
+            # 2. Firewall: inbound 465/587 (mail submission) were open, but nothing
+            #    on this server receives mail; sending uses OUTBOUND connections.
+            for p in 465 587; do $SUDO ufw --force delete allow "$p" >/dev/null 2>&1 || true; done
+            echo "firewall inbound: $($SUDO ufw status | awk '/ALLOW/ && !/OUT/ {print $1}' | sort -u | tr '\n' ' ')"
+
+            # 3. fail2ban: bans addresses that keep failing SSH logins.
+            if ! command -v fail2ban-client >/dev/null; then
+              $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fail2ban >/dev/null
+            fi
+            $SUDO systemctl enable --now fail2ban >/dev/null 2>&1 || true
+            echo "fail2ban: $($SUDO systemctl is-active fail2ban)"
+
+            # 4. Settings files hold every production secret: owner-only.
+            chmod 600 /app/.env.production /app/.env 2>/dev/null || true
+            echo "settings file: $(stat -c '%a' /app/.env.production)"
+
+            # 5. Report (no action): pending OS reboot after security updates.
+            [ -f /var/run/reboot-required ] && echo "NOTE: the server needs a reboot to finish security updates (about 1 minute of downtime)" || echo "no reboot pending"
