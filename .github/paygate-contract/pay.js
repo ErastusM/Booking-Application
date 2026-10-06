@@ -17,7 +17,8 @@ pg.setTransport((a) => new Promise((resolve, reject) => {
   req.on('error', reject); req.write(a.body); req.end();
 }));
 
-(async () => {
+async function attempt(card) {
+  console.log('\n\n######## CARD', card.slice(0,6)+'…'+card.slice(-4));
   const reference = 'BP' + crypto.randomBytes(15).toString('hex');
   const init = await pg.initiate({ reference, amountCents: 12345, currency: 'NAD',
     customer: { firstName: 'Test', lastName: 'Client', email: 'test@example.com' },
@@ -36,7 +37,6 @@ pg.setTransport((a) => new Promise((resolve, reject) => {
   await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
   console.log('\n== PayGate page:', page.url());
   const describe = async () => page.$$eval('input, select, button', (els) => els.map((e) => `${e.tagName.toLowerCase()} name=${e.name || ''} id=${e.id || ''} type=${e.type || ''} value=${e.type === 'hidden' ? '(hidden)' : (e.value || '').slice(0, 20)} text=${(e.innerText || '').trim().slice(0, 30)}`));
-  console.log((await describe()).join('\n'));
   console.log('page text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 600));
 
   const clickIfVisible = async (sel) => { const el = await page.$(sel); if (el && await el.isVisible()) { await el.click(); return true; } return false; };
@@ -44,7 +44,7 @@ pg.setTransport((a) => new Promise((resolve, reject) => {
   console.log('dismissed test notice:', await clickIfVisible('button:visible:has-text("OK")'));
   console.log('chose Card:', await clickIfVisible('#pmCreditcardBtn'));
   await page.waitForSelector('#ccNumber', { state: 'visible', timeout: 15000 });
-  await page.fill('#ccNumber', '4000000000000002');
+  await page.fill('#ccNumber', card);
   await page.fill('#ccName', 'Test Client');
   await page.selectOption('#ccOpMonth', '12');
   const years = await page.$$eval('#ccOpYear option', (o) => o.map((x) => x.value));
@@ -95,4 +95,9 @@ pg.setTransport((a) => new Promise((resolve, reject) => {
     const q2 = await pg.query({ payRequestId: init.payRequestId });
     console.log('RAW:', lastRaw);
   }
-})().catch((e) => { console.error('FAILED:', e && e.stack || e); console.log('last raw:', lastRaw); process.exit(1); });
+}
+(async () => {
+  for (const card of ['5200000000000015', '4000000000000002', '4111111111111111', '5200000000000007']) {
+    try { await attempt(card); } catch (e) { console.log('attempt failed:', e && e.message); }
+  }
+})();
