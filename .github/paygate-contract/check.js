@@ -19,7 +19,7 @@ const real = (args) => new Promise((resolve, reject) => {
 
 (async () => {
   // Wrap the module's real transport so we see the raw XML.
-  pg.setTransport(async (a) => { const r = await real(a); return r.body !== undefined ? r.body : r; });
+  pg.setTransport(real);
   for (const currency of ['NAD', 'ZAR']) {
     const reference = 'BP' + require('crypto').randomBytes(15).toString('hex');
     console.log(`\n================ INITIATE ${currency} ${reference}`);
