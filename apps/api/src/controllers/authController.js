@@ -1353,6 +1353,18 @@ const { ApptPhrase } = require('../utils/apptCopy');
                 appt.statusHistory.push({ status: 'cancelled', changedBy: user._id });
                 await appt.save();
                 try { await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: user._id }); } catch (_) {}
+                // Paid online: a business closing its account refunds in full; a
+                // client closing theirs is a client cancellation (refunded within
+                // the business's cancellation window). Never throws.
+                {
+                    const isBusinessSide = appt.provider?.toString() === user._id.toString();
+                    const { checkCancellationWindow } = require('../utils/cancellationPolicy');
+                    const withinWindow = isBusinessSide
+                        || (await checkCancellationWindow(appt.provider, appt.appointmentDate, appt.startTime)).allowed;
+                    await require('../services/paymentService').onAppointmentCancelled(appt._id, {
+                        actor: isBusinessSide ? 'business' : 'client', withinWindow, by: user._id,
+                    });
+                }
                 const otherId = appt.customer?.toString() === user._id.toString() ? appt.provider : appt.customer;
                 if (otherId) {
                     createNotification(otherId, `${ApptPhrase(appt.service?.name)} was cancelled because the other party closed their account.`, 'appointment', '/appointments');

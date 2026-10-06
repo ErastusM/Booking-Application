@@ -72,7 +72,12 @@ const appointmentSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'],
+            // pending_payment: an online booking whose business asks for a deposit
+            // or full prepayment, holding its slot until paymentHoldExpiresAt while
+            // the client pays on PayGate's page. It is not yet a booking for the
+            // business (no alerts, reminders or revenue) — paid → confirmed;
+            // hold ran out → cancelled with cancellationReason 'payment_timeout'.
+            enum: ['pending', 'confirmed', 'completed', 'cancelled', 'no-show', 'pending_payment'],
             default: 'pending'
         },
         /* Audit trail of status changes */
@@ -142,6 +147,19 @@ const appointmentSchema = new mongoose.Schema(
         // already reads) and loses the account link. Only the date is kept here —
         // no other personal detail — so the admin console can tag the row.
         clientAccountDeletedAt: { type: Date, default: null },
+        /* Online card payment (PAYMENTS_ENABLED, PayGate). Only set on bookings the
+         * business asked to be paid online — no defaults, so every other booking's
+         * document and API payload are unchanged. Integer cents in `currency`, a
+         * snapshot of the business's currency when booked. */
+        paymentKind: { type: String, enum: ['deposit', 'full'] },
+        amountDueOnlineCents: { type: Number },
+        amountPaidOnlineCents: { type: Number },
+        amountRefundedOnlineCents: { type: Number },
+        currency: { type: String, uppercase: true },
+        paymentHoldExpiresAt: { type: Date },
+        // The Payment that confirmed this booking (any other attempt that also
+        // ends up paid is a duplicate and is refunded automatically).
+        onlinePayment: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
         /* How the client pays: from their prepaid wallet, or cash at the appointment */
         paymentMethod: { type: String, enum: ['cash', 'wallet'], default: 'cash' },
         /* Staff member performing the appointment (multi-chair scheduling) */
@@ -239,5 +257,7 @@ appointmentSchema.pre('insertMany', function (next, docs) {
 appointmentSchema.index({ provider: 1, status: 1, appointmentDate: 1 });
 appointmentSchema.index({ teamMember: 1, appointmentDate: 1 });
 appointmentSchema.index({ groupId: 1 });
+// The payment-hold sweeper: holds whose time ran out.
+appointmentSchema.index({ status: 1, paymentHoldExpiresAt: 1 }, { partialFilterExpression: { status: 'pending_payment' } });
 
 module.exports = mongoose.model('Appointment', appointmentSchema);
