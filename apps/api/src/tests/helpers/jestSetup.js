@@ -17,3 +17,7 @@ process.env.WALLET_ENABLED = 'true';
 // Same for memberships / packages (MEMBERSHIPS_ENABLED); membershipsOff.test.js
 // covers the OFF state.
 process.env.MEMBERSHIPS_ENABLED = 'true';
+// Same for online payments (PAYMENTS_ENABLED); paymentsOff.test.js covers the
+// OFF state. No business asks for online payment unless a test sets it up, so
+// every other suite still books "pay at the appointment" exactly as before.
+process.env.PAYMENTS_ENABLED = 'true';
