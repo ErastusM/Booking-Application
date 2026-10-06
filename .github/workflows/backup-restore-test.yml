@@ -34,7 +34,9 @@ jobs:
             latest=$(ls -1t backups/bookplus-*.archive.gz | head -n1)
             echo "restoring $(basename "$latest") ($(du -h "$latest" | cut -f1))"
 
-            docker run -d --name bp-restore-test --memory 512m mongo:6.0 --wiredTigerCacheSizeGB 0.25 >/dev/null
+            ver=$(sed -n 's/^MONGO_VERSION=//p' .env 2>/dev/null | tail -n1); ver=${ver:-6.0}
+            echo "restoring into mongo:$ver (the live database's version)"
+            docker run -d --name bp-restore-test --memory 512m "mongo:$ver" --wiredTigerCacheSizeGB 0.25 >/dev/null
             for i in $(seq 1 30); do docker exec bp-restore-test mongosh --quiet --eval 'db.adminCommand("ping").ok' >/dev/null 2>&1 && break; sleep 2; done
             docker cp "$latest" bp-restore-test:/tmp/backup.archive.gz
             docker exec bp-restore-test mongorestore --archive=/tmp/backup.archive.gz --gzip --quiet
