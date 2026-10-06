@@ -221,3 +221,53 @@ describe('transport', () => {
         process.env.PAYGATE_PASSWORD = 'secret';
     });
 });
+
+// Responses captured from PayGate's public TEST merchant (10011072130) on
+// 6 Oct 2026, exactly as sent (namespace prefix ns2, NAD). They pin the parser
+// to the real wire format rather than to our reading of it.
+describe('real PayGate responses (test merchant)', () => {
+    const wrap = (body) => `<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Header/><SOAP-ENV:Body>${body}</SOAP-ENV:Body></SOAP-ENV:Envelope>`;
+    const statusXml = (inner) => wrap(`<ns2:SingleFollowUpResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:QueryResponse><ns2:Status>${inner}</ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse>`);
+
+    it('a new session: WebRedirectRequired with the PayHost redirect and its four params', () => {
+        const xml = wrap('<ns2:SinglePaymentResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:WebPaymentResponse><ns2:Status><ns2:StatusName>WebRedirectRequired</ns2:StatusName><ns2:StatusDetail>Web Redirect Required To Complete Transaction</ns2:StatusDetail></ns2:Status><ns2:Redirect><ns2:RedirectUrl>https://secure.paygate.co.za/PayHost/process.trans</ns2:RedirectUrl><ns2:UrlParams><ns2:key>PAYGATE_ID</ns2:key><ns2:value>10011072130</ns2:value></ns2:UrlParams><ns2:UrlParams><ns2:key>PAY_REQUEST_ID</ns2:key><ns2:value>8B05205D-B156-4030-9615-55FE7DE06F02</ns2:value></ns2:UrlParams><ns2:UrlParams><ns2:key>REFERENCE</ns2:key><ns2:value>BP72ff5915baafb84cf8f48652fff535</ns2:value></ns2:UrlParams><ns2:UrlParams><ns2:key>CHECKSUM</ns2:key><ns2:value>f26e9dc9ca34ebd3f52cd2896a955e73</ns2:value></ns2:UrlParams></ns2:Redirect></ns2:WebPaymentResponse></ns2:SinglePaymentResponse>');
+        const r = paygate.parseWebPaymentResponse(xml);
+        expect(r.ok).toBe(true);
+        expect(r.redirectUrl).toBe('https://secure.paygate.co.za/PayHost/process.trans');
+        expect(r.payRequestId).toBe('8B05205D-B156-4030-9615-55FE7DE06F02');
+        expect(Object.keys(r.fields)).toEqual(['PAYGATE_ID', 'PAY_REQUEST_ID', 'REFERENCE', 'CHECKSUM']);
+    });
+
+    it('a query for a session nobody paid yet: code 0, PayGate result 401 — not paid', () => {
+        const q = paygate.parseQueryResponse(statusXml('<ns2:StatusName>Error</ns2:StatusName><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>401</ns2:ResultCode><ns2:ResultDescription>Requested Transaction Does Not Exist</ns2:ResultDescription>'));
+        expect(q.transactionStatusCode).toBe(paygate.TX.NOT_DONE);
+        expect(q.transactionStatusCode).not.toBe(paygate.TX.APPROVED);
+    });
+
+    it('StatusName "Completed" with code 0 (card authentication failed) is NOT a payment', () => {
+        const q = paygate.parseQueryResponse(statusXml('<ns2:TransactionId>1256255355</ns2:TransactionId><ns2:Reference>BPef69381dafc7112ce14e843be83cb6</ns2:Reference><ns2:StatusName>Completed</ns2:StatusName><ns2:AuthCode/><ns2:PayRequestId>CC188936-172F-4DD9-93C8-A3DC1F560026</ns2:PayRequestId><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>900205</ns2:ResultCode><ns2:ResultDescription>Unexpected authentication result (phase 1)</ns2:ResultDescription><ns2:Currency>NAD</ns2:Currency><ns2:Amount>12345</ns2:Amount><ns2:RiskIndicator>XP</ns2:RiskIndicator><ns2:PaymentType><ns2:Method>CC</ns2:Method><ns2:Detail>Visa</ns2:Detail></ns2:PaymentType><ns2:DateTime>2026-10-06T14:39:30.000+02:00</ns2:DateTime><ns2:TransactionType>Authorisation</ns2:TransactionType>'));
+        expect(q.statusName).toBe('Completed');
+        expect(q.transactionStatusCode).toBe(0);
+        expect(q).toMatchObject({ amountCents: 12345, currency: 'NAD', reference: 'BPef69381dafc7112ce14e843be83cb6', transactionId: '1256255355', payMethod: 'CC' });
+    });
+
+    it('a declined card: code 2 with the bank reason', () => {
+        const q = paygate.parseQueryResponse(statusXml('<ns2:TransactionId>1256256296</ns2:TransactionId><ns2:Reference>BP2411bae205b8c67aa7c7cb0444c30f</ns2:Reference><ns2:AcquirerCode>05</ns2:AcquirerCode><ns2:StatusName>Completed</ns2:StatusName><ns2:AuthCode/><ns2:PayRequestId>C8DFE002-A41C-40F8-B911-B81351DD7EF4</ns2:PayRequestId><ns2:TransactionStatusCode>2</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Declined</ns2:TransactionStatusDescription><ns2:ResultCode>900014</ns2:ResultCode><ns2:ResultDescription>Excessive Card Usage</ns2:ResultDescription><ns2:Currency>NAD</ns2:Currency><ns2:Amount>12345</ns2:Amount>'));
+        expect(q.transactionStatusCode).toBe(paygate.TX.DECLINED);
+        expect(q.resultDescription).toBe('Excessive Card Usage');
+    });
+
+    it('a refund PayGate refuses is a clean failure', () => {
+        const r = paygate.parseRefundResponse(wrap('<ns2:SingleFollowUpResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:RefundResponse><ns2:Status><ns2:StatusName>Error</ns2:StatusName><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>201</ns2:ResultCode><ns2:ResultDescription>Unable To Find Original Transaction</ns2:ResultDescription></ns2:Status></ns2:RefundResponse></ns2:SingleFollowUpResponse>'));
+        expect(r.ok).toBe(false);
+        expect(r.error).toMatchObject({ resultCode: '201' });
+    });
+
+    it('the browser return post verifies with md5(id + request id + status + reference + key)', () => {
+        // Captured return: PAY_REQUEST_ID=CC188936-…, TRANSACTION_STATUS=0; key "test".
+        expect(paygate.verifyReturnChecksum({
+            paygateId: '10011072130', payRequestId: 'CC188936-172F-4DD9-93C8-A3DC1F560026', transactionStatus: '0',
+            reference: 'BPef69381dafc7112ce14e843be83cb6', checksum: '8003c1732e24e0445298467a01617a9a',
+        }, 'test')).toBe(true);
+    });
+});
