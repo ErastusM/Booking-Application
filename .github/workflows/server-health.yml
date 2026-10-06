@@ -1,0 +1,60 @@
+# Temporary, READ-ONLY server health check. The repo is public, so this log is
+# public: it prints no secret values — only names, versions, sizes and yes/no.
+name: Server health (read-only)
+on:
+  push:
+    branches: [claude/last-deploy-time-cjjnu3]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set +e
+            s(){ echo; echo "=================== $1"; }
+            s "OS / resources"
+            . /etc/os-release; echo "$PRETTY_NAME"; uptime; nproc; free -h | head -3; df -h / | tail -1
+            s "Docker"
+            docker --version; docker compose version
+            docker ps -a --format '{{.Names}} | {{.Image}} | {{.Status}}'
+            docker system df
+            s "Container limits (memory, cpus)"
+            for c in $(docker ps --format '{{.Names}}'); do echo "$c mem=$(docker inspect -f '{{.HostConfig.Memory}}' $c) cpus=$(docker inspect -f '{{.HostConfig.NanoCpus}}' $c) restart=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' $c) logdriver=$(docker inspect -f '{{.HostConfig.LogConfig.Type}} {{.HostConfig.LogConfig.Config}}' $c)"; done
+            s "Docker daemon config"
+            cat /etc/docker/daemon.json 2>/dev/null || echo "no daemon.json"
+            s "Container log sizes"
+            sudo -n du -sh /var/lib/docker/containers/*/*-json.log 2>/dev/null | sort -h | tail -8 || du -sh /var/lib/docker/containers/*/*-json.log 2>/dev/null | sort -h | tail -8
+            s "Versions inside containers"
+            docker exec bookplus-server node --version 2>&1
+            docker exec bookplus-mongo mongod --version 2>&1 | head -1
+            s "Mongo: does it require a password? (an unauthenticated query)"
+            docker exec bookplus-mongo mongosh --quiet --eval 'try { print("UNAUTHENTICATED QUERY WORKED -> auth NOT enforced; dbs=" + db.adminCommand({listDatabases:1}).databases.length) } catch (e) { print("auth enforced: " + e.codeName) }' 2>&1 | tail -2
+            docker exec bookplus-mongo mongosh --quiet --eval 'try { print("replset: " + rs.status().set) } catch (e) { print("replset: none (" + e.codeName + ")") }' 2>&1 | tail -1
+            s "Mongo port exposure"
+            docker port bookplus-mongo 2>&1 || true
+            s "Setting NAMES in /app/.env.production (no values)"
+            cut -d= -f1 /app/.env.production 2>/dev/null | grep -v '^#' | grep -v '^$' | sort | tr '\n' ' '; echo
+            stat -c 'perms=%a owner=%U' /app/.env.production
+            s "Backups"
+            ls -la /app/backups 2>/dev/null | tail -6; du -sh /app/backups 2>/dev/null
+            docker logs --tail 15 bookplus-backup 2>&1 | sed -E 's/(AWS|SECRET|KEY|PASS)[^ ]*=[^ ]*/\1=***/g'
+            s "Firewall / open ports"
+            sudo -n ufw status 2>/dev/null || echo "ufw: unknown (no sudo or not installed)"
+            ss -tlnH 2>/dev/null | awk '{print $4}' | sort -u | tr '\n' ' '; echo
+            s "SSH hardening"
+            sudo -n sshd -T 2>/dev/null | grep -Ei '^(permitrootlogin|passwordauthentication|pubkeyauthentication) ' || grep -Ei '^(PermitRootLogin|PasswordAuthentication)' /etc/ssh/sshd_config
+            which fail2ban-client >/dev/null && echo "fail2ban: installed" || echo "fail2ban: not installed"
+            s "Automatic security updates"
+            systemctl is-enabled unattended-upgrades 2>/dev/null || echo "unattended-upgrades: not enabled"
+            ls /var/run/reboot-required 2>/dev/null && echo "REBOOT REQUIRED" || echo "no reboot pending"
+            s "Swap / host"
+            swapon --show 2>/dev/null; cat /proc/sys/vm/swappiness
+            s "nginx access-log line sample, query strings redacted"
+            docker exec bookplus-nginx sh -c 'tail -n 3 /var/log/nginx/access.log 2>/dev/null' | sed -E 's/\?[^ "]*/?<redacted>/g' || true
+            docker exec bookplus-nginx sh -c 'ls -la /var/log/nginx/'
