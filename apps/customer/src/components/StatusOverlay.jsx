@@ -8,8 +8,8 @@ import React, { useEffect, useRef } from 'react';
 const VARIANTS = {
     // Warm brand-orange radial → celebratory.
     confirmed: 'radial-gradient(circle at 50% 38%, #ff7a4d 0%, #f03e16 46%, #b8280a 100%)',
-    // Muted ink radial → a calm "done", not a celebration and not an error-red.
-    cancelled: 'radial-gradient(circle at 50% 38%, #33343a 0%, #16171a 52%, #050506 100%)',
+    // Flat ink: a calm "done", not a celebration and not an error-red.
+    cancelled: '#16171a',
 };
 
 const StatusOverlay = ({ variant = 'confirmed', title, subtitle, onDone, duration = 2200 }) => {

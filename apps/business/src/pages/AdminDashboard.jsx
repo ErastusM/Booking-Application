@@ -461,7 +461,7 @@ const AdminDashboard = () => {
                         textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600',
                         fontFamily: 'var(--font-body)',
                     }}>
-                        📈 View Analytics
+                        View analytics
                     </a>
                 </div>
 
@@ -726,7 +726,7 @@ const AdminDashboard = () => {
                                                             cursor: u.signupSurvey.comment ? 'help' : 'default',
                                                         }}
                                                     >
-                                                        {u.signupSurvey.hadDifficulty ? '⚠ Had trouble' : 'No issues'}
+                                                        {u.signupSurvey.hadDifficulty ? 'Had trouble' : 'No issues'}
                                                         {u.signupSurvey.comment ? ' · has comment' : ''}
                                                     </span>
                                                 ) : (

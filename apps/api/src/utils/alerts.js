@@ -34,7 +34,7 @@ const sendAlert = async (title, detail = '') => {
             headers: { 'Content-Type': 'application/json' },
             // Every alert passes through here, so this is the one place that keeps
             // tokenized URLs (reset / invite / manage links) out of the channel.
-            body: JSON.stringify({ text: `🔴 Bookplus API — ${scrubText(String(title))}\n${scrubText(String(detail)).slice(0, 600)}` }),
+            body: JSON.stringify({ text: `Bookplus API alert: ${scrubText(String(title))}\n${scrubText(String(detail)).slice(0, 600)}` }),
             // A hung webhook must never stall the caller — the crash handler
             // awaits this before process.exit.
             signal: AbortSignal.timeout(5000),

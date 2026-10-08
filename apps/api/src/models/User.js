@@ -200,7 +200,7 @@ const userSchema = new mongoose.Schema(
             slug: { type: String, default: null, lowercase: true, trim: true },
             currentSoftware: { type: String, default: '' },
             referralSource: { type: String, default: '' },
-            likesCount: { type: Number, default: 0 }, // public ❤️ count (one heart = private save + public like)
+            likesCount: { type: Number, default: 0 }, // public heart count (one heart = private save + public like)
         },
         portfolio: {
             images: [{ type: String }],

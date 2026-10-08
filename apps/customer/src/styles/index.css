@@ -1335,6 +1335,7 @@ body.dark-mode .home-hero-wash {
    plain pill. Same for the live stat line under the search bar. */
 .home-search-when { display: none; }
 .home-hero-stat { display: none; }
+.home-search-submit { display: none !important; }
 .discover-feed { display: flex; flex-direction: column; gap: 1.5rem; max-width: 540px; margin: 0 auto; }
 @media (min-width: 1024px) {
   .home-hero-eyebrow { display: none; }
@@ -1342,6 +1343,7 @@ body.dark-mode .home-hero-wash {
   .home-hero-sub { font-size: 1.05rem !important; margin-bottom: 0.8rem !important; }
   .home-search-inner { max-width: 980px; }
   .home-hero-stat { display: block; }
+  .home-search-submit { display: inline-flex !important; }
   .home-search-when {
     display: flex;
     align-items: center;

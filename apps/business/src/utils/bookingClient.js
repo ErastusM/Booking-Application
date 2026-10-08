@@ -1,6 +1,6 @@
 // Who a New Appointment booking is for, as the two fields the create endpoints
 // read: customerId (a registered client's account id) and walkInName (a client
-// with no account).
+// with no account), plus, for a new client, guestPhone/guestEmail/newClient.
 //
 // The "Select a client" picker lists the CRM roster (GET /api/crm/clients),
 // which includes past walk-ins under the id "walkin:<lowercased name>". The API
@@ -13,7 +13,19 @@
 
 export const WALKIN_PREFIX = 'walkin:';
 
-export const bookingClientFields = ({ clientMode, customerId, clientName } = {}, clients = []) => {
+export const bookingClientFields = ({ clientMode, customerId, clientName, newClient } = {}, clients = []) => {
+    // A new client: booked by name like a walk-in, with the phone (and email)
+    // typed in, so the API keeps them and files the client under My Clients.
+    if (clientMode === 'new') {
+        if (!newClient?.name) return { customerId: undefined, walkInName: undefined };
+        return {
+            customerId: undefined,
+            walkInName: newClient.name,
+            guestPhone: newClient.phone,
+            ...(newClient.email ? { guestEmail: newClient.email } : {}),
+            newClient: true,
+        };
+    }
     if (clientMode === 'walkin') {
         return { customerId: undefined, walkInName: String(clientName || '').trim() || undefined };
     }

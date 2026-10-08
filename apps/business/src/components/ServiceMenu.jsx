@@ -108,7 +108,7 @@ function ServiceRow({ svc, isOwner, teamMembers, currency, onEdit, flash }) {
     const meta = [
         <span key="d" className="sm-meta-part">{duration}</span>,
         who ? <span key="who" data-testid="catalogue-performers">{who.text}</span> : null,
-        svc.location ? <span key="loc" className="sm-meta-part"><span aria-hidden="true">📍</span> {svc.location}</span> : null,
+        svc.location ? <span key="loc" className="sm-meta-part">{svc.location}</span> : null,
     ].filter(Boolean);
     // The same facts in words for a screen reader, after "Edit Haircut" (no
     // middle dots or pushpin read out).

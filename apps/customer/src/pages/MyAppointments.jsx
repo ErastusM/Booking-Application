@@ -213,8 +213,7 @@ const MyAppointments = () => {
             {/* Header — matches the real dark hero so the layout doesn't jump on load */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-hero-pad-bottom)', position: 'relative', overflow: 'hidden' }}>
                 <div className="container" style={{ position: 'relative' }}>
-                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My Appointments</h1>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My appointments</h1>
                 </div>
             </div>
             <div className="container" style={{ paddingTop: 'var(--page-body-pad-top)', paddingBottom: 'var(--page-pad-bottom)' }}>
@@ -251,8 +250,8 @@ const MyAppointments = () => {
         || confirmedProvider;
     const confirmedTeamMember = justBooked?.teamMember?.name;
     const confirmedHeadline = confirmedCompany
-        ? `Appointment booked with ${confirmedCompany}${confirmedTeamMember ? `, ask for ${confirmedTeamMember} when you get there` : ''}!`
-        : 'Appointment booked!';
+        ? `Appointment booked with ${confirmedCompany}${confirmedTeamMember ? `, ask for ${confirmedTeamMember} when you get there` : ''}.`
+        : 'Appointment booked.';
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
@@ -260,8 +259,8 @@ const MyAppointments = () => {
             {cancelledOverlay && (
                 <StatusOverlay
                     variant="cancelled"
-                    title="Aw, cancelled 👋"
-                    subtitle="We'll try not to take it personally. Your spot's back up for grabs — but the door's always open, come back anytime."
+                    title="Appointment cancelled"
+                    subtitle="Your slot is free for someone else. You can book again anytime."
                     onDone={() => setCancelledOverlay(false)}
                 />
             )}
@@ -269,17 +268,15 @@ const MyAppointments = () => {
                 <StatusOverlay
                     variant="confirmed"
                     title="Appointment rescheduled"
-                    subtitle="Your new time is confirmed — see you then."
+                    subtitle="Your new time is confirmed."
                     onDone={() => setRescheduledOverlay(false)}
                 />
             )}
 
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-hero-pad-bottom)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My Appointments</h1>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My appointments</h1>
                 </div>
             </div>
 
@@ -289,17 +286,15 @@ const MyAppointments = () => {
 
                 {showConfirmedBanner && (
                     <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'var(--font-body)' }}>
-                        <span style={{ fontSize: '1.2rem' }}>✅</span>
                         <div>
                             <strong>{confirmedHeadline}</strong>
-                            {user?.name ? ` ${user.name.split(' ')[0]}, y` : ' Y'}ou'll receive a confirmation email shortly. See you there.
+                            {user?.name ? ` ${user.name.split(' ')[0]}, y` : ' Y'}ou'll get a confirmation email shortly.
                         </div>
                     </div>
                 )}
 
                 {showWaitlistedBanner && (
                     <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'var(--font-body)' }}>
-                        <span style={{ fontSize: '1.2rem' }}>🔔</span>
                         <div><strong>Added to waiting list.</strong> We'll notify you if a slot opens up.</div>
                     </div>
                 )}
@@ -312,7 +307,7 @@ const MyAppointments = () => {
 
                 {success && (
                     <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        ✅ {success}
+                        {success}
                     </div>
                 )}
 
@@ -364,7 +359,6 @@ const MyAppointments = () => {
                 {/* Appointments list */}
                 {filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             No {activeFilter === 'all' ? '' : activeFilter} appointments
                         </h3>
@@ -428,12 +422,12 @@ const MyAppointments = () => {
                                     <div>
                                         <p style={labelStyle}>Date</p>
                                         <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>
-                                            {apptLocalDate(a.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                            {apptLocalDate(a.appointmentDate)?.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                                         </p>
                                     </div>
                                     <div>
                                         <p style={labelStyle}>Time</p>
-                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{a.startTime} – {a.endTime}</p>
+                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{a.startTime} to {a.endTime}</p>
                                     </div>
                                     <div>
                                         <p style={labelStyle}>Status</p>
@@ -636,7 +630,7 @@ const MyAppointments = () => {
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'var(--font-body)', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
-                            {apptLocalDate(showCancelModal.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
+                            {apptLocalDate(showCancelModal.appointmentDate)?.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} at {showCancelModal.startTime}.
                         </p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             <button
@@ -648,7 +642,7 @@ const MyAppointments = () => {
                                 className="btn-primary"
                                 style={{ padding: '0.9rem', fontSize: '0.95rem', textAlign: 'center' }}
                             >
-                                🗓 Reschedule Instead
+                                Reschedule instead
                             </button>
                             <button
                                 onClick={confirmCancel}
@@ -656,13 +650,13 @@ const MyAppointments = () => {
                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
                             >
-                                Cancel Appointment
+                                Cancel appointment
                             </button>
                             <button
                                 onClick={() => setShowCancelModal(null)}
                                 style={{ padding: '0.75rem', background: 'none', border: '1.5px solid var(--border)', color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)' }}
                             >
-                                Go Back
+                                Go back
                             </button>
                         </div>
                     </div>

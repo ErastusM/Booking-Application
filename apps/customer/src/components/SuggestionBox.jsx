@@ -8,12 +8,13 @@ const SUGGESTIONS_TO = companyValue('email') || 'info@bookplus.pro';
 
 const CATEGORIES = ['Feature Request', 'Bug Report', 'Improvement', 'Compliment', 'General'];
 
-const categoryMeta = {
-    'Feature Request': { icon: '✨', color: '#4f46e5' },
-    'Bug Report':      { icon: '🐛', color: '#dc2626' },
-    'Improvement':     { icon: '⚡', color: '#d97706' },
-    'Compliment':      { icon: '💛', color: '#16a34a' },
-    'General':         { icon: '💬', color: '#6b7280' },
+// What each category reads as on screen; the value sent stays the category.
+const CATEGORY_LABEL = {
+    'Feature Request': 'Feature request',
+    'Bug Report': 'Bug report',
+    'Improvement': 'Improvement',
+    'Compliment': 'Compliment',
+    'General': 'General',
 };
 
 const SuggestionBox = ({ user, open: openProp, onClose }) => {
@@ -108,7 +109,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div>
-                        <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '600', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
+                        <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '600', margin: '0 0 0.25rem' }}>Suggestion box</h2>
                         <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
                     </div>
                     <button aria-label="Close" onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.66)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
@@ -117,27 +118,25 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 <div style={{ padding: '1.75rem', flex: 1, paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom, 0px))' }}>
                     {sent ? (
                         <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
-                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you!</h3>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>Your suggestion has been sent to our team. We read every message and appreciate you taking the time.</p>
                             <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit}>
                             {/* Category selector */}
-                            <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem' }}>Category</p>
+                            <p style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Category</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
                                 {CATEGORIES.map(cat => {
-                                    const meta = categoryMeta[cat];
                                     const active = category === cat;
                                     return (
                                         <button
-                                            key={cat} type="button"
+                                            key={cat} type="button" aria-pressed={active}
                                             onClick={() => setCategory(cat)}
                                             style={{
                                                 padding: '0.4rem 0.85rem', borderRadius: '99px',
-                                                border: `1.5px solid ${active ? meta.color : 'var(--border)'}`,
-                                                background: active ? `${meta.color}14` : 'white',
+                                                border: `1.5px solid ${active ? 'var(--charcoal)' : 'var(--border)'}`,
+                                                background: 'white',
                                                 color: active ? 'var(--charcoal)' : 'var(--text-secondary)',
                                                 fontSize: '0.8rem', fontWeight: active ? '600' : '400',
                                                 cursor: 'pointer', fontFamily: 'var(--font-body)',
@@ -145,14 +144,14 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                                 transition: 'all 0.15s',
                                             }}
                                         >
-                                            <span>{meta.icon}</span><span>{cat}</span>
+                                            {CATEGORY_LABEL[cat] || cat}
                                         </button>
                                     );
                                 })}
                             </div>
 
                             {/* Message */}
-                            <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Your message</p>
+                            <p style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Your message</p>
                             <textarea aria-label="Your message"
                                 value={message}
                                 onChange={e => setMessage(e.target.value)}

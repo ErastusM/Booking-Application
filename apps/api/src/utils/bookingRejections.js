@@ -62,7 +62,7 @@ async function maybeAlert(providerId) {
     const [reason] = topReason(recent);
     await createNotification(
         providerId,
-        `⚠️ ${recent.length} booking attempts were turned away in the last hour — most hit “${labelFor(reason)}”. Check your hours and staff setup.`,
+        `${recent.length} booking attempts were turned away in the last hour, most because of “${labelFor(reason)}”. Check your hours and staff setup.`,
         'system',
         ALERT_LINK
     );

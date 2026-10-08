@@ -3,8 +3,8 @@
 // between channels.
 //
 // The rule: a service name is a MODIFIER, never the noun.
-//   ✅ "Your “Seniors” appointment has been moved to Thu, Jul 16 at 16:00."
-//   ❌ "Your Seniors was moved to Thursday, July 16 at 16:00."
+//   Good: "Your “Seniors” appointment has been moved to Thu, Jul 16 at 16:00."
+//   Bad:  "Your Seniors was moved to Thursday, July 16 at 16:00."
 // Quoting the name also stops multi-word services ("Kids Cut & Style") from
 // running into the surrounding sentence, and every helper degrades gracefully
 // when the service is unknown/deleted.

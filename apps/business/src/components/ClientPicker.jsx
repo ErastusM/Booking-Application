@@ -154,6 +154,10 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
         // you switch tabs and come back).
         searchQuery,
         onSearchChange,
+        // Optional (New Appointment): offer "New client" at the top of the list,
+        // and "Add “<search>” as a new client" when a search finds nobody. Called
+        // with the search text ('' from the top row).
+        onNewClient,
     } = props;
     const browse = mode === 'browse';
     const fill = height === 'fill';
@@ -188,6 +192,7 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
 
     const sorted = useMemo(() => sortClients(clients || []).filter((c) => c?.customer?._id), [clients]);
     const rows = useMemo(() => sorted.filter((c) => matchesClient(c, query)), [sorted, query]);
+    const noMatch = !!onNewClient && !browse && rows.length === 0 && !!query.trim();
 
     // Flat layout: a header before each run of one letter, then its rows.
     const { items, total, rowItem, sectionStart } = useMemo(() => {
@@ -511,7 +516,19 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                 ) : null}
             </div>
 
-            <div ref={bodyRef} className="cp-body" style={{ height: fill ? (fillH ?? 'min(60dvh, 560px)') : height }}>
+            {onNewClient && !browse && !noMatch ? (
+                <button type="button" className="cp-new" onClick={() => onNewClient('')} data-testid={`${testId}-new`}>
+                    <span className="cp-new-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    </span>
+                    <span className="cp-main">
+                        <span className="cp-new-title">New client</span>
+                        <span className="cp-new-sub">Add someone who isn't on your list yet</span>
+                    </span>
+                </button>
+            ) : null}
+
+            <div ref={bodyRef} className="cp-body" style={noMatch ? { height: 'auto', minHeight: 0 } : { height: fill ? (fillH ?? 'min(60dvh, 560px)') : height }}>
                 <div className="cp-col">
                     <div
                         ref={listRef}
@@ -677,6 +694,16 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                 ) : null}
                 {bubble ? <div className="cp-bubble" aria-hidden="true">{targetLetter(bubble) || bubble}</div> : null}
             </div>
+
+            {noMatch ? (
+                <div className="cp-nomatch" data-testid={`${testId}-nomatch`}>
+                    <button type="button" className="btn-primary cp-nomatch-btn" onClick={() => onNewClient(query.trim())} data-testid={`${testId}-add-new`}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        Add “{query.trim()}” as a new client
+                    </button>
+                    <p className="cp-nomatch-hint">You'll add their phone number next.</p>
+                </div>
+            ) : null}
 
             <span className="cp-sr" role="status" aria-live="polite">{announce}</span>
             {!browse && selected ? (

@@ -1384,6 +1384,23 @@ html.ios-vp-fix .vp-cover { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
 .cp-list:focus-visible { box-shadow: inset 0 0 0 2px var(--gold); }
 .cp-canvas { position: relative; }
 .cp-empty { padding: var(--space-6) var(--space-4); text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+.cp-new {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 64px; box-sizing: border-box;
+  padding: var(--space-2) var(--space-3); text-align: left; cursor: pointer; font: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--gold) 5%, var(--card-bg)); color: var(--gold-dark);
+}
+@media (hover: hover) { .cp-new:hover { background: color-mix(in srgb, var(--gold) 9%, var(--card-bg)); } }
+.cp-new:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.cp-new-icon {
+  flex: 0 0 40px; width: 40px; height: 40px; box-sizing: border-box; border-radius: 50%;
+  border: 1.5px dashed var(--gold); display: inline-flex; align-items: center; justify-content: center;
+}
+.cp-new-title { font-family: var(--font-display); font-weight: 600; font-size: 0.92rem; color: var(--gold-dark); }
+.cp-new-sub { font-size: 0.78rem; color: var(--text-secondary); }
+.cp-nomatch { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; }
+.cp-nomatch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; max-width: 100%; overflow-wrap: anywhere; }
+.cp-nomatch-hint { margin: 0; font-size: 0.8rem; color: var(--text-muted); }
 .cp-head {
   position: absolute; left: 0; right: 0; box-sizing: border-box; padding: 0 var(--space-3);
   display: flex; align-items: center;
