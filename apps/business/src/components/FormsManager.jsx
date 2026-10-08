@@ -121,7 +121,6 @@ const FormsManager = () => {
 
             {templates.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📋</div>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>No forms yet</h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Create an intake or consent form for clients to fill in before visiting.</p>
                 </div>

@@ -44,4 +44,13 @@ describe('bookingClientFields — who a New Appointment is for', () => {
         expect(bookingClientFields(undefined, undefined))
             .toEqual({ customerId: undefined, walkInName: undefined });
     });
+    it('books a new client by name with their phone and email, flagged as new', () => {
+        expect(bookingClientFields({ clientMode: 'new', newClient: { name: 'William Rittmann', phone: '+264 81 630 6705', email: 'w@example.com' } }, roster))
+            .toEqual({ customerId: undefined, walkInName: 'William Rittmann', guestPhone: '+264 81 630 6705', guestEmail: 'w@example.com', newClient: true });
+        expect(bookingClientFields({ clientMode: 'new', newClient: { name: 'William Rittmann', phone: '+264 81 630 6705', email: '' } }, roster))
+            .toEqual({ customerId: undefined, walkInName: 'William Rittmann', guestPhone: '+264 81 630 6705', newClient: true });
+        // Form not saved yet: nothing to book under.
+        expect(bookingClientFields({ clientMode: 'new', newClient: null }, roster))
+            .toEqual({ customerId: undefined, walkInName: undefined });
+    });
 });

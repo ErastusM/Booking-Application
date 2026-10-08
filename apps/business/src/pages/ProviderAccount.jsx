@@ -378,9 +378,9 @@ const ProviderAccount = () => {
         <div style={{ background: 'var(--off-white)', paddingTop: 'var(--page-pad-top)' }}>
             <div className="container" style={{ paddingBottom: 'var(--page-pad-bottom)' }}>
 
-                {/* Back to dashboard */}
+                {/* Back to home (the dashboard) */}
                 <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                    ← Back to Dashboard
+                    ← Back to home
                 </Link>
 
                 <div className="provider-account-grid" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '2rem', alignItems: 'start' }}>
@@ -613,7 +613,7 @@ const ProviderAccount = () => {
 
                                         {/* Instagram link */}
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                            <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>📷 Instagram feed</h3>
+                                            <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Instagram feed</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Link your Instagram profile to showcase your latest work automatically.</p>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
                                                 <input aria-label="Instagram profile URL"
@@ -648,7 +648,6 @@ const ProviderAccount = () => {
                                     <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
                                 ) : reviews.length === 0 ? (
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '5rem 2rem', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⭐</div>
                                         <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.4rem', fontWeight: '600' }}>No reviews yet</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Clients have not provided feedback for their appointments yet.</p>
                                     </div>
@@ -708,10 +707,9 @@ const ProviderAccount = () => {
                                         onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
                                         onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow-sm)'}
                                     >
-                                        <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>👤</div>
                                         <div style={{ flex: 1 }}>
                                             <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Personal info</h3>
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Customise your personal details and how we can contact you</p>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Your name and contact details</p>
                                         </div>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>›</span>
                                     </div>
@@ -719,10 +717,9 @@ const ProviderAccount = () => {
                                     {/* Login & security */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'security' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'security' ? null : 'security')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                                            <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>🔐</div>
                                             <div style={{ flex: 1 }}>
                                                 <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Login &amp; security</h3>
-                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Update your password and secure your account</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Change your password</p>
                                             </div>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', transition: 'transform 0.2s', transform: settingsOpen === 'security' ? 'rotate(90deg)' : 'none' }}>›</span>
                                         </div>
@@ -762,10 +759,9 @@ const ProviderAccount = () => {
                                     {/* Appearance */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'appearance' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'appearance' ? null : 'appearance')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                                            <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>🎨</div>
                                             <div style={{ flex: 1 }}>
                                                 <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Appearance</h3>
-                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Select the look and feel of your platform</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Dark mode</p>
                                             </div>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', transition: 'transform 0.2s', transform: settingsOpen === 'appearance' ? 'rotate(90deg)' : 'none' }}>›</span>
                                         </div>
@@ -797,10 +793,9 @@ const ProviderAccount = () => {
                                     {/* Calendar */}
                                     {!isStaff && <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'calendar' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'calendar' ? null : 'calendar')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                                            <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>📅</div>
                                             <div style={{ flex: 1 }}>
                                                 <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Google Calendar</h3>
-                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Embed your Google Calendar in the dashboard</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Show your Google Calendar in the dashboard</p>
                                             </div>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', transition: 'transform 0.2s', transform: settingsOpen === 'calendar' ? 'rotate(90deg)' : 'none' }}>›</span>
                                         </div>
@@ -842,10 +837,9 @@ const ProviderAccount = () => {
                                         surfaced here so they're reachable in-app, not only at signup. */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-                                            <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>📄</div>
                                             <div style={{ flex: 1, minWidth: '160px' }}>
                                                 <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Legal</h3>
-                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>The Terms of Service and Privacy Policy for your business account.</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Terms of Service and Privacy Policy</p>
                                             </div>
                                             <div style={{ display: 'flex', gap: '1.25rem', flexShrink: 0 }}>
                                                 <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>Terms of Service →</Link>

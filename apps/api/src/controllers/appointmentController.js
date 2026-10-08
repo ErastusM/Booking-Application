@@ -1,5 +1,6 @@
 const pino = require('pino');
 const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
+const { newClientContact } = require('../utils/newClientContact');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { randomUUID } = require('crypto');
 const Appointment = require('../models/Appointment');
@@ -1181,6 +1182,15 @@ exports.createAppointment = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Admins cannot create bookings from here.' });
         }
 
+        // A new client (name and phone, email optional) is a walk-in whose
+        // contact details are kept, so they appear in My Clients and get the
+        // confirmation and reminders. A plain Guest stays name-only.
+        const isWalkInBooking = (isProviderBooking || isStaffWalkIn) && !customerId && !!walkInName?.trim();
+        const newClient = isWalkInBooking ? newClientContact(req.body) : { contact: null };
+        if (newClient.error) {
+            return res.status(400).json({ success: false, code: 'new_client_invalid', message: newClient.error });
+        }
+
         if (isGuest && (!guestName?.trim() || !guestEmail?.trim())) {
             return res.status(400).json({ success: false, message: 'Please provide your name and email to book as a guest.' });
         }
@@ -1230,6 +1240,11 @@ exports.createAppointment = async (req, res) => {
         // walkInName, exactly like a guest record minus the contact channel.
         if (isStaffWalkIn) {
             bookingClient = { _id: null, name: walkInName.trim(), email: null, phone: (guestPhone || '').trim() || null };
+        }
+        // A new client is the person being booked (no account), never the owner
+        // or member who typed them in: the confirmation goes to their email.
+        if (newClient.contact) {
+            bookingClient = { _id: null, ...newClient.contact };
         }
 
         // Respect blocks — once either party blocks the other, no booking between them.
@@ -1550,8 +1565,10 @@ exports.createAppointment = async (req, res) => {
             } : {}),
             // Guest contact (no account) — the manageToken is their access credential.
             guestName: isGuest ? bookingClient.name : null,
-            guestEmail: isGuest ? bookingClient.email : null,
-            guestPhone: isGuest ? (bookingClient.phone || null) : null,
+            // A new client's contact details ride on the same fields (no guestName:
+            // walkInName carries their name, so they roll up as a walk-in).
+            guestEmail: isGuest ? bookingClient.email : (newClient.contact ? newClient.contact.email : null),
+            guestPhone: isGuest ? (bookingClient.phone || null) : (newClient.contact ? newClient.contact.phone : null),
             // The guest's own marketing-email choice (unticked by default). No
             // account means no settings page — this box is their only consent.
             ...(isGuest && req.body.marketingOptIn === true ? {
@@ -1925,6 +1942,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
         } else if (!bookingClient.name) {
             return res.status(400).json({ success: false, message: 'Choose a client or enter a walk-in name.' });
         }
+        // A new client: a walk-in with a phone (and maybe an email) kept.
+        const newClient = customerId ? { contact: null } : newClientContact(req.body);
+        if (newClient.error) {
+            return res.status(400).json({ success: false, code: 'new_client_invalid', message: newClient.error });
+        }
+        if (newClient.contact) bookingClient = { _id: null, ...newClient.contact };
 
         // Overlap check, PER staff member and per segment.
         //
@@ -1998,6 +2021,8 @@ exports.createMultiServiceAppointment = async (req, res) => {
                     status: 'confirmed',
                     statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
                     walkInName: customerId ? null : bookingClient.name,
+                    guestEmail: newClient.contact ? newClient.contact.email : null,
+                    guestPhone: newClient.contact ? newClient.contact.phone : null,
                     teamMember: primaryTeamMember,
                     paymentMethod: chosenMethod,
                     manageToken: randomUUID(),
@@ -2033,7 +2058,7 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 // Fan out to EVERY distinct performer on the ticket, not just the
                 // primary — a colleague who runs only segment 2 still gets alerted.
                 const targets = await bookingAlertTargets(providerId, built.map(b => b.teamMember));
-                const alertMsg = `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`;
+                const alertMsg = `New booking: ${label}, ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`;
                 for (const t of targets) {
                     await createNotification(t.userId, alertMsg, 'appointment', t.link);
                     if (t.email && typeof sendStaffBookingAlert === 'function') {
@@ -2041,9 +2066,25 @@ exports.createMultiServiceAppointment = async (req, res) => {
                     }
                 }
                 if (customerId) {
-                    await createNotification(bookingClient._id, `✅ You’re booked for ${svcNames} with ${req.user.name} on ${bookingDate} at ${spanStart}.`, 'appointment', '/appointments');
+                    await createNotification(bookingClient._id, `You’re booked for ${svcNames} with ${req.user.name} on ${bookingDate} at ${spanStart}.`, 'appointment', '/appointments');
                 }
             } catch (err) { logger.error({ err }, 'Multi-service booking notification failed'); }
+            // A new client with an email gets the same confirmation an online
+            // booking sends (reminders follow from guestEmail).
+            if (newClient.contact && newClient.contact.email) {
+                try {
+                    const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                    const svcNames = built.map(b => b.name).join(', ');
+                    const gcalUrl = calendarHelper.googleCalendarUrl({
+                        title: svcNames, appointmentDate, startTime: spanStart, endTime: spanEnd, details: 'Booked via Bookplus',
+                    });
+                    await sendAppointmentConfirmed(newClient.contact.email, newClient.contact.name, svcNames, dateStr, `${spanStart} – ${spanEnd}`, gcalUrl, {
+                        price: totalPrice,
+                        bookingRef: String(appointment._id).slice(-8).toUpperCase(),
+                        manageUrl: appointment.manageToken ? `${primaryOrigin() || ''}/manage/${appointment.manageToken}` : undefined,
+                    });
+                } catch (err) { logger.error({ err }, 'New client confirmation email failed'); }
+            }
         });
     } catch (error) {
         logger.error({ err: error }, 'createMultiServiceAppointment failed');
@@ -2230,7 +2271,7 @@ exports.cancelAppointment = async (req, res) => {
                     .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
                 await createNotification(
                     cancelProviderId,
-                    `❌ Cancelled — ${who} cancelled ${apptPhrase(appointment.service?.name)} on ${when} at ${appointment.startTime}. The slot is free again.`,
+                    `Cancelled: ${who} cancelled ${apptPhrase(appointment.service?.name)} on ${when} at ${appointment.startTime}. The slot is free again.`,
                     'appointment',
                     '/dashboard'
                 );
@@ -3514,7 +3555,7 @@ exports.cancelAppointmentByToken = async (req, res) => {
                     .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
                 await createNotification(
                     appt.provider,
-                    `❌ Cancelled — ${who} cancelled ${apptPhrase(appt.service?.name)} on ${when} at ${appt.startTime}. The slot is free again.`,
+                    `Cancelled: ${who} cancelled ${apptPhrase(appt.service?.name)} on ${when} at ${appt.startTime}. The slot is free again.`,
                     'appointment',
                     '/dashboard'
                 );

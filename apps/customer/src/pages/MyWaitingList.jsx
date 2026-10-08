@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { waitingListService } from '../services';
 import { apptLocalDate } from '../utils/date';
+import { formatMoney } from '../utils/currency';
 import { useToast } from '../components/Toast';
 import { useConfirm, formatDuration } from '@bookplus/ui';
 
@@ -78,22 +79,13 @@ const MyWaitingList = () => {
                 position: 'relative',
                 overflow: 'hidden',
             }}>
-                <div style={{
-                    position: 'absolute', inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 60% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)',
-                    pointerEvents: 'none',
-                }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <p style={{
-                        color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600',
-                        letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem',
-                    }}>Queue Status</p>
                     <h1 style={{
                         fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 4vw, 3rem)',
                         fontWeight: '600', color: 'white',
                     }}>
-                        My Waiting List
+                        My waiting list
                     </h1>
                 </div>
             </div>
@@ -128,23 +120,23 @@ const MyWaitingList = () => {
                             fontSize: '1.2rem', fontWeight: '600',
                             color: 'var(--charcoal)', marginBottom: '1rem',
                         }}>
-                            🎉 Good News
+                            Confirmed from the waiting list
                         </h2>
                         {notifications.map(n => (
                             <div key={n._id} style={{
-                                background: 'linear-gradient(135deg, #d1fae5, #ecfdf5)',
+                                background: '#d1fae5',
                                 border: '1px solid #6ee7b7',
                                 borderRadius: 'var(--radius)',
                                 padding: '1.25rem 1.5rem',
                                 marginBottom: '0.75rem',
                             }}>
                                 <p style={{ fontWeight: '600', color: '#065f46', fontSize: '0.95rem' }}>
-                                    You've been promoted for <strong>{n.service?.name}</strong>!
+                                    Your <strong>{n.service?.name}</strong> is booked.
                                 </p>
                                 <p style={{ color: 'var(--success-fg)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
-                                    {apptLocalDate(n.appointmentDate)?.toLocaleDateString('en-US', {
-                                        weekday: 'long', month: 'long', day: 'numeric'
-                                    })} at {n.startTime} — your appointment has been confirmed.
+                                    {apptLocalDate(n.appointmentDate)?.toLocaleDateString('en-GB', {
+                                        weekday: 'long', day: 'numeric', month: 'long'
+                                    })} at {n.startTime}.
                                 </p>
                             </div>
                         ))}
@@ -160,7 +152,6 @@ const MyWaitingList = () => {
                         padding: '5rem 2rem',
                         textAlign: 'center',
                     }}>
-                        <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⏳</div>
                         <h3 style={{
                             fontFamily: 'var(--font-body)',
                             fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem',
@@ -239,15 +230,15 @@ const MyWaitingList = () => {
                                     </h3>
                                     <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                                            📅 {apptLocalDate(entry.appointmentDate)?.toLocaleDateString('en-US', {
-                                                weekday: 'long', month: 'long', day: 'numeric'
+                                            {apptLocalDate(entry.appointmentDate)?.toLocaleDateString('en-GB', {
+                                                weekday: 'long', day: 'numeric', month: 'long'
                                             })}
                                         </span>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                                            🕐 {entry.startTime} — {entry.endTime}
+                                            {entry.startTime} to {entry.endTime}
                                         </span>
                                         <span style={{ color: 'var(--gold-dark)', fontSize: '0.85rem', fontWeight: '600' }}>
-                                            ${entry.service?.price} · {formatDuration(entry.service?.duration)}
+                                            {formatMoney(entry.service?.price, entry.service?.provider?.businessProfile?.currency)} · {formatDuration(entry.service?.duration)}
                                         </span>
                                     </div>
                                     {entry.position === 1 && (
@@ -264,7 +255,7 @@ const MyWaitingList = () => {
                                             fontWeight: '600',
                                             color: 'var(--gold-dark)',
                                         }}>
-                                            ✦ You're next in line!
+                                            You're next in line
                                         </div>
                                     )}
                                 </div>

@@ -78,16 +78,13 @@ const DonutChart = ({ data }) => {
     );
 };
 
-const MiniStat = ({ label, value, sub, icon, trend }) => (
+const MiniStat = ({ label, value, sub, trend }) => (
     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>{label}</p>
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{value}</p>
                 {sub && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{sub}</p>}
-            </div>
-            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
-                {icon}
             </div>
         </div>
         {trend !== undefined && (
@@ -211,10 +208,10 @@ const AnalyticsDashboard = () => {
                     console: clients + business owners. Team member logins and
                     admins are never inside it; team members get their own card. */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '0.6rem' }}>
-                    <MiniStat label="Users" value={users.total} icon="👥" sub={`${users.customers} client${users.customers === 1 ? '' : 's'} · ${users.providers} owner${users.providers === 1 ? '' : 's'}`} />
-                    <MiniStat label="New This Month" value={users.newThisMonth} icon="🆕" sub="Clients + business owners" />
-                    <MiniStat label="New This Week" value={users.newLastWeek} icon="📅" sub="Last 7 days" />
-                    <MiniStat label="Team Members" value={users.teamLogins ?? 0} icon="🪪" sub={`across ${users.teamBusinesses ?? 0} business${users.teamBusinesses === 1 ? '' : 'es'}`} />
+                    <MiniStat label="Users" value={users.total} sub={`${users.customers} client${users.customers === 1 ? '' : 's'} · ${users.providers} owner${users.providers === 1 ? '' : 's'}`} />
+                    <MiniStat label="New This Month" value={users.newThisMonth} sub="Clients + business owners" />
+                    <MiniStat label="New This Week" value={users.newLastWeek} sub="Last 7 days" />
+                    <MiniStat label="Team Members" value={users.teamLogins ?? 0} sub={`across ${users.teamBusinesses ?? 0} business${users.teamBusinesses === 1 ? '' : 'es'}`} />
                 </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 1.5rem' }}>
                     Users = clients + business owners. Team members and admins are counted separately.
@@ -222,10 +219,10 @@ const AnalyticsDashboard = () => {
 
                 {/* ── Booking KPIs ── */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                    <MiniStat label="Bookings" value={appointments.total} icon="📋" sub={`${appointments.pending ?? 0} pending · ${appointments.thisMonth} this month`} />
-                    <MiniStat label="Completed" value={completedCount} icon="✅" sub="All time" />
-                    <MiniStat label="Cancelled" value={cancelledCount} icon="🚫" sub="All time" />
-                    <MiniStat label="Completion Rate" value={`${appointments.total ? Math.round((appointments.byStatus.find(s => s._id === 'completed')?.count || 0) / appointments.total * 100) : 0}%`} icon="🎯" sub="Of all bookings" />
+                    <MiniStat label="Bookings" value={appointments.total} sub={`${appointments.pending ?? 0} pending · ${appointments.thisMonth} this month`} />
+                    <MiniStat label="Completed" value={completedCount} sub="All time" />
+                    <MiniStat label="Cancelled" value={cancelledCount} sub="All time" />
+                    <MiniStat label="Completion Rate" value={`${appointments.total ? Math.round((appointments.byStatus.find(s => s._id === 'completed')?.count || 0) / appointments.total * 100) : 0}%`} sub="Of all bookings" />
                 </div>
 
                 {/* ── Time series chart ── */}

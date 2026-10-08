@@ -135,7 +135,6 @@ const AuthCallback = () => {
             <div style={{ textAlign: 'center' }}>
                 {error ? (
                     <>
-                        <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⚠️</div>
                         <p style={{ color: '#991b1b', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>{error}</p>
                         <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)', fontSize: '0.8rem', marginTop: '0.5rem' }}>Redirecting to login...</p>
                     </>

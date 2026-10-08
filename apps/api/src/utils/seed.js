@@ -207,7 +207,7 @@ const seed = async () => {
         }
     }
 
-    console.log('\n✅ Seed complete!');
+    console.log('\nSeed complete.');
     console.log('Provider credentials:');
     providerData.forEach(p => console.log(`  ${p.email} / ${p.password}`));
     mongoose.disconnect();

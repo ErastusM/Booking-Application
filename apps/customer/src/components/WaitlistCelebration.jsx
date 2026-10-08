@@ -72,7 +72,7 @@ const WaitlistCelebration = () => {
     return (
         <StatusOverlay
             variant="confirmed"
-            title="A slot opened up! 🎉"
+            title="A slot opened up"
             subtitle={promo.subtitle}
             onDone={done}
             duration={3200}

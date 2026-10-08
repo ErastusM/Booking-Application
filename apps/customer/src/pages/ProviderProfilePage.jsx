@@ -646,7 +646,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.5rem' }}>{service.description}</p>
                                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDuration(offer.duration)}</span>
-                                                {service.location && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {normalizeTown(service.location)}</span>}
+                                                {service.location && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{normalizeTown(service.location)}</span>}
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>

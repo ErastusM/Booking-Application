@@ -133,7 +133,7 @@ test.describe('Services tab on a 390px phone', () => {
         await expect(row).toContainText('45 min');
         await expect(row).toContainText('N$ 120');
         // The town shows for a member as it does for the owner.
-        await expect(row).toContainText('📍 Windhoek');
+        await expect(row).toContainText('Windhoek');
         await expect(mine.getByTestId('catalogue-performers')).toHaveCount(0);
         await expect(mine.getByRole('button', { name: 'Categories' })).toHaveCount(0);
         await ctx.close();

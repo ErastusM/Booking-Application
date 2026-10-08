@@ -19,7 +19,6 @@ const SEARCH_TIMES = [
 
 // Provider dashboards live in the business app — cross-app hops are hard
 // navigations (like the Navbar's) so the other app boots fresh with its own data.
-const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
 
 const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
     const cover = p.coverImage || p.avatar || null;
@@ -530,6 +529,7 @@ const Home = () => {
                             onFocus={() => setCatalogueRequested(true)}
                             placeholder="Search services or businesses"
                             aria-label="Search services or businesses"
+                            enterKeyHint="search"
                             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
                         />
                         {/* Location + when segments — desktop only; mobile keeps the plain pill */}
@@ -568,7 +568,9 @@ const Home = () => {
                                 style={{ opacity: searchDate ? 1 : 0.45 }}
                             />
                         </div>
-                        <button type="submit" aria-label="Search" className="btn-primary" style={{ borderRadius: '50%', width: '46px', height: '46px', padding: 0, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {/* Phones search from the keyboard (Enter/Search); the arrow
+                            shows only on desktop, where it applies the place/date/time too. */}
+                        <button type="submit" aria-label="Search" className="btn-primary home-search-submit" style={{ borderRadius: '50%', width: '46px', height: '46px', padding: 0, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                             <ArrowRight size={21} strokeWidth={2.5} />
                         </button>
                     </form>
@@ -713,14 +715,18 @@ const Home = () => {
             {/* ── Discover feed (vertical, photo-rich) — the primary MOBILE home feed ── */}
             <section className="home-feed-mobile" style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>
                 <div className="container">
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>
-                        {hasActiveFilter ? `${filteredProviders.length} ${filteredProviders.length === 1 ? 'result' : 'results'}` : 'Discover'}
-                    </h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>
-                        {hasActiveFilter
-                            ? <>Matching your search{activeCategory ? ` · ${activeCategory}` : ''}. <button onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--gold-dark)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>Clear</button></>
-                            : 'Browse businesses near you — swipe their photos, tap to book.'}
-                    </p>
+                    {/* Only a search or filter gets a heading (the result count); the
+                        plain feed starts right under the category chips. */}
+                    {hasActiveFilter && (
+                        <>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>
+                                {`${filteredProviders.length} ${filteredProviders.length === 1 ? 'result' : 'results'}`}
+                            </h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>
+                                <>Matching your search{activeCategory ? ` · ${activeCategory}` : ''}. <button onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--gold-dark)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>Clear</button></>
+                            </p>
+                        </>
+                    )}
                     <div className="discover-feed">
                         {loading ? (
                             [0, 1, 2].map(i => (
@@ -756,33 +762,11 @@ const Home = () => {
                                     </div>
                                 )}
                                 {!hasMore && filteredProviders.length > PAGE && (
-                                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', padding: '0.75rem 0 0' }}>You're all caught up ✨</p>
+                                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', padding: '0.75rem 0 0' }}>You're all caught up</p>
                                 )}
                             </>
                         )}
                     </div>
-                </div>
-            </section>
-
-
-            {/* ── CTA — thin inline strip, button sits right after the words ── */}
-            <section style={{ background: 'var(--ink)', padding: '1rem 0' }}>
-                <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem 1.25rem', flexWrap: 'wrap', textAlign: 'center' }}>
-                    <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.95rem', margin: 0 }}>
-                        <span style={{ color: 'white', fontWeight: '600' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
-                        {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a business, pick a time, and you’re booked.'}
-                    </p>
-                    {user?.role === 'provider' ? (
-                        /* The dashboard lives in the business app — a hard navigation, not a
-                           react-router Link (the customer app has no /dashboard route). */
-                        <a href={`${BUSINESS_URL}/dashboard`} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                            Go to dashboard <ArrowRight size={16} strokeWidth={2} />
-                        </a>
-                    ) : (
-                        <Link to={user ? '/book-appointment' : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                            {user ? 'Book an appointment' : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
-                        </Link>
-                    )}
                 </div>
             </section>
         </div>

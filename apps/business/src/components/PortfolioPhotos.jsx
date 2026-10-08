@@ -152,7 +152,6 @@ const PortfolioPhotos = ({ portfolio, onSave, onAddFiles, uploading }) => {
             {images.length === 0 ? (
                 <div onClick={() => inputRef.current?.click()} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
                     style={{ border: '2px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: '2.5rem 1rem', textAlign: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🖼️</div>
                     <p style={{ fontWeight: 500, marginBottom: '0.25rem' }}>Add your images here</p>
                     <p style={{ fontSize: '0.8rem' }}>JPG, PNG, AVIF, WEBP · max 10 MB each</p>
                 </div>

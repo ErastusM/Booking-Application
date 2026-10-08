@@ -92,7 +92,6 @@ const ForgotPassword = () => {
                 <div style={{ width: '100%', maxWidth: '400px' }} className="fade-up">
                     {submitted ? (
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>📬</div>
                             <h1 style={{
                                 fontFamily: 'var(--font-display)',
                                 fontSize: '1.8rem',

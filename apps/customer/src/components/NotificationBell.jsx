@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notificationService } from '../services';
+import { cleanNotice } from '../utils/cleanNotice';
 
 const NotificationBell = ({ isTransparent }) => {
     const [notifications, setNotifications] = useState([]);
@@ -110,11 +111,6 @@ const NotificationBell = ({ isTransparent }) => {
         return `${Math.floor(seconds / 86400)}d ago`;
     };
 
-    const typeIcon = (type) => {
-        if (type === 'appointment') return '📅';
-        if (type === 'waiting_list') return '🎉';
-        return '🔔';
-    };
 
     return (
         <div ref={dropdownRef} style={{ position: 'relative' }}>
@@ -159,12 +155,13 @@ const NotificationBell = ({ isTransparent }) => {
                         )}
                         {notifications.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
-                                <p style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>🔔</p>
                                 <p style={{ fontSize: '0.875rem', margin: 0 }}>No notifications yet</p>
                             </div>
                         ) : (
                             notifications.map(n => {
-                                const initial = ((n.message || '').trim().charAt(0) || '•').toUpperCase();
+                                // Older notices were stored with emoji; show them the way new ones read.
+                                const text = cleanNotice(n.message);
+                                const initial = (text.charAt(0) || '•').toUpperCase();
                                 const pal = n.type === 'appointment'
                                     ? { bg: '#fde2e9', fg: '#be123c' }
                                     : n.type === 'waiting_list'
@@ -178,14 +175,13 @@ const NotificationBell = ({ isTransparent }) => {
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                     onMouseLeave={e => e.currentTarget.style.background = !n.read ? 'rgba(240,62,22,0.07)' : 'transparent'}
                                 >
-                                    {/* Avatar with a small type badge, like the notifications feed */}
+                                    {/* Avatar: the first letter of the notice */}
                                     <div style={{ position: 'relative', flexShrink: 0 }}>
                                         <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: pal.bg, color: pal.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.95rem' }}>{initial}</div>
-                                        <span style={{ position: 'absolute', bottom: '-2px', right: '-3px', fontSize: '0.65rem', background: 'var(--card-bg)', borderRadius: '50%', width: '17px', height: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{typeIcon(n.type)}</span>
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
                                         <p style={{ fontSize: '0.85rem', margin: 0, color: !n.read ? 'var(--charcoal)' : 'var(--text-secondary)', fontWeight: !n.read ? '600' : '400', lineHeight: 1.4 }}>
-                                            {n.message}
+                                            {text}
                                         </p>
                                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>{timeAgo(n.createdAt)}</p>
                                     </div>

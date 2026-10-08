@@ -32,6 +32,7 @@ import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
 import ClientPicker from '../components/ClientPicker';
+import NewClientForm, { NewClientCard } from '../components/NewClientForm';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol, formatMoney } from '../utils/currency';
@@ -1127,7 +1128,7 @@ const ProviderDashboard = () => {
     // A walk-in row of the client list: no account behind it, keyed "walkin:<name>".
     const isWalkInEntry = (c) => !!(c?.isWalkIn || c?.customer?.isWalkIn || String(c?.customer?._id || '').startsWith('walkin:'));
     // A team member's booking starts in their OWN column ('' is the owner's).
-    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: isStaff ? String(myMemberId || '') : '' };
+    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', newClient: null, newClientDraft: null, isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: isStaff ? String(myMemberId || '') : '' };
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
         setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: toDateKey(new Date()), ...extra }));
@@ -1144,6 +1145,7 @@ const ProviderDashboard = () => {
         setApptForm(prev => ({
             ...prev,
             clientMode: walkIn ? 'walkin' : 'existing',
+            newClient: null,
             customerId: walkIn ? '' : customerId,
             clientName: walkIn ? (client.customer?.name || '') : '',
             isGroup: false,
@@ -1987,8 +1989,7 @@ const ProviderDashboard = () => {
                     <>
                         {filtered.length === 0 ? (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
-                                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
-                                {/* Distinguish "none exist" from "all of them are older than the
+                                                                {/* Distinguish "none exist" from "all of them are older than the
                                     calendar's window" — the badge count is all-time, so an empty
                                     windowed list with a non-zero count means they're in History. */}
                                 {summary && (counts[activeTab] || 0) > 0 ? (
@@ -2164,13 +2165,12 @@ const ProviderDashboard = () => {
                                     {listedBlocks.map((bt, i) => (
                                         <div key={bt._id} data-testid="blocked-time-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', borderBottom: i < listedBlocks.length - 1 ? '1px solid var(--border)' : 'none', gap: '1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
-                                                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                         <span style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--charcoal)' }}>{bt.date}</span>
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{bt.startTime} - {bt.endTime}</span>
                                                         {bt.isRecurring && (
-                                                            <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '0.1rem 0.5rem', borderRadius: '99px', background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>🔁 {bt.recurrenceType}</span>
+                                                            <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '0.1rem 0.5rem', borderRadius: '99px', background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>Repeats {bt.recurrenceType}</span>
                                                         )}
                                                     </div>
                                                     {bt.reason && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.reason}</p>}
@@ -2225,7 +2225,6 @@ const ProviderDashboard = () => {
                                 utils/bookingRejections on the API); this is the ambient view. */}
                             {turnedAway?.count > 0 && (
                                 <div data-testid="turned-away-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', background: 'var(--warning-bg, #fff7ed)', border: '1px solid #fdba74', borderRadius: 'var(--radius)', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ width: '38px', height: '38px', borderRadius: '9px', background: 'rgba(240,62,22,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
                                     <div style={{ minWidth: 0 }}>
                                         <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: 'var(--warning-fg, #9a3412)' }}>
                                             {turnedAway.count} booking{turnedAway.count > 1 ? 's' : ''} turned away this week
@@ -2242,13 +2241,12 @@ const ProviderDashboard = () => {
 
                             <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                                 {[
-                                    { label: "Today's Bookings", value: todays.length, icon: '📅', sub: 'Scheduled today' },
-                                    { label: 'Upcoming', value: upcoming.length, icon: '⏳', sub: 'Confirmed ahead' },
-                                    { label: 'Completed', value: completedCount, icon: '✅', sub: 'All time' },
-                                    { label: 'Clients Served', value: clientsServed, icon: '👥', sub: `${cancelledCount} cancellations` },
+                                    { label: "Today's bookings", value: todays.length },
+                                    { label: 'Upcoming', value: upcoming.length },
+                                    { label: 'Completed', value: completedCount, sub: 'All time' },
+                                    { label: 'Clients served', value: clientsServed, sub: `${cancelledCount} cancellations` },
                                 ].map((s, i) => (
                                     <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                         <div>
                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
                                             <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
@@ -2376,8 +2374,7 @@ const ProviderDashboard = () => {
                         </div>
                         {providerWaitlist.length === 0 ? (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
-                                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⏳</div>
-                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No one's waiting right now</p>
+                                                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No one's waiting right now</p>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>When you're fully booked, clients can join the waiting list and you'll see them here.</p>
                             </div>
                         ) : (
@@ -2438,17 +2435,16 @@ const ProviderDashboard = () => {
                             <>
                                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                                     {[
-                                        { label: 'Utilization', value: `${insights.rates.utilizationPct}%`, icon: '⚡', sub: `${Math.round(insights.utilization.bookedMinutes / 60)}h booked` },
-                                        { label: 'No-show rate', value: `${insights.rates.noShowRate}%`, icon: '🚫', sub: `${insights.totals.noShow} no-shows` },
-                                        { label: 'New clients', value: insights.clients.new, icon: '✨', sub: `${insights.clients.returning} returning` },
-                                        { label: 'Waitlist', value: insights.waitlistVolume, icon: '⏳', sub: 'Currently waiting' },
+                                        { label: 'Utilization', value: `${insights.rates.utilizationPct}%`, sub: `${Math.round(insights.utilization.bookedMinutes / 60)}h booked` },
+                                        { label: 'No-show rate', value: `${insights.rates.noShowRate}%`, sub: `${insights.totals.noShow} no-shows` },
+                                        { label: 'New clients', value: insights.clients.new, sub: `${insights.clients.returning} returning` },
+                                        { label: 'Waiting list', value: insights.waitlistVolume },
                                     ].map((s, i) => (
                                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                             <div>
                                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
                                                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
-                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>
+                                                {s.sub && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
                                             </div>
                                         </div>
                                     ))}
@@ -3083,8 +3079,7 @@ const ProviderDashboard = () => {
                             </div>
                         ) : history.length === 0 ? (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
-                                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🕐</div>
-                                <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No past appointments yet</p>
+                                                                <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No past appointments yet</p>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Completed and past appointments will appear here.</p>
                             </div>
                         ) : (
@@ -3410,8 +3405,7 @@ const ProviderDashboard = () => {
                         <RowsSkeleton />
                     ) : myPackages.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
-                            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🪪</div>
-                            <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No membership plans yet</p>
+                                                        <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No membership plans yet</p>
                             <p style={{ fontSize: '0.875rem' }}>Create plans that let clients enroll in multi-session bundles.</p>
                         </div>
                     ) : (
@@ -3773,8 +3767,7 @@ const ProviderDashboard = () => {
                         <RowsSkeleton />
                     ) : teamMembers.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
-                            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>👤</div>
-                            <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No team members yet</p>
+                                                        <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No team members yet</p>
                             <p style={{ fontSize: '0.875rem' }}>Add staff members so you can assign them to appointments and track their schedule.</p>
                         </div>
                     ) : (
@@ -3896,6 +3889,10 @@ const ProviderDashboard = () => {
                                 apptFieldRefs.current[`service-${apptForm.isGroup ? 0 : apptForm.services.findIndex(r => !r.serviceId)}`]?.focus();
                                 return;
                             }
+                            if (!apptForm.isGroup && apptForm.clientMode === 'new' && !apptForm.newClient) {
+                                setApptError('Please save the new client’s details first, or choose a client.');
+                                return;
+                            }
                             if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
                                 setApptError('Please choose a client, or switch to Guest.');
                                 apptFieldRefs.current.client?.focus();
@@ -3910,7 +3907,8 @@ const ProviderDashboard = () => {
                             // Who the booking is for. The client picker also lists past walk-ins
                             // (id "walkin:<name>", no account), which the API only accepts by
                             // name, as Guest does (see utils/bookingClient.js).
-                            const { customerId: bookingCustomerId, walkInName: bookingWalkInName } = bookingClientFields(apptForm, clients);
+                            // A new client also carries their phone/email (newClient: true).
+                            const clientFields = bookingClientFields(apptForm, clients);
                             // A member's booking goes in their own column unless they picked one.
                             const bookTeamMember = apptForm.teamMember || (isStaff && myMemberId ? String(myMemberId) : undefined);
                             setSavingAppt(true);
@@ -3934,8 +3932,7 @@ const ProviderDashboard = () => {
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
                                         endTime,
-                                        customerId: bookingCustomerId,
-                                        walkInName: bookingWalkInName,
+                                        ...clientFields,
                                         notes: apptForm.notes,
                                         teamMember: bookTeamMember,
                                         isRecurring: apptForm.isRecurring,
@@ -3948,8 +3945,7 @@ const ProviderDashboard = () => {
                                     await appointmentService.createMultiAppointment({
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
-                                        customerId: bookingCustomerId,
-                                        walkInName: bookingWalkInName,
+                                        ...clientFields,
                                         teamMember: bookTeamMember,
                                         services: selectedServices.map(s => ({ serviceId: s._id })),
                                     });
@@ -4092,7 +4088,8 @@ const ProviderDashboard = () => {
                                             {/* Choose between an existing registered client and a walk-in */}
                                             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                                 {[{ mode: 'existing', label: 'Existing client' }, { mode: 'walkin', label: 'Guest' }].filter(opt => opt.mode === 'walkin' || canBookExistingClient).map(opt => {
-                                                    const active = apptForm.clientMode === opt.mode;
+                                                    // A new client is filled in under Existing client.
+                                                    const active = opt.mode === 'walkin' ? apptForm.clientMode === 'walkin' : apptForm.clientMode !== 'walkin';
                                                     return (
                                                         <button key={opt.mode} type="button" onClick={() => setApptForm(f => ({ ...f, clientMode: opt.mode }))} style={{
                                                             flex: 1, padding: '0.5rem 0.4rem', borderRadius: 'var(--radius-sm)',
@@ -4104,23 +4101,44 @@ const ProviderDashboard = () => {
                                                     );
                                                 })}
                                             </div>
-                                            {apptForm.clientMode === 'existing' ? (
+                                            {apptForm.clientMode === 'new' ? (
+                                                // New client while booking: their name and phone (email
+                                                // optional) travel with the booking, which saves them to
+                                                // My Clients (components/NewClientForm, utils/bookingClient).
+                                                apptForm.newClient && !apptForm.newClientDraft ? (
+                                                    <NewClientCard
+                                                        client={apptForm.newClient}
+                                                        onChange={() => setApptForm(f => ({ ...f, newClientDraft: f.newClient }))}
+                                                        testId="appt-new-client-card"
+                                                    />
+                                                ) : (
+                                                    <NewClientForm
+                                                        key={apptForm.newClientDraft?.key || 'new'}
+                                                        initial={apptForm.newClientDraft || {}}
+                                                        clients={clientPickerRows}
+                                                        onBack={() => setApptForm(f => ({ ...f, clientMode: canBookExistingClient ? 'existing' : 'walkin', newClient: null, newClientDraft: null }))}
+                                                        onSave={(c) => setApptForm(f => ({ ...f, newClient: c, newClientDraft: null, customerId: '' }))}
+                                                        onPickExisting={canBookExistingClient ? (match) => setApptForm(f => ({ ...f, clientMode: 'existing', customerId: match.customer._id, newClient: null, newClientDraft: null })) : undefined}
+                                                        testId="appt-new-client"
+                                                    />
+                                                )
+                                            ) : apptForm.clientMode === 'existing' ? (
                                                 <div>
                                                     <div aria-hidden="true" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</div>
-                                                    {clients.length === 0 ? (
-                                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-                                                            {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Guest to book by name.'}
-                                                        </p>
+                                                    {clients.length === 0 && loadingClients ? (
+                                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>Loading your clients…</p>
                                                     ) : (
                                                         // Contact-style list (components/ClientPicker): search by name,
                                                         // phone or email, A–Z sections with a letter rail, and each
                                                         // client's picture, phone, visits and last visit. It keeps the
                                                         // shared clientSort order; a picked walk-in is booked by name
-                                                        // (utils/bookingClient).
+                                                        // (utils/bookingClient). "New client" sits at the top.
                                                         <ClientPicker
                                                             clients={clientPickerRows}
                                                             value={apptForm.customerId}
                                                             onChange={id => setApptForm(f => ({ ...f, customerId: id }))}
+                                                            onNewClient={q => setApptForm(f => ({ ...f, clientMode: 'new', customerId: '', newClient: null, newClientDraft: { name: q, key: `q-${Date.now()}` } }))}
+                                                            emptyText="No saved clients yet."
                                                             aria-label="Client"
                                                             required
                                                             invalid={!!apptError && !apptForm.customerId}
@@ -4133,7 +4151,13 @@ const ProviderDashboard = () => {
                                             ) : (
                                                 <div>
                                                     <label htmlFor="appt-guest-name" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
-                                                    <input id="appt-guest-name" type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
+                                                    <input id="appt-guest-name" type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} aria-describedby="appt-guest-hint" />
+                                                    <p id="appt-guest-hint" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.5rem 0 0' }}>Booked by name only. No phone number or email is kept.</p>
+                                                    <button type="button" data-testid="appt-guest-to-client"
+                                                        onClick={() => setApptForm(f => ({ ...f, clientMode: 'new', customerId: '', newClient: null, newClientDraft: { name: f.clientName.trim(), key: `g-${Date.now()}` } }))}
+                                                        style={{ minHeight: '44px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'var(--font-body)' }}>
+                                                        Save them as a client instead
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -4330,13 +4354,13 @@ const ProviderDashboard = () => {
                             {/* Block type */}
                             {!editingBlockedTime && (
                                 <div>
-                                    <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem' }}>Block time type</p>
+                                    <p style={{ fontSize: '0.8rem', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Type</p>
                                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                                         {[
-                                            { id: 'Custom', icon: '✏️', desc: 'New blocked time' },
-                                            { id: 'Lunch',  icon: '🥗', desc: '30 mins · Unpaid' },
-                                            { id: 'Break',  icon: '☕', desc: '15 mins · Break' },
-                                            { id: 'Meeting',icon: '📋', desc: 'Team meeting' },
+                                            { id: 'Custom', desc: 'Any time' },
+                                            { id: 'Lunch',  desc: '30 min' },
+                                            { id: 'Break',  desc: '15 min' },
+                                            { id: 'Meeting', desc: 'Team' },
                                         ].map(t => (
                                             <button
                                                 key={t.id} type="button"
@@ -4356,9 +4380,8 @@ const ProviderDashboard = () => {
                                                     cursor: 'pointer', textAlign: 'center',
                                                 }}
                                             >
-                                                <div style={{ fontSize: '1.2rem', marginBottom: '0.25rem' }}>{t.icon}</div>
-                                                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: blockedTimeForm.blockType === t.id ? 'var(--gold-dark)' : 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{t.id}</div>
-                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.1rem', fontFamily: 'var(--font-body)' }}>{t.desc}</div>
+                                                <div style={{ fontSize: '0.8rem', fontWeight: '600', color: blockedTimeForm.blockType === t.id ? 'var(--gold-dark)' : 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{t.id}</div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem', fontFamily: 'var(--font-body)' }}>{t.desc}</div>
                                             </button>
                                         ))}
                                     </div>

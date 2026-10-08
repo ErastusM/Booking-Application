@@ -98,7 +98,7 @@ describe('ServiceMenu — the owner', () => {
         const { onEdit } = renderOwner();
         const haircut = rowOf('Haircut');
         expect(haircut).toHaveAttribute('data-testid', 'catalogue-service');
-        expect(haircut.querySelector('.sm-meta')).toHaveTextContent('45 min · You · Hilda · Moses · 📍 Windhoek');
+        expect(haircut.querySelector('.sm-meta')).toHaveTextContent('45 min · You · Hilda · Moses · Windhoek');
         expect(haircut.querySelector('.sm-price')).toHaveTextContent('N$ 120');
         expect(rowOf('Car wash').querySelector('.sm-price')).toHaveTextContent('N$ 856.50');
         expect(rowOf('Car wash').querySelector('.sm-meta')).toHaveTextContent('1 hr 15 min');
@@ -264,7 +264,7 @@ describe('ServiceMenu — the owner', () => {
     it('lets the meta line wrap instead of cutting performers or the town off', () => {
         renderOwner();
         const parts = Array.from(rowOf('Haircut').querySelectorAll('.sm-meta-part')).map((p) => p.textContent);
-        expect(parts).toEqual(['45 min', '📍 Windhoek']);
+        expect(parts).toEqual(['45 min', 'Windhoek']);
     });
 
     it('says how many services a search found, once typing pauses', async () => {
@@ -375,7 +375,7 @@ describe('ServiceMenu — a team member', () => {
 
     it('shows each service\'s town, as the owner\'s rows do', () => {
         renderMember({ services: [{ ...MEMBER_SERVICES[0], location: 'Windhoek' }] });
-        expect(rowOf('Car wash').querySelector('.sm-meta')).toHaveTextContent('45 min · 📍 Windhoek');
+        expect(rowOf('Car wash').querySelector('.sm-meta')).toHaveTextContent('45 min · Windhoek');
         expect(rowOf('Car wash')).toHaveAccessibleDescription('45 min, in Windhoek. N$ 150');
     });
 

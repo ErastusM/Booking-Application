@@ -225,7 +225,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         if (providerId) {
             await createNotification(
                 providerId,
-                `🔁 Slot refilled — ${next.customer.name} was booked from the waiting list for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
+                `Slot refilled: ${next.customer.name} was booked from the waiting list for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
                 'appointment',
                 '/dashboard'
             );
@@ -242,7 +242,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
                 if (m && m.user) {
                     await createNotification(
                         m.user._id,
-                        `🔁 Slot refilled — ${next.customer.name} was booked from the waiting list for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
+                        `Slot refilled: ${next.customer.name} was booked from the waiting list for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
                         'appointment',
                         '/my-schedule'
                     );
@@ -257,7 +257,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             } catch (err) { logger.warn({ err: err.message }, 'Waitlist member alert failed (non-fatal)'); }
         }
         pushService.sendToUser(next.customer._id, {
-            title: 'A slot opened up! 🎉',
+            title: 'A slot opened up',
             body: `You’re booked for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
             url: '/appointments',
         }).catch(() => {});

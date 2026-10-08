@@ -72,7 +72,7 @@ const announceNewBooking = async ({
         const priceTag = Number.isFinite(price) ? ` (N$${price.toFixed(2)})` : '';
         if (svc.provider) {
             const targets = await bookingAlertTargets(svc.provider, [appointment.teamMember]);
-            const alertMsg = `🎉 New booking — ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`;
+            const alertMsg = `New booking: ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`;
             for (const t of targets) {
                 await notificationhelper.createNotification(t.userId, alertMsg, 'appointment', t.link);
                 // Member gets an email too (owner fallback has no email → in-app/push only, as before).
@@ -87,7 +87,7 @@ const announceNewBooking = async ({
         if (bookedFor && bookedFor.clientUserId) {
             await notificationhelper.createNotification(
                 bookedFor.clientUserId,
-                `✅ You’re booked for ${servicePhrase(svc.name)} with ${bookedFor.bookerName} on ${bookingDate} at ${startTime}.`,
+                `You’re booked for ${servicePhrase(svc.name)} with ${bookedFor.bookerName} on ${bookingDate} at ${startTime}.`,
                 'appointment',
                 '/appointments'
             );

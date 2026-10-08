@@ -592,7 +592,7 @@ exports.removeTeamMember = async (req, res) => {
                     try {
                         await createNotification(
                             userId,
-                            `❌ Your ${svcName} on ${dateLong} at ${appt.startTime} was cancelled — ${member.name} is no longer available. Please rebook a time that suits you.`,
+                            `Your ${svcName} on ${dateLong} at ${appt.startTime} was cancelled because ${member.name} is no longer available. Please rebook a time that suits you.`,
                             'appointment',
                             '/appointments',
                         );

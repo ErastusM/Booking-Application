@@ -33,7 +33,7 @@ describe('sendAlert', () => {
         for (let i = 0; i < 9; i++) await sendAlert(`err ${i}`, 'boom');
         expect(calls).toHaveLength(5); // MAX_PER_WINDOW
         const body = JSON.parse(calls[0].opts.body);
-        expect(body.text).toMatch(/Bookplus API — err 0/);
+        expect(body.text).toMatch(/Bookplus API alert: err 0/);
         expect(body.text).toMatch(/boom/);
     });
 

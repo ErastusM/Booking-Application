@@ -803,9 +803,6 @@ const BookAppointment = () => {
     const cardStyle = { background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
     // Visible field labels on the contact / name cards (sentence case, not the step captions' uppercase).
     const contactLabelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.35rem', fontFamily: 'var(--font-body)' };
-    const stepBadge = (num) => (
-        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: '600', flexShrink: 0 }}>{num}</div>
-    );
 
     const formattedDate = formData.appointmentDate
         ? new Date(formData.appointmentDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -1099,47 +1096,6 @@ const BookAppointment = () => {
             <div className={`container booking-form-body${selectedService ? ' has-mobile-bar' : ''}`} style={{ paddingTop: 'var(--page-body-pad-top)' }}>
                 {error && <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
-                {/* Progress stepper */}
-                {(() => {
-                    const hasRoster = staffList.length > 0;
-                    const steps = hasRoster ? [
-                        { n: 1, label: 'Professional', done: !!selectedStaff },
-                        { n: 2, label: 'Service', done: !!selectedService },
-                        { n: 3, label: 'Date & time', done: !!formData.startTime },
-                        { n: 4, label: 'Confirm', done: false },
-                    ] : [
-                        { n: 1, label: 'Service', done: !!selectedService },
-                        { n: 2, label: 'Date & time', done: !!formData.startTime },
-                        { n: 3, label: 'Confirm', done: false },
-                    ];
-                    const currentIdx = hasRoster
-                        ? (!selectedStaff ? 0 : !selectedService ? 1 : !formData.startTime ? 2 : 3)
-                        : (!selectedService ? 0 : !formData.startTime ? 1 : 2);
-                    return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.75rem', maxWidth: '560px' }}>
-                            {steps.map((s, i) => {
-                                const active = i === currentIdx;
-                                const complete = s.done && i < currentIdx;
-                                return (
-                                    <React.Fragment key={s.n}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                                            <div style={{
-                                                width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontSize: '0.8rem', fontWeight: '600', flexShrink: 0, transition: 'all var(--dur) var(--ease-out)',
-                                                background: complete ? 'var(--gold)' : active ? 'var(--ink)' : 'var(--surface-sunken)',
-                                                color: complete ? 'var(--ink)' : active ? 'var(--on-ink)' : 'var(--text-muted)',
-                                                border: active && !complete ? '2px solid var(--gold)' : '2px solid transparent',
-                                            }}>{complete ? '✓' : s.n}</div>
-                                            <span style={{ fontSize: '0.82rem', fontWeight: active ? '600' : '500', color: active ? 'var(--charcoal)' : 'var(--text-muted)', whiteSpace: 'nowrap' }} className="hidden-mobile">{s.label}</span>
-                                        </div>
-                                        {i < steps.length - 1 && <div style={{ flex: 1, height: '2px', background: i < currentIdx ? 'var(--gold)' : 'var(--border)', borderRadius: '2px', transition: 'background var(--dur) ease', minWidth: '16px' }} />}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
-                    );
-                })()}
-
                 <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Left - steps */}
@@ -1162,7 +1118,6 @@ const BookAppointment = () => {
                         {hasRoster && (pickerOpen || !selectedStaff) && (
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                    {stepBadge(1)}
                                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Choose your Professional</h2>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.75rem' }}>
@@ -1207,7 +1162,6 @@ const BookAppointment = () => {
                         {(!hasRoster || selectedStaff) ? (
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                {stepBadge(hasRoster ? 2 : 1)}
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>{hasRoster && selectedStaff ? `${selectedStaff.name.split(' ')[0]}’s Services` : 'Choose a Service'}</h2>
                             </div>
                             {servicesLoading ? (
@@ -1262,7 +1216,6 @@ const BookAppointment = () => {
                         ) : (
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    {stepBadge(2)}
                                     <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>Choose a professional above to see their services and prices.</p>
                                 </div>
                             </div>
@@ -1272,7 +1225,6 @@ const BookAppointment = () => {
                         {selectedService?.addOns?.length > 0 && (
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                                    {stepBadge(hasRoster ? 3 : 2)}
                                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Add-ons <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>(optional)</span></h2>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -1297,7 +1249,6 @@ const BookAppointment = () => {
                             card only picks the day + slot for that person) */}
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                {stepBadge((hasRoster ? 2 : 1) + (selectedService?.addOns?.length > 0 ? 2 : 1))}
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time{hasRoster && selectedStaff ? ` with ${selectedStaff.name.split(' ')[0]}` : ''}</h2>
                             </div>
 
