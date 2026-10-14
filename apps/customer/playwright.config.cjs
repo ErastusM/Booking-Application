@@ -49,7 +49,13 @@ module.exports = defineConfig({
             port: Number(API_PORT),
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,
-            env: { PORT: String(API_PORT), CLIENT_URL: BASE_URL },
+            // Online payments on, against a stand-in PayGate (E2E_FAKE_PAYGATE):
+            // only the fixture business that asks for payment is affected.
+            env: {
+                PORT: String(API_PORT), CLIENT_URL: BASE_URL,
+                PAYMENTS_ENABLED: 'true', E2E_FAKE_PAYGATE: '1',
+                PAYGATE_CALLBACK_BASE_URL: `http://localhost:${API_PORT}`, CUSTOMER_APP_URL: BASE_URL,
+            },
         },
         {
             command: `npx vite --port ${CLIENT_PORT} --strictPort`,
@@ -59,6 +65,8 @@ module.exports = defineConfig({
             env: {
                 // The api-client appends /api itself — origin only.
                 VITE_API_URL: `http://localhost:${API_PORT}`,
+                // Shows the pay-online parts before the feature is switched on.
+                VITE_PAYMENTS_PREVIEW: 'true',
             },
         },
     ],

@@ -433,6 +433,57 @@ const outbox = [];
             guestName, noShowName, clientName: client.name, clientEmail: client.email,
         });
     });
+    // Paying online, end to end, without the real PayGate: when the run asks
+    // for it (E2E_FAKE_PAYGATE=1), the integration tests' fake answers the
+    // API's PayHost calls. The browser's trip to PayGate's hosted page is
+    // played by the spec, which posts back the return this endpoint builds.
+    if (process.env.E2E_FAKE_PAYGATE === '1') {
+        const { createFakePaygate } = require('./src/tests/helpers/fakePaygate');
+        const gw = createFakePaygate();
+        gw.install();
+        // { reference, code: 1 approved | 2 declined | 4 cancelled } → the
+        // return post PayGate would send the browser back with.
+        outer.post('/__e2e/paygate/outcome', (req, res) => {
+            const { reference, code } = req.body || {};
+            try {
+                gw.setStatus(String(reference), Number(code));
+                res.json({ ok: true, returnBody: gw.returnBody(String(reference)) });
+            } catch (err) {
+                res.status(404).json({ ok: false, message: err.message });
+            }
+        });
+    }
+
+    // A business that takes online payments: approved, switched on, asking a
+    // deposit (or the full price), with a N$200 service bookable every day.
+    let payingSeq = 0;
+    outer.post('/__e2e/paying-business', async (req, res) => {
+        payingSeq += 1;
+        const tag = `${payingSeq}-${Date.now()}`;
+        const mode = req.body?.mode === 'full' ? 'full' : 'deposit';
+        const businessName = `Paying Salon ${payingSeq}`;
+        const owner = await User.create({
+            name: `Paying Owner ${payingSeq}`, email: `e2e-paying-${tag}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000021', role: 'provider', providerCategory: 'Home services',
+            isVerified: true, provider: 'local', providerSetupComplete: true,
+            businessProfile: { businessName, currency: 'NAD' },
+            paymentSettings: mode === 'full' ? { mode: 'full' } : { mode: 'deposit', depositType: 'percent', depositValue: 25 },
+            paymentsApproval: { status: 'approved', plan: 'standard', switchOn: true },
+            pricing: { plan: 'standard', rates: { commissionBps: 300, fixedFeeCents: 150 } },
+            payoutAccount: { accountHolder: businessName, bankName: 'Bank Windhoek', branchCode: '483872', accountNumber: '80041234821' },
+        });
+        const svc = await Service.create({
+            name: 'Paid Cut', description: 'Half an hour', price: 200, duration: 30,
+            provider: owner._id, createdBy: owner._id, isActive: true, location: 'Windhoek',
+        });
+        const open = { enabled: true, slots: [{ start: '08:00', end: '18:00' }] };
+        await Availability.create({
+            provider: owner._id,
+            schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: open, sunday: open },
+        });
+        res.json({ providerId: String(owner._id), serviceId: String(svc._id), businessName, ownerEmail: owner.email });
+    });
+
     outer.use(app);
 
     outer.listen(PORT, () => {

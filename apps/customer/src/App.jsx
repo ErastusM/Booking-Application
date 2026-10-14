@@ -29,6 +29,7 @@ const ProviderProfileBySlug = lazy(() => import('./pages/ProviderProfileBySlug')
 const MemberBookingLink = lazy(() => import('./pages/MemberBookingLink'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
+const PaymentResult = lazy(() => import('./pages/PaymentResult'));
 const BecomeProvider = lazy(() => import('./pages/BecomeProvider'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
@@ -103,6 +104,8 @@ function AppRoutes() {
                     {/* Public: guest checkout. BookAppointment handles signed-in vs.
                         guest (contact details captured at the confirm step) itself. */}
                     <Route path="/book-appointment" element={<BookAppointment />} />
+                    {/* Public: back from paying online (PayGate → API → here), by payment reference. */}
+                    <Route path="/booking/payment" element={<PaymentResult />} />
                     {/* Customer-context routes. This app renders ONLY the customer
                         experience — business-side roles are handed to the business app
                         by ProtectedRoute (and ejected by useAuth), never rendered here
