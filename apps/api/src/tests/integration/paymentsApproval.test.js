@@ -98,6 +98,10 @@ describe('the business applies', () => {
         const proofFolder = await request(app).post('/api/payments/onboarding/documents').set(h)
             .send({ kind: 'owner_id', ref: { publicId: `bookplus/proofs/${owner._id}/x`, resourceType: 'image', format: 'pdf' } });
         expect(proofFolder.body.code).toBe('bad_upload');
+        // At the limit, the upload itself is refused (no file left unattached).
+        await User.updateOne({ _id: owner._id }, { $set: { 'paymentsApproval.documents': Array.from({ length: 8 }, (_, i) => ({ kind: 'other', publicId: `bookplus/verification/${owner._id}/x${i}`, resourceType: 'image' })) } });
+        expect((await request(app).post('/api/payments/onboarding/upload').set(h)).body.code).toBe('too_many_documents');
+        await User.updateOne({ _id: owner._id }, { $set: { 'paymentsApproval.documents': [] } });
 
         // A sole trader needs no company registration.
         await request(app).put('/api/payments/onboarding').set(h).send({ plan: 'basic', legal: { businessType: 'sole_trader', registeredName: 'Vibe Cuts', ownerName: 'Ndapewa Shilongo', ownerIdNumber: '85010100123' } });

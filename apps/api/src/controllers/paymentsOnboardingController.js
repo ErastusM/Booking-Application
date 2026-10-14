@@ -65,7 +65,8 @@ const payload = async (user) => {
 // Every change is one atomic update that only applies while the application
 // can still be edited, so an edit from another tab can never land after it was
 // sent, and two first edits can't overwrite each other.
-const EDITABLE_FILTER = (userId) => ({ _id: userId, role: 'provider', 'paymentsApproval.status': { $in: rules.EDITABLE } });
+// (null also matches a missing status, which statusOf() reads as a draft.)
+const EDITABLE_FILTER = (userId) => ({ _id: userId, role: 'provider', 'paymentsApproval.status': { $in: [...rules.EDITABLE, null] } });
 
 // Create the (empty) application the first time; a no-op afterwards.
 const ensureApplication = (userId) => User.updateOne(
@@ -149,6 +150,10 @@ exports.uploadParams = async (req, res) => {
         if (user.paymentsApproval && !rules.isEditable(user.paymentsApproval)) {
             return fail(res, 409, NOT_EDITABLE, 'not_editable');
         }
+        // Refused before the upload, so no file is left behind unattached.
+        if ((user.paymentsApproval?.documents || []).length >= rules.MAX_DOCS) {
+            return fail(res, 409, `At most ${rules.MAX_DOCS} documents. Remove one first.`, 'too_many_documents');
+        }
         res.set('Cache-Control', 'no-store');
         return res.json({ success: true, data: cloudinary.verificationUploadParams(req.user._id) });
     } catch (err) {
@@ -224,10 +229,10 @@ exports.submit = async (req, res) => {
         const missing = rules.missingFor(a, { hasPayoutAccount: hasPayout(user) });
         if (missing.length) return res.status(400).json({ success: false, code: 'incomplete', message: 'Some details or documents are still missing.', missing });
         // Atomic: two quick taps can't send it twice.
-        const from = a.status;
+        const from = rules.statusOf(a);
         const now = new Date();
         const r = await User.updateOne(
-            { _id: user._id, 'paymentsApproval.status': from },
+            { _id: user._id, 'paymentsApproval.status': { $in: from === 'draft' ? ['draft', null] : [from] } },
             {
                 $set: { 'paymentsApproval.status': 'submitted', 'paymentsApproval.submittedAt': now, 'paymentsApproval.termsAcceptedAt': now },
                 $push: { 'paymentsApproval.history': { status: 'submitted', at: now, by: user._id, note: '' } },

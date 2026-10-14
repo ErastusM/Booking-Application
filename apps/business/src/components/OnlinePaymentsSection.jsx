@@ -395,7 +395,10 @@ const OnlinePaymentsSection = () => {
                                     )}
                                 </div>
                             ))}
-                            {editable && d.uploadsAvailable && (
+                            {editable && d.uploadsAvailable && d.documents.length >= (d.maxDocuments || 8) && have.length === 0 && (
+                                <p style={{ ...muted, fontSize: '0.8rem' }}>You have the most documents allowed. Remove one to add this.</p>
+                            )}
+                            {editable && d.uploadsAvailable && d.documents.length < (d.maxDocuments || 8) && (
                                 <>
                                     <input ref={(el) => { fileRefs.current[kind] = el; }} id={`file-${kind}`} type="file" accept={VERIFICATION_ACCEPT}
                                         style={{ display: 'none' }} onChange={(e) => upload(kind, e.target.files?.[0])} />
