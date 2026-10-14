@@ -191,7 +191,8 @@ exports.getMyBalance = async (req, res) => {
 
 const ENTRY_LABEL = {
     payment: 'Online payment', refund: 'Refund', commission: 'Bookplus commission', fixed_fee: 'Bookplus fixed fee',
-    processing_fee: 'Card processing fee', payout: 'Payout', adjustment: 'Adjustment',
+    processing_fee: 'Card processing fee', payout: 'Payout', payout_reversal: 'Payout returned by the bank',
+    chargeback: 'Chargeback recovered', adjustment: 'Adjustment',
 };
 
 // Statement rows with a human description (client first name + service).
@@ -212,7 +213,7 @@ const describeEntries = async (entries) => {
         const base = `${ENTRY_LABEL[e.type] || e.type}${returned ? ' returned' : ''}`;
         let description = detail ? `${base}: ${detail}` : base;
         if (e.type === 'payout' && e.note) description = `${base} (ref ${e.note})`;
-        else if (e.type === 'adjustment' && e.note) description = `${base}: ${e.note}`;
+        else if (['adjustment', 'payout_reversal', 'chargeback'].includes(e.type) && e.note) description = `${base}: ${e.note}`;
         return {
             _id: e._id, date: e.createdAt, type: e.type, description,
             amountCents: e.amountCents, currency: e.currency,
@@ -491,7 +492,7 @@ exports.adminBalances = async (req, res) => {
         const [users, lastPayouts] = await Promise.all([
             User.find({ _id: { $in: ids } }).select('+payoutAccount name email businessProfile.businessName').lean(),
             Payout.aggregate([
-                { $match: { provider: { $in: ids } } }, { $sort: { paidAt: -1 } },
+                { $match: { provider: { $in: ids }, status: 'paid' } }, { $sort: { paidAt: -1 } },
                 { $group: { _id: '$provider', amountCents: { $first: '$amountCents' }, paidAt: { $first: '$paidAt' }, reference: { $first: '$reference' } } },
             ]),
         ]);
@@ -705,3 +706,6 @@ exports.paygateNotify = async (req, res) => {
 
 // Exposed for the CSV-injection unit check.
 exports.csvCellForTest = csvCell;
+
+// Shared with the admin money operations (moneyOpsController).
+exports._shared = { listPayments, paymentRow, csvCell, describeEntries };

@@ -327,24 +327,31 @@ const monthStart = (now = new Date()) => {
 const balanceSummary = async (providerId) => {
     const pid = new mongoose.Types.ObjectId(String(providerId));
     const since = monthStart();
-    const [balanceOwedCents, monthRows, lastPayout, refundsPending] = await Promise.all([
+    const [balanceOwedCents, monthRows, lastPayout, refundsPending, payoutRows] = await Promise.all([
         balanceOf(pid),
         LedgerEntry.aggregate([
-            { $match: { provider: pid, createdAt: { $gte: since }, type: { $in: ['payment', 'payout'] } } },
+            { $match: { provider: pid, createdAt: { $gte: since }, type: 'payment' } },
             { $group: { _id: '$type', cents: { $sum: '$amountCents' } } },
         ]),
-        Payout.findOne({ provider: pid }).sort({ paidAt: -1, _id: -1 }).lean(),
+        Payout.findOne({ provider: pid, status: 'paid' }).sort({ paidAt: -1, _id: -1 }).lean(),
         Payment.aggregate([
             { $match: { provider: pid, refundingCents: { $gt: 0 } } },
             { $group: { _id: null, cents: { $sum: '$refundingCents' } } },
         ]),
+        // Paid this month, and prepared but not yet confirmed by the bank.
+        Payout.aggregate([
+            { $match: { provider: pid, $or: [{ status: 'pending' }, { status: 'paid', paidAt: { $gte: since } }] } },
+            { $group: { _id: '$status', cents: { $sum: '$amountCents' } } },
+        ]),
     ]);
     const month = Object.fromEntries(monthRows.map((r) => [r._id, r.cents]));
+    const out = Object.fromEntries(payoutRows.map((r) => [r._id, r.cents]));
     return {
         currency: ONLINE_CURRENCY,
         balanceOwedCents,
         paidOnlineThisMonthCents: month.payment || 0,
-        paidOutThisMonthCents: Math.abs(month.payout || 0),
+        paidOutThisMonthCents: out.paid || 0,
+        payoutsOnTheirWayCents: out.pending || 0,
         refundsPendingCents: refundsPending[0]?.cents || 0,
         lastPayout: lastPayout
             ? { amountCents: lastPayout.amountCents, paidAt: lastPayout.paidAt, reference: lastPayout.reference || '' }
@@ -368,8 +375,11 @@ const waitingRefundRequestsCents = async (providerId) => {
  * deleted (its payout bank account and records are needed to settle it).
  */
 const outstandingFor = async (providerId) => {
-    const { balanceOwedCents, refundsPendingCents } = await balanceSummary(providerId);
-    return { balanceOwedCents, refundsPendingCents, open: balanceOwedCents !== 0 || refundsPendingCents > 0 };
+    const { balanceOwedCents, refundsPendingCents, payoutsOnTheirWayCents } = await balanceSummary(providerId);
+    return {
+        balanceOwedCents, refundsPendingCents, payoutsOnTheirWayCents,
+        open: balanceOwedCents !== 0 || refundsPendingCents > 0 || payoutsOnTheirWayCents > 0,
+    };
 };
 
 /* ───────────────────────────── notify payload hygiene ───────────────────────────── */
@@ -965,6 +975,145 @@ const recordPayout = async ({ providerId, amountCents, reference = '', note = ''
     });
 };
 
+/* ───────────────────────────── payout runs ───────────────────────────── */
+
+const newPayoutReference = () => `BPP${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+
+// What Bookplus can pay a business now: its balance less refunds on their
+// way and refunds it asked Bookplus to approve.
+const availableFor = async (providerId) => {
+    const pid = new mongoose.Types.ObjectId(String(providerId));
+    const [balance, refunding, waiting] = await Promise.all([
+        balanceOf(pid),
+        Payment.aggregate([{ $match: { provider: pid, refundingCents: { $gt: 0 } } }, { $group: { _id: null, cents: { $sum: '$refundingCents' } } }]),
+        waitingRefundRequestsCents(pid),
+    ]);
+    return balance - (refunding[0]?.cents || 0) - waiting;
+};
+
+// Why a business can't be paid now ('' = it can).
+const payoutBlock = (user, availableCents, minCents, hasPending) => {
+    if (hasPending) return 'payout_pending';
+    if (!hasPayoutAccount(user?.payoutAccount)) return 'payout_account_missing';
+    if (user?.paymentsApproval?.payoutAccountReviewNeeded) return 'payout_account_unchecked';
+    if (availableCents < minCents) return 'below_threshold';
+    return '';
+};
+
+/**
+ * Every business Bookplus owes at least the payout threshold, with what it can
+ * be paid now and, if it can't be paid, why (no bank account, a new account
+ * not checked yet, a payout already on its way).
+ */
+const payoutsDue = async () => {
+    const settings = await pricing.getSettings();
+    const minCents = Math.max(1, settings.payout?.minThresholdCents || 0);
+    const owed = await LedgerEntry.aggregate([
+        { $group: { _id: '$provider', balance: { $sum: '$amountCents' } } },
+        { $match: { balance: { $gte: minCents } } },
+        { $sort: { balance: -1 } },
+    ]);
+    const ids = owed.map((r) => r._id);
+    const FinanceRequest = require('../models/FinanceRequest');
+    const [users, pending, refunding, waiting] = await Promise.all([
+        User.find({ _id: { $in: ids }, role: 'provider' }).select('+payoutAccount +paymentsApproval name email businessProfile.businessName').lean(),
+        Payout.find({ provider: { $in: ids }, status: 'pending' }).select('provider').lean(),
+        Payment.aggregate([{ $match: { provider: { $in: ids }, refundingCents: { $gt: 0 } } }, { $group: { _id: '$provider', cents: { $sum: '$refundingCents' } } }]),
+        FinanceRequest.aggregate([
+            { $match: { provider: { $in: ids }, type: 'refund', status: 'pending', requestedByBusiness: true } },
+            { $group: { _id: '$provider', cents: { $sum: '$amountCents' } } },
+        ]),
+    ]);
+    const byId = new Map(users.map((u) => [String(u._id), u]));
+    const pendingSet = new Set(pending.map((p) => String(p.provider)));
+    const heldBy = new Map(refunding.map((r) => [String(r._id), r.cents]));
+    for (const w of waiting) heldBy.set(String(w._id), (heldBy.get(String(w._id)) || 0) + w.cents);
+    const data = owed.filter((r) => byId.has(String(r._id))).map((r) => {
+        const u = byId.get(String(r._id));
+        const available = r.balance - (heldBy.get(String(r._id)) || 0);
+        const blockedBy = payoutBlock(u, available, minCents, pendingSet.has(String(r._id)));
+        return {
+            providerId: r._id,
+            businessName: u.businessProfile?.businessName || u.name || '',
+            email: u.email,
+            balanceOwedCents: r.balance,
+            amountCents: Math.max(0, available),
+            bankName: hasPayoutAccount(u.payoutAccount) ? u.payoutAccount.bankName : null,
+            accountNumberMasked: hasPayoutAccount(u.payoutAccount) ? maskAccountNumber(u.payoutAccount.accountNumber) : null,
+            paymentsSwitchedOffByBookplus: !!u.paymentsApproval?.adminOff,
+            payable: !blockedBy,
+            blockedBy: blockedBy || null,
+        };
+    });
+    return { minThresholdCents: minCents, schedule: settings.payout || {}, data };
+};
+
+/**
+ * Prepare payouts for these businesses: each gets a pending Payout of what it
+ * can be paid now, and its balance goes down at once (so a refund can't spend
+ * money that is on its way). Checked again per business under its payout lock.
+ */
+const preparePayouts = async ({ providerIds, adminId }) => {
+    const settings = await pricing.getSettings();
+    const minCents = Math.max(1, settings.payout?.minThresholdCents || 0);
+    const created = [];
+    const skipped = [];
+    for (const id of [...new Set((providerIds || []).map(String))]) {
+        if (!mongoose.Types.ObjectId.isValid(id)) { skipped.push({ providerId: id, reason: 'not_found' }); continue; }
+        // eslint-disable-next-line no-await-in-loop
+        const r = await withBookingLock(`payout:${id}`, async () => {
+            const user = await User.findOne({ _id: id, role: 'provider' }).select('+payoutAccount +paymentsApproval name businessProfile.businessName').lean();
+            if (!user) return { skip: 'not_found' };
+            const [available, hasPending] = await Promise.all([availableFor(id), Payout.exists({ provider: id, status: 'pending' })]);
+            const blockedBy = payoutBlock(user, available, minCents, !!hasPending);
+            if (blockedBy) return { skip: blockedBy };
+            const acct = user.payoutAccount;
+            const payout = await Payout.create({
+                provider: id, amountCents: available, currency: ONLINE_CURRENCY, status: 'pending',
+                ourReference: newPayoutReference(), accountHolder: acct.accountHolder, bankName: acct.bankName,
+                accountNumberMasked: maskAccountNumber(acct.accountNumber), paidAt: new Date(), createdBy: adminId,
+            });
+            await writeEntry({
+                provider: id, type: 'payout', amountCents: -available, currency: ONLINE_CURRENCY,
+                payout: payout._id, note: payout.ourReference, createdBy: adminId, key: `payout:${payout._id}`,
+            });
+            return { payout };
+        }).catch((err) => {
+            // Another refund or payout for this business is going through.
+            if (err && err.code === 'BOOKING_BUSY') return { skip: 'busy' };
+            throw err;
+        });
+        if (r.skip) skipped.push({ providerId: id, reason: r.skip });
+        else created.push(r.payout);
+    }
+    return { created, skipped };
+};
+
+/** The bank confirmed the transfer. */
+const markPayoutPaid = async ({ payoutId, bankReference }) => Payout.findOneAndUpdate(
+    { _id: payoutId, status: 'pending' },
+    { $set: { status: 'paid', reference: String(bankReference || '').trim().slice(0, 120), paidAt: new Date() } },
+    { new: true },
+);
+
+/**
+ * The bank returned the payout (wrong account, closed account…), before or
+ * after it was marked paid: the money is owed to the business again.
+ */
+const markPayoutFailed = async ({ payoutId, reason, adminId }) => {
+    const payout = await Payout.findOneAndUpdate(
+        { _id: payoutId, status: { $in: ['pending', 'paid'] } },
+        { $set: { status: 'failed', failureReason: String(reason || '').trim().slice(0, 500), failedAt: new Date() } },
+        { new: true },
+    );
+    if (!payout) return null;
+    await writeEntry({
+        provider: payout.provider, type: 'payout_reversal', amountCents: payout.amountCents, currency: payout.currency,
+        payout: payout._id, note: payout.failureReason, createdBy: adminId, key: `payout_reversal:${payout._id}`,
+    });
+    return payout;
+};
+
 module.exports = {
     ONLINE_CURRENCY, REFERENCE_RE,
     holdMinutes, commissionBps, feeSnapshotFor, notifyUrl, returnUrl, resultPageUrl,
@@ -976,4 +1125,5 @@ module.exports = {
     PaymentStartError, startSession, checkoutPayload, retryCheckout,
     requestRefund, retryRefund, refundBooking, releaseHold, onAppointmentCancelled,
     sweepExpiredHolds, startPaymentHoldJob, recordPayout,
+    availableFor, payoutsDue, preparePayouts, markPayoutPaid, markPayoutFailed,
 };

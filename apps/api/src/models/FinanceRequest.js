@@ -4,15 +4,17 @@ const mongoose = require('mongoose');
  * A money action waiting for a second person (payment specification, section
  * 7): finance prepares it, a director who is not the preparer approves or
  * rejects it, and only then does it run. Used for refunds above the approval
- * threshold and for every manual balance adjustment.
+ * threshold, for every manual balance adjustment, and for recovering a lost
+ * chargeback from the business.
  */
 const financeRequestSchema = new mongoose.Schema({
-    type: { type: String, enum: ['refund', 'adjustment'], required: true },
+    type: { type: String, enum: ['refund', 'adjustment', 'recovery'], required: true },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'executed', 'failed'], default: 'pending' },
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     payment: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
     appointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
-    amountCents: { type: Number, required: true }, // refund: > 0; adjustment: signed (+ credits the business)
+    dispute: { type: mongoose.Schema.Types.ObjectId, ref: 'Dispute', default: null },
+    amountCents: { type: Number, required: true }, // refund, recovery: > 0; adjustment: signed (+ credits the business)
     currency: { type: String, default: 'NAD', uppercase: true },
     reason: { type: String, required: true, trim: true, maxlength: 1000 },
     preparedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { authService, financeService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
+import { PaymentsView, PayoutsView, DisputesView } from './MoneyOperations';
 
 // The admin console's "Money" tab: Bookplus's own prices and fees, the pricing
 // simulator, the launch checklist, second-person approvals, the financial
@@ -687,7 +688,7 @@ const Approvals = ({ me, isDirector, onLocked }) => {
                     <div key={r._id} style={card} data-testid="finance-request">
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
                             <div style={{ minWidth: 0 }}>
-                                <p style={{ fontWeight: 600, margin: 0 }}>{r.type === 'refund' ? 'Refund' : 'Balance adjustment'} of {nad(r.amountCents)}{business ? `, ${business}` : ''}</p>
+                                <p style={{ fontWeight: 600, margin: 0 }}>{r.type === 'refund' ? 'Refund' : r.type === 'recovery' ? 'Recover a lost chargeback' : 'Balance adjustment'} of {nad(r.amountCents)}{business ? `, ${business}` : ''}</p>
                                 <p style={{ ...muted, overflowWrap: 'anywhere' }}>{r.reason}</p>
                                 <p style={{ ...muted, fontSize: '0.78rem' }}>
                                     {r.requestedByBusiness ? `Asked by the business (${r.preparedBy?.name || 'the owner'}), more than it may refund on its own` : `Prepared by ${r.preparedBy?.name || 'someone'}`}, {when(r.createdAt)}
@@ -731,6 +732,12 @@ const ACTION_LABELS = {
     'adjustment.request': 'Asked for an adjustment', 'adjustment.approve': 'Approved an adjustment', 'adjustment.reject': 'Rejected an adjustment',
     'adjustment.execute': 'Adjusted a balance', 'adjustment.fail': 'Adjustment failed', 'payout.record': 'Recorded a payout',
     'roles.update': 'Changed money roles', 'security.mfa_enabled': 'Turned on two-step sign-in', 'security.mfa_reset': 'Reset two-step sign-in',
+    'payment.sync': 'Asked PayGate about a payment', 'refund.retry': 'Sent a refund again', 'refund.retry_fail': 'Refund still not taken',
+    'payout.prepare': 'Prepared a payout', 'payout.paid': 'Marked a payout paid', 'payout.failed': 'Payout returned by the bank',
+    'payout.bank_file': 'Downloaded the payout bank file', 'dispute.open': 'Opened a case', 'dispute.evidence': 'Added evidence to a case',
+    'dispute.evidence_view': 'Opened case evidence', 'dispute.won': 'Chargeback won', 'dispute.lost': 'Chargeback lost', 'dispute.closed': 'Closed a case',
+    'recovery.request': 'Asked to recover a chargeback', 'recovery.approve': 'Approved a chargeback recovery', 'recovery.reject': 'Rejected a chargeback recovery',
+    'recovery.execute': 'Recovered a chargeback', 'recovery.fail': 'Chargeback recovery did not run',
 };
 
 const Audit = ({ onLocked }) => {
@@ -846,13 +853,18 @@ const Admins = ({ me, isDirector, onLocked }) => {
 
 /* ───────────────────────── the panel ───────────────────────── */
 
-const VIEWS = [['prices', 'Prices and fees'], ['approvals', 'Approvals'], ['audit', 'Audit log'], ['admins', 'Admins']];
+// Six, so they sit in an even grid on a phone (2 × 3).
+const VIEWS = [
+    ['payments', 'Payments'], ['payouts', 'Payouts'], ['disputes', 'Disputes'],
+    ['approvals', 'Approvals'], ['audit', 'Audit log'], ['prices', 'Settings'],
+];
 
 const MoneyPanel = () => {
     const { user } = useAuthContext();
     const [status, setStatus] = useState(null);
     const [data, setData] = useState(null);
     const [view, setView] = useState('prices');
+    const [caseId, setCaseId] = useState(null);
     const [error, setError] = useState('');
 
     const loadStatus = useCallback(async () => {
@@ -899,6 +911,8 @@ const MoneyPanel = () => {
                     <Launch launch={data.launch} isDirector={isDirector} onChanged={setData} onLocked={onLocked} />
                     <Simulator sim={data.simulator} />
                     <Settings data={data} isDirector={isDirector} onSaved={setData} onLocked={onLocked} />
+                    <h3 style={{ ...h3, margin: '0.25rem 0 0' }}>Admins and money roles</h3>
+                    <Admins me={me} isDirector={isDirector} onLocked={onLocked} />
                 </>
             )}
             {view === 'approvals' && (
@@ -908,8 +922,10 @@ const MoneyPanel = () => {
                     <Approvals me={me} isDirector={isDirector} onLocked={onLocked} />
                 </>
             )}
+            {view === 'payments' && <PaymentsView onLocked={onLocked} onCaseOpened={(id) => { setCaseId(id); setView('disputes'); }} />}
+            {view === 'payouts' && <PayoutsView onLocked={onLocked} />}
+            {view === 'disputes' && <DisputesView onLocked={onLocked} openId={caseId} />}
             {view === 'audit' && <Audit onLocked={onLocked} />}
-            {view === 'admins' && <Admins me={me} isDirector={isDirector} onLocked={onLocked} />}
         </div>
     );
 };

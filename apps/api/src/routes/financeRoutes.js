@@ -38,6 +38,27 @@ router.post('/approvals/:id/decision', finance, c.decideApproval);
 router.post('/approvals/:id/switch', finance, c.setApprovalSwitch);
 router.post('/approvals/:id/payout-account-checked', finance, c.confirmPayoutAccount);
 
+// Day-to-day money work (controllers/moneyOpsController.js).
+const ops = require('../controllers/moneyOpsController');
+router.get('/payments', finance, ops.listPayments);
+router.post('/payments/:id/sync', finance, ops.syncPayment);
+router.post('/payments/:id/refunds/:refundId/retry', finance, ops.retryRefund);
+router.get('/payouts/due', finance, ops.payoutsDue);
+router.post('/payouts/run', finance, ops.preparePayouts);
+router.get('/payouts/bank-file.csv', finance, ops.bankFileCsv);
+router.get('/payouts', finance, ops.listPayouts);
+router.post('/payouts/:id/paid', finance, ops.payoutPaid);
+router.post('/payouts/:id/failed', finance, ops.payoutFailed);
+router.get('/disputes', finance, ops.listDisputes);
+router.post('/disputes', finance, ops.openDispute);
+router.get('/disputes/:id', finance, ops.getDispute);
+router.post('/disputes/:id/notes', finance, ops.addDisputeNote);
+router.post('/disputes/:id/evidence/upload', finance, ops.evidenceUploadParams);
+router.post('/disputes/:id/evidence', finance, ops.addEvidence);
+router.get('/disputes/:id/evidence/:evidenceId', finance, ops.getEvidence);
+router.post('/disputes/:id/refund', finance, ops.refundFromDispute);
+router.post('/disputes/:id/close', finance, ops.closeDispute);
+
 // Who did what.
 router.get('/audit', finance, c.getAudit);
 

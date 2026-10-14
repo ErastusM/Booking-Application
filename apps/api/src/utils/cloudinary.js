@@ -23,6 +23,8 @@ const PROOF_FORMATS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'pdf
 // letter): the same private delivery as proofs, in their own folder.
 const VERIFY_FOLDER = 'bookplus/verification';
 const VERIFY_FORMATS = ['jpg', 'jpeg', 'png', 'pdf'];
+// Evidence for a card dispute or complaint, one folder per dispute.
+const DISPUTE_FOLDER = 'bookplus/disputes';
 const PROOF_TYPE = 'authenticated';
 // How long a signed proof link works. Long enough to open it, short enough that a
 // forwarded or logged link is dead almost at once.
@@ -101,6 +103,8 @@ const proofUploadParams = (userId) => privateUploadParams(userId, PROOF_FOLDER, 
 const cleanProofRef = (ref, userId) => cleanPrivateRef(ref, userId, PROOF_FOLDER, PROOF_FORMATS);
 const verificationUploadParams = (userId) => privateUploadParams(userId, VERIFY_FOLDER, VERIFY_FORMATS);
 const cleanVerificationRef = (ref, userId) => cleanPrivateRef(ref, userId, VERIFY_FOLDER, VERIFY_FORMATS);
+const disputeUploadParams = (disputeId) => privateUploadParams(disputeId, DISPUTE_FOLDER, VERIFY_FORMATS);
+const cleanDisputeRef = (ref, disputeId) => cleanPrivateRef(ref, disputeId, DISPUTE_FOLDER, VERIFY_FORMATS);
 
 /**
  * A short-lived, signed download link for a private/authenticated asset (the
@@ -223,6 +227,9 @@ module.exports = {
     signParams,
     VERIFY_FOLDER,
     VERIFY_FORMATS,
+    DISPUTE_FOLDER,
+    disputeUploadParams,
+    cleanDisputeRef,
     proofUploadParams,
     cleanProofRef,
     verificationUploadParams,

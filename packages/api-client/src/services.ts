@@ -87,6 +87,27 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         setApprovalSwitch: (providerId: string, off: boolean, reason: string) => API.post(`/admin/finance/approvals/${providerId}/switch`, { off, reason }),
         confirmPayoutAccount: (providerId: string, note: string, accountUpdatedAt: string) =>
             API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note, accountUpdatedAt }),
+        // Day-to-day: payments that need a look, payout runs, disputes.
+        payments: (params: any = {}) => API.get('/admin/finance/payments', { params }),
+        syncPayment: (paymentId: string) => API.post(`/admin/finance/payments/${paymentId}/sync`),
+        retryRefund: (paymentId: string, refundId: string) => API.post(`/admin/finance/payments/${paymentId}/refunds/${refundId}/retry`),
+        payoutsDue: () => API.get('/admin/finance/payouts/due'),
+        preparePayouts: (providerIds: string[]) => API.post('/admin/finance/payouts/run', { providerIds }),
+        payouts: (params: any = {}) => API.get('/admin/finance/payouts', { params }),
+        payoutBankFile: () => API.get('/admin/finance/payouts/bank-file.csv', { responseType: 'blob' }),
+        payoutPaid: (payoutId: string, bankReference: string) => API.post(`/admin/finance/payouts/${payoutId}/paid`, { bankReference }),
+        payoutFailed: (payoutId: string, reason: string) => API.post(`/admin/finance/payouts/${payoutId}/failed`, { reason }),
+        disputes: (status: 'open' | 'closed' = 'open') => API.get('/admin/finance/disputes', { params: { status } }),
+        openDispute: (data: { paymentId: string; kind: string; summary: string; amountCents?: number; deadlineAt?: string; caseReference?: string }) =>
+            API.post('/admin/finance/disputes', data),
+        getDispute: (id: string) => API.get(`/admin/finance/disputes/${id}`),
+        addDisputeNote: (id: string, text: string) => API.post(`/admin/finance/disputes/${id}/notes`, { text }),
+        disputeUploadParams: (id: string) => API.post(`/admin/finance/disputes/${id}/evidence/upload`),
+        addDisputeEvidence: (id: string, data: { name: string; ref: any }) => API.post(`/admin/finance/disputes/${id}/evidence`, data),
+        getDisputeEvidence: (id: string, evidenceId: string) => API.get(`/admin/finance/disputes/${id}/evidence/${evidenceId}`),
+        refundFromDispute: (id: string, data: { amountCents?: number; reason: string }) => API.post(`/admin/finance/disputes/${id}/refund`, data),
+        closeDispute: (id: string, data: { outcome: 'won' | 'lost' | 'closed'; note: string; recover?: { amountCents?: number } | null }) =>
+            API.post(`/admin/finance/disputes/${id}/close`, data),
     },
 
     // Paying online for a booking (customer side; all 404 while online payments
