@@ -452,6 +452,30 @@ const outbox = [];
                 res.status(404).json({ ok: false, message: err.message });
             }
         });
+        // A guest booking at a paying business, already paid: booked through
+        // the API, approved on the stand-in PayGate, confirmed by its notify.
+        // { serviceId, date: 'YYYY-MM-DD', startTime, endTime, guestName }
+        outer.post('/__e2e/paygate/paid-booking', async (req, res) => {
+            const b = req.body || {};
+            const base = `http://127.0.0.1:${PORT}`;
+            const made = await fetch(`${base}/api/appointments`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    service: b.serviceId, appointmentDate: b.date, startTime: b.startTime || '10:00', endTime: b.endTime || '10:30',
+                    guestName: b.guestName || 'Ana Shilongo', guestEmail: 'ana@example.com',
+                }),
+            });
+            const body = await made.json();
+            if (made.status !== 201 || !body.payment) return res.status(400).json(body);
+            gw.setStatus(body.payment.reference, 1);
+            await fetch(`${base}/api/payments/paygate/notify`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: gw.notifyBody(body.payment.reference),
+            });
+            res.json({ ok: true, reference: body.payment.reference });
+        });
         // The emailed "manage my booking" link for the booking a payment is for.
         outer.post('/__e2e/paygate/manage-token', async (req, res) => {
             const Payment = require('./src/models/Payment');

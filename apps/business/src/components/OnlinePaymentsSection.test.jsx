@@ -14,6 +14,8 @@ const upload = vi.hoisted(() => vi.fn());
 vi.mock('../services', () => svc);
 vi.mock('./Toast', () => ({ useToast: () => toast }));
 vi.mock('../utils/uploadImage', () => ({ uploadVerificationDocument: upload, VERIFICATION_ACCEPT: '.pdf' }));
+// The money view once approved has its own tests (PaymentsMoney.test.jsx).
+vi.mock('./PaymentsMoney', () => ({ default: () => <div data-testid="payments-money" /> }));
 
 import OnlinePaymentsSection from './OnlinePaymentsSection';
 

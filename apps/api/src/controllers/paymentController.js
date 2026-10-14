@@ -16,6 +16,8 @@ const Payout = require('../models/Payout');
 const User = require('../models/User');
 const paygate = require('../services/paygate');
 const payments = require('../services/paymentService');
+const pricing = require('../services/pricing');
+const FinanceRequest = require('../models/FinanceRequest');
 const { recordFinance } = require('../utils/financeAudit');
 const { withBookingLock } = require('../utils/lock');
 const { canTakePayments } = require('../services/paymentsApproval');
@@ -170,7 +172,16 @@ exports.updatePayoutAccount = async (req, res) => {
 // GET /api/payments/me/balance (owner)
 exports.getMyBalance = async (req, res) => {
     try {
-        res.status(200).json({ success: true, data: await payments.balanceSummary(req.user._id) });
+        const [summary, settings] = await Promise.all([payments.balanceSummary(req.user._id), pricing.getSettings()]);
+        const payout = settings.payout || {};
+        res.status(200).json({
+            success: true,
+            data: {
+                ...summary,
+                // When Bookplus pays out: the schedule, and the smallest balance it pays.
+                payoutSchedule: { frequency: payout.frequency || 'weekly', weekday: payout.weekday ?? 5, minThresholdCents: payout.minThresholdCents || 0 },
+            },
+        });
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
@@ -192,7 +203,9 @@ const describeEntries = async (entries) => {
         const who = a ? firstName(a.customer?.name || a.guestName || a.walkInName) : '';
         const what = a?.service?.name || '';
         const detail = [who, what].filter(Boolean).join(' — ');
-        const base = ENTRY_LABEL[e.type] || e.type;
+        // A refund gives back Bookplus's commission (and, on a full refund, its fixed fee).
+        const returned = ['commission', 'fixed_fee'].includes(e.type) && e.amountCents > 0;
+        const base = `${ENTRY_LABEL[e.type] || e.type}${returned ? ' returned' : ''}`;
         let description = detail ? `${base}: ${detail}` : base;
         if (e.type === 'payout' && e.note) description = `${base} (ref ${e.note})`;
         else if (e.type === 'adjustment' && e.note) description = `${base}: ${e.note}`;
@@ -283,6 +296,18 @@ const paymentRow = (p) => ({
     refundableCents: Payment.SETTLED.includes(p.status) ? Math.max(0, p.amountCents - (p.refundedCents || 0) - (p.refundingCents || 0)) : 0,
     currency: p.currency,
     commissionBps: p.commissionBps || 0,
+    // What Bookplus kept and what the business gets, as fixed when it was paid.
+    fees: p.fees ? {
+        plan: p.fees.plan || null,
+        commissionBps: p.fees.commissionBps || 0,
+        commissionCents: p.fees.commissionCents || 0,
+        percentCommissionCents: p.fees.percentCommissionCents || 0,
+        fixedFeeCents: p.fees.fixedFeeCents || 0,
+        minCommissionApplied: !!p.fees.minCommissionApplied,
+        processingFeeCents: p.fees.processingFeeCents || 0,
+        processingFeePayer: p.fees.processingFeePayer || 'business',
+        businessShareCents: p.fees.businessShareCents || 0,
+    } : null,
     transactionId: p.transactionId || null,
     resultCode: p.resultCode || null,
     resultDesc: p.resultDesc || null,
@@ -317,7 +342,19 @@ const listPayments = async (filter, query) => {
             .populate('provider', 'name businessProfile.businessName')
             .lean(),
     ]);
-    return { total, page, pages: Math.ceil(total / limit), data: rows.map(paymentRow) };
+    // A refund waiting for a Bookplus director, per payment.
+    const waiting = rows.length
+        ? await FinanceRequest.find({ payment: { $in: rows.map((r) => r._id) }, type: 'refund', status: 'pending' })
+            .select('payment amountCents createdAt requestedByBusiness').lean()
+        : [];
+    const byPayment = new Map(waiting.map((w) => [String(w.payment), w]));
+    return {
+        total, page, pages: Math.ceil(total / limit),
+        data: rows.map((r) => {
+            const w = byPayment.get(String(r._id));
+            return { ...paymentRow(r), refundRequest: w ? { _id: w._id, amountCents: w.amountCents, createdAt: w.createdAt } : null };
+        }),
+    };
 };
 
 const statusFilter = (q) => {
@@ -372,8 +409,14 @@ exports.refundPayment = async (req, res) => {
         const r = await withBookingLock(`payout:${p.provider}`, async () => {
             const { balanceOwedCents, refundsPendingCents } = await payments.balanceSummary(p.provider);
             const available = balanceOwedCents - refundsPendingCents;
-            if (want > 0 && want > available) {
-                return { ok: false, code: 'balance_too_low', error: `Your Bookplus balance is N$${(Math.max(0, available) / 100).toFixed(2)}, so this refund needs Bookplus to approve it. Contact support.` };
+            const limit = (await pricing.getSettings()).approvals?.refundThresholdCents ?? 0;
+            // More than the business holds, or above the approval limit: it
+            // becomes a request for a Bookplus director to approve.
+            if (want > 0 && want <= remaining && Payment.SETTLED.includes(p.status) && (want > available || want > limit)) {
+                const asked = await require('./financeController').requestRefundFromBusiness({
+                    owner: req.user, payment: p, amountCents: want, reason: (reason || '').trim().slice(0, 1000),
+                });
+                return { ...asked, asked: true, overBalance: want > available };
             }
             if (want > 0 && want <= remaining) {
                 await recordFinance({
@@ -383,6 +426,17 @@ exports.refundPayment = async (req, res) => {
             }
             return payments.requestRefund({ paymentId: p._id, amountCents, reason: (reason || '').trim(), by: req.user._id, trigger: 'manual' });
         });
+        if (r.asked) {
+            if (!r.ok) return fail(res, r.status, r.error, r.code);
+            return res.status(202).json({
+                success: true,
+                code: 'approval_required',
+                message: r.overBalance
+                    ? 'This is more than your Bookplus balance, so it was sent to Bookplus to approve. We will let you know.'
+                    : 'Refunds this size are approved by Bookplus. It was sent to them; we will let you know.',
+                data: r.request,
+            });
+        }
         // A validation refusal carries a code; a PayGate failure does not.
         if (!r.ok && r.code) {
             const status = r.code === 'not_found' ? 404 : ['exceeds_refundable', 'nothing_to_refund', 'not_refundable', 'balance_too_low'].includes(r.code) ? 409 : 400;

@@ -114,6 +114,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getPayoutAccount: () => API.get('/payments/payout-account'),
         getPayoutAccountForEdit: () => API.get('/payments/payout-account/edit'),
         updatePayoutAccount: (data: any) => API.put('/payments/payout-account', data),
+        // The business's money: what Bookplus owes it, its statement, its paid
+        // bookings, and refunds (above its balance or the approval limit, a
+        // refund becomes a request for Bookplus: 202 approval_required).
+        balance: () => API.get('/payments/me/balance'),
+        ledger: (page = 1, limit = 20) => API.get('/payments/me/ledger', { params: { page, limit } }),
+        statementCsv: () => API.get('/payments/me/statement.csv', { responseType: 'blob' }),
+        payments: (params: any = {}) => API.get('/payments/me/payments', { params }),
+        refund: (paymentId: string, data: { amountCents?: number; reason: string }) => API.post(`/payments/${paymentId}/refund`, data),
+        retryRefund: (paymentId: string, refundId: string) => API.post(`/payments/${paymentId}/refunds/${refundId}/retry`),
     },
 
     // One-click unsubscribe from marketing email. Public: the signed token from

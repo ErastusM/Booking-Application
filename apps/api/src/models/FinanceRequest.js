@@ -16,6 +16,9 @@ const financeRequestSchema = new mongoose.Schema({
     currency: { type: String, default: 'NAD', uppercase: true },
     reason: { type: String, required: true, trim: true, maxlength: 1000 },
     preparedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // A business asked for it (a refund bigger than its balance or the approval
+    // limit): preparedBy is the owner, and they hear back when it is decided.
+    requestedByBusiness: { type: Boolean, default: false },
     decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     decidedAt: { type: Date, default: null },
     decisionNote: { type: String, default: '', maxlength: 1000 },
@@ -25,5 +28,6 @@ const financeRequestSchema = new mongoose.Schema({
 
 financeRequestSchema.index({ status: 1, createdAt: -1 });
 financeRequestSchema.index({ provider: 1, createdAt: -1 });
+financeRequestSchema.index({ payment: 1, status: 1 });
 
 module.exports = mongoose.model('FinanceRequest', financeRequestSchema);
