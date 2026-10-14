@@ -27,8 +27,8 @@ confirmed it, when, and a note.
 ## 2. PayGate
 
 1. Merchant account in Bookplus's name, settling in **Namibian Dollars**.
-2. The **production PayGate ID and PayHost password**. Put them on the server
-   (section 4). Never paste them into chat, a ticket or the repository.
+2. The **terminals' details** (PGID and Encryption Key; section 4). Put them
+   on the server. Never paste them into chat, a ticket or the repository.
 3. PayGate checks the website before going live. With payments switched on,
    the site shows what it looks for:
    - **who collects and the currency**: Legal notice → "Online payments" (Bookplus
@@ -73,25 +73,58 @@ After the review, update the "last updated" dates (`TERMS_LAST_UPDATED`,
 
 ## 4. Switching on
 
+PayGate gives two terminals, each with a PGID, an Encryption Key and a login
+for map.paygate.co.za:
+
+- **"One time and tokenization"** (3D Secure): clients paying when they book.
+  This is the one the server uses now.
+- **"NON3DS"**: charging a saved card with no client present, for subscription
+  renewals (Phase 5). Keep it safe; it is not used yet.
+
+The map.paygate.co.za logins are for people (transactions, refunds, settlement
+reports), never for the server.
+
 On the server, in `/app/.env.production`:
 
 ```
+PAYGATE_ID=
+PAYGATE_PASSWORD=
+PAYGATE_CALLBACK_BASE_URL=https://api.bookplus.pro
+CUSTOMER_APP_URL=https://www.bookplus.pro
+MFA_ENCRYPTION_KEY=
 PAYMENTS_ENABLED=true
-PAYGATE_ID=<production PayGate ID>
-PAYGATE_PASSWORD=<production PayHost password>
-PAYGATE_CALLBACK_BASE_URL=https://<the API's public address>
-CUSTOMER_APP_URL=https://app.bookplus.pro
-# MFA_ENCRYPTION_KEY must already be set (openssl rand -hex 32), before any
-# admin turns on two-step sign-in. Never change it afterwards.
 ```
 
-Optional: `PAYMENT_HOLD_MINUTES` (default 15), `MFA_SESSION_HOURS` (default 12).
+- `PAYGATE_ID`: the "One time and tokenization" terminal's PGID.
+- `PAYGATE_PASSWORD`: the same terminal's Encryption Key.
+- `CUSTOMER_APP_URL` is `www`, not `app.` (nginx redirects `app.` to `www`).
+- `MFA_ENCRYPTION_KEY`: make it once with `openssl rand -hex 32`, before any
+  admin turns on two-step sign-in, and never change it.
+- `PAYMENTS_ENABLED=true` opens the payment routes; nothing is charged until
+  Bookplus approves a business, and the screens stay hidden until the code
+  switch below.
+
+Optional: `PAYMENT_HOLD_MINUTES` (default 15), `MFA_SESSION_HOURS` (default 12),
+and `PAYGATE_ENCRYPTION_KEY` (below).
+
+Reload the API so it reads the file (`docker compose restart` does not):
+
+```
+cd /app
+docker compose up -d --force-recreate server
+```
+
+Then **check the connection**: admin console → Money → Settings → "Check the
+PayGate connection". It opens a N$5.00 test session at PayGate that nobody pays
+and shows, check by check, whether PayGate accepts the ID and password, signs
+with the key Bookplus checks, and can reach Bookplus. If it says PayGate signs
+with a different key, add `PAYGATE_ENCRYPTION_KEY=<the terminal's Encryption
+Key>`, reload the API and check again.
 
 In the code: `packages/config/features.mjs` → `paymentsEnabled: true`, merged
-through a pull request (merging to main deploys).
-
-Both are needed: the API flag opens the payment routes, the code flag shows the
-screens and the payment clauses in the legal pages.
+through a pull request (merging to main deploys). Both are needed: the API flag
+opens the payment routes, the code flag shows the screens and the payment
+clauses in the legal pages.
 
 ## 5. Test run
 

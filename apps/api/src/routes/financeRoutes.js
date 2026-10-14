@@ -19,6 +19,8 @@ router.get('/settings', finance, c.getSettings);
 router.put('/settings', director, c.updateSettings);
 router.get('/simulate', finance, c.simulate);
 router.post('/launch/:gate', director, c.setLaunchGate);
+// Do the server's PayGate settings work? (no money moves)
+router.post('/paygate-check', finance, c.paygateCheck);
 
 // A business's plan and agreed rates.
 router.put('/businesses/:id/pricing', director, c.setBusinessPricing);

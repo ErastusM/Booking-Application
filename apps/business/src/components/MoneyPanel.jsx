@@ -4,6 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { PaymentsView, PayoutsView, DisputesView } from './MoneyOperations';
 import { DashboardView, CostsView } from './FinanceDashboard';
+import PaygateCheck from './PaygateCheck';
 
 // The admin console's "Money" tab: Bookplus's own prices and fees, the pricing
 // simulator, the launch checklist, second-person approvals, the financial
@@ -911,6 +912,7 @@ const MoneyPanel = () => {
             {view === 'prices' && (
                 <>
                     <Launch launch={data.launch} isDirector={isDirector} onChanged={setData} onLocked={onLocked} />
+                    <PaygateCheck onLocked={onLocked} />
                     <Simulator sim={data.simulator} />
                     <Settings data={data} isDirector={isDirector} onSaved={setData} onLocked={onLocked} />
                     <h3 style={{ ...h3, margin: '0.25rem 0 0' }}>Admins and money roles</h3>
