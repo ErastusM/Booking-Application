@@ -89,6 +89,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
             API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note, accountUpdatedAt }),
     },
 
+    // Paying online for a booking (customer side; all 404 while online payments
+    // are off). policy: what a booking of this price asks for now; status and
+    // retry use the unguessable payment reference, no sign-in needed.
+    paymentsService: {
+        policy: (providerId: string, priceCents: number) => API.get(`/payments/policy/${providerId}`, { params: { priceCents } }),
+        status: (reference: string) => API.get(`/payments/${encodeURIComponent(reference)}/status`),
+        retry: (reference: string) => API.post(`/payments/${encodeURIComponent(reference)}/retry`),
+    },
+
     // A business applying to take online payments, its switch, and its payout
     // bank account (all 404 while online payments are off).
     onlinePaymentsService: {
@@ -105,6 +114,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getPayoutAccount: () => API.get('/payments/payout-account'),
         getPayoutAccountForEdit: () => API.get('/payments/payout-account/edit'),
         updatePayoutAccount: (data: any) => API.put('/payments/payout-account', data),
+        // The business's money: what Bookplus owes it, its statement, its paid
+        // bookings, and refunds (above its balance or the approval limit, a
+        // refund becomes a request for Bookplus: 202 approval_required).
+        balance: () => API.get('/payments/me/balance'),
+        ledger: (page = 1, limit = 20) => API.get('/payments/me/ledger', { params: { page, limit } }),
+        statementCsv: () => API.get('/payments/me/statement.csv', { responseType: 'blob' }),
+        payments: (params: any = {}) => API.get('/payments/me/payments', { params }),
+        refund: (paymentId: string, data: { amountCents?: number; reason: string }) => API.post(`/payments/${paymentId}/refund`, data),
+        retryRefund: (paymentId: string, refundId: string) => API.post(`/payments/${paymentId}/refunds/${refundId}/retry`),
     },
 
     // One-click unsubscribe from marketing email. Public: the signed token from

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { onlinePaymentsService } from '../services';
 import { useToast } from './Toast';
 import { uploadVerificationDocument, VERIFICATION_ACCEPT } from '../utils/uploadImage';
+import PaymentsMoney from './PaymentsMoney';
 
 // Account → Online payments (owner only). A business applies to take card
 // payments through Bookplus: it chooses a plan with every cost shown, gives its
@@ -318,6 +319,8 @@ const OnlinePaymentsSection = () => {
                     {d.payoutAccountReviewNeeded && <p style={{ ...muted, marginTop: '0.5rem' }}>Bookplus is checking your new bank account. Payouts start again once it is confirmed.</p>}
                 </div>
             )}
+
+            {d.status === 'approved' && <PaymentsMoney />}
 
             <div style={card}>
                 <h3 style={{ ...h3, marginBottom: '0.75rem' }}>1. Choose a plan</h3>

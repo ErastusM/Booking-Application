@@ -24,8 +24,10 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const FinanceRequest = require('../../models/FinanceRequest');
+const Notification = require('../../models/Notification');
 const PlatformSettings = require('../../models/PlatformSettings');
 const payments = require('../../services/paymentService');
+const pricing = require('../../services/pricing');
 const mfa = require('../../utils/mfa');
 const {
     makeProvider, makeAdmin, makeFinanceAdmin, makeService, authHeader, financeHeader, APPROVED_FOR_PAYMENTS,
@@ -59,6 +61,10 @@ const business = async (pricing) => {
 };
 
 const director = () => makeFinanceAdmin({ adminRoles: ['director'] });
+const setLimit = async (cents) => {
+    await pricing.getSettings({ fresh: true });
+    await PlatformSettings.updateOne({ key: 'platform' }, { $set: { 'approvals.refundThresholdCents': cents } });
+};
 const financeOnly = () => makeFinanceAdmin({ adminRoles: ['finance'] });
 
 describe('two-step sign-in for admins', () => {
@@ -72,7 +78,9 @@ describe('two-step sign-in for admins', () => {
 
         // Not on until a code proves the app has it.
         expect((await request(app).post('/api/auth/mfa/enable').set(authHeader(admin)).send({ code: '000000' })).status).toBe(400);
-        const on = await request(app).post('/api/auth/mfa/enable').set(authHeader(admin)).send({ code: codeFor(secret) });
+        // Kept as sent: recomputing it later can land in the next 30-second step.
+        const enableCode = codeFor(secret);
+        const on = await request(app).post('/api/auth/mfa/enable').set(authHeader(admin)).send({ code: enableCode });
         expect(on.status).toBe(200);
         expect(on.body.data.recoveryCodes).toHaveLength(8);
         // The session that turned it on is confirmed.
@@ -98,7 +106,7 @@ describe('two-step sign-in for admins', () => {
         const wrong = await request(app).post('/api/auth/mfa/login').send({ mfaToken: login.body.data.mfaToken, code: '123456' });
         expect(wrong.status).toBe(401);
         // The code already used to turn it on can't be used again.
-        const replay = await request(app).post('/api/auth/mfa/login').send({ mfaToken: login.body.data.mfaToken, code: codeFor(secret) });
+        const replay = await request(app).post('/api/auth/mfa/login').send({ mfaToken: login.body.data.mfaToken, code: enableCode });
         expect(replay.status).toBe(401);
         const ok = await request(app).post('/api/auth/mfa/login').send({ mfaToken: login.body.data.mfaToken, code: codeFor(secret, 1) });
         expect(ok.status).toBe(200);
@@ -244,17 +252,124 @@ describe('fees on a paid booking', () => {
         await PlatformSettings.updateOne({ key: 'platform' }, { $set: { minOnlineBookingCents: 30000 } });
         expect(await payments.planForBooking(owner._id, 200)).toBeNull();
         expect(await payments.planForBooking(owner._id, 300)).toMatchObject({ amountCents: 30000 });
+        // The booking screen is told the same, so it never asks for a card payment the booking won't take.
+        const below = await request(app).get(`/api/payments/policy/${owner._id}?priceCents=20000`);
+        expect(below.body.data).toMatchObject({ amountDueOnlineCents: 0, paymentKind: null });
+        const above = await request(app).get(`/api/payments/policy/${owner._id}?priceCents=30000`);
+        expect(above.body.data).toMatchObject({ amountDueOnlineCents: 30000, paymentKind: 'full' });
     });
 
-    it('an owner can refund only up to what Bookplus holds for them', async () => {
+    it('an owner refunds up to what Bookplus holds for them; more than that goes to a director to approve', async () => {
+        const dir = await director();
         const { owner, service } = await business({ plan: 'standard', rates: { commissionBps: 300, fixedFeeCents: 150 } });
         const payment = await paidBooking(service);
-        const tooMuch = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({});
-        expect(tooMuch.status).toBe(409);
-        expect(tooMuch.body.code).toBe('balance_too_low');
+
+        // All of it (N$200) is more than the N$192.50 they hold: a request, with a reason.
+        const noReason = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({});
+        expect(noReason.status).toBe(400);
+        expect(noReason.body.code).toBe('reason_required');
+        const asked = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({ reason: 'Client was ill' });
+        expect(asked.status).toBe(202);
+        expect(asked.body.code).toBe('approval_required');
+        expect(asked.body.data).toMatchObject({ type: 'refund', status: 'pending', amountCents: 20000, requestedByBusiness: true });
+        expect((await Payment.findById(payment._id)).refundedCents).toBe(0);
+        const again = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({ reason: 'Again' });
+        expect(again.status).toBe(409);
+        expect(again.body.code).toBe('request_pending');
+        expect(await FinancialAuditLog.findOne({ action: 'refund.request' }).lean()).toMatchObject({ actorRole: 'provider', amountCents: 20000, approvalStatus: 'pending' });
+
+        // The owner sees it waiting on the payment.
+        const list = await request(app).get('/api/payments/me/payments').set(authHeader(owner));
+        expect(list.body.data[0].refundRequest).toMatchObject({ amountCents: 20000 });
+        expect(list.body.data[0].fees).toMatchObject({ commissionCents: 750, businessShareCents: 19250 });
+
+        // A director rejects it; the owner hears why.
+        const no = await request(app).post(`/api/admin/finance/requests/${asked.body.data._id}/reject`).set(financeHeader(dir)).send({ note: 'Late cancellation rules apply' });
+        expect(no.status).toBe(200);
+        expect(await Notification.findOne({ user: owner._id, message: /did not approve the N\$200.00 refund/ })).not.toBeNull();
+
+        // Within the balance and the limit, it runs at once.
         const ok = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({ amountCents: 5000, reason: 'Started late' });
         expect(ok.status).toBe(200);
         expect(await FinancialAuditLog.findOne({ action: 'refund.owner' }).lean()).toMatchObject({ actorRole: 'provider', amountCents: 5000, reason: 'Started late' });
+        const statement = (await request(app).get('/api/payments/me/ledger').set(authHeader(owner))).body.data.map((e) => [e.description, e.amountCents]);
+        expect(statement.slice(0, 2)).toEqual([['Bookplus commission returned: Ana — Taper Fade', 150], ['Refund: Ana — Taper Fade', -5000]]);
+
+        // The rest, asked again and approved: it runs, and the owner is told.
+        const rest = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({ reason: 'Client was ill' });
+        expect(rest.status).toBe(202);
+        const yes = await request(app).post(`/api/admin/finance/requests/${rest.body.data._id}/approve`).set(financeHeader(dir)).send({});
+        expect(yes.body.data.status).toBe('executed');
+        expect((await Payment.findById(payment._id)).refundedCents).toBe(20000);
+        expect(await Notification.findOne({ user: owner._id, message: /approved the N\$150.00 refund/ })).not.toBeNull();
+    });
+
+    it('a waiting refund request holds its amount back from payouts and other refunds; the director sees the balance', async () => {
+        const dir = await director();
+        const { owner, service } = await business();
+        await setLimit(5000);
+        const a = await paidBooking(service, { start: '10:00', end: '10:30' });
+        const b = await paidBooking(service, { start: '11:00', end: '11:30' });
+        expect(await payments.balanceOf(owner._id)).toBe(40000);
+
+        // N$60 on A is over the N$50 limit: it waits, and N$60 is held back.
+        const asked = await request(app).post(`/api/payments/${a._id}/refund`).set(authHeader(owner)).send({ amountCents: 6000, reason: 'Wrong colour' });
+        expect(asked.status).toBe(202);
+        expect(await FinanceRequest.findById(asked.body.data._id).lean()).toMatchObject({ balanceAtRequestCents: 40000, overBalance: false });
+        // Nothing more on A while Bookplus decides.
+        const direct = await request(app).post(`/api/payments/${a._id}/refund`).set(authHeader(owner)).send({ amountCents: 1000, reason: 'Less' });
+        expect(direct.status).toBe(409);
+        expect(direct.body.code).toBe('request_pending');
+        // A payout can't take the held N$60.
+        const tooMuch = await payments.recordPayout({ providerId: owner._id, amountCents: 40000, reference: 'BW-1', adminId: dir._id, allowMissingAccount: true });
+        expect(tooMuch).toMatchObject({ ok: false, code: 'exceeds_balance' });
+        expect(tooMuch.message).toMatch(/N\$60.00 is held for refunds/);
+        expect((await payments.recordPayout({ providerId: owner._id, amountCents: 34000, reference: 'BW-1', adminId: dir._id, allowMissingAccount: true })).ok).toBe(true);
+        // Nor can another refund: B's N$40 is now more than the N$0 left, so it waits too.
+        const onB = await request(app).post(`/api/payments/${b._id}/refund`).set(authHeader(owner)).send({ amountCents: 4000, reason: 'Late' });
+        expect(onB.status).toBe(202);
+        expect(onB.body.message).toMatch(/more than your Bookplus balance/);
+        expect(await FinanceRequest.findById(onB.body.data._id).lean()).toMatchObject({ balanceAtRequestCents: 0, overBalance: true });
+
+        // The director sees what the business holds now.
+        const list = await request(app).get('/api/admin/finance/requests?status=pending').set(financeHeader(dir));
+        const row = list.body.data.find((r) => r._id === onB.body.data._id);
+        expect(row).toMatchObject({ requestedByBusiness: true, overBalance: true, balanceNowCents: 6000 });
+    });
+
+    it('the owner is told what really happened to an approved refund', async () => {
+        const dir = await director();
+        const { owner, service } = await business();
+        await setLimit(5000);
+        const a = await paidBooking(service, { start: '10:00', end: '10:30' });
+        const b = await paidBooking(service, { start: '11:00', end: '11:30' });
+
+        // PayGate refuses it: saved, not sent; the owner is told to send it again.
+        const r1 = await request(app).post(`/api/payments/${a._id}/refund`).set(authHeader(owner)).send({ amountCents: 6000, reason: 'One' });
+        gw.refundFail = true;
+        await request(app).post(`/api/admin/finance/requests/${r1.body.data._id}/approve`).set(financeHeader(dir)).send({});
+        gw.refundFail = false;
+        expect(await Notification.findOne({ user: owner._id, message: /card processor did not take it yet\. Send it again/ })).not.toBeNull();
+
+        // Meanwhile the booking was refunded in full another way: it can't be made.
+        const r2 = await request(app).post(`/api/payments/${b._id}/refund`).set(authHeader(owner)).send({ amountCents: 6000, reason: 'Two' });
+        await Payment.updateOne({ _id: b._id }, { $set: { refundedCents: 20000, status: 'refunded' } });
+        const done = await request(app).post(`/api/admin/finance/requests/${r2.body.data._id}/approve`).set(financeHeader(dir)).send({});
+        expect(done.body.data.status).toBe('failed');
+        expect(await Notification.findOne({ user: owner._id, message: /but it could not be made/ })).not.toBeNull();
+    });
+
+    it('an owner refund above the approval limit goes to a director even when the balance covers it', async () => {
+        const { owner, service } = await business();
+        await PlatformSettings.updateOne({ key: 'platform' }, { $set: { 'approvals.refundThresholdCents': 5000 } }, { upsert: true });
+        const payment = await paidBooking(service);
+        const asked = await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({ amountCents: 6000, reason: 'Wrong colour' });
+        expect(asked.status).toBe(202);
+        expect(asked.body.code).toBe('approval_required');
+        // At the limit, on another booking, it runs at once.
+        const other = await paidBooking(service, { start: '11:00', end: '11:30' });
+        const small = await request(app).post(`/api/payments/${other._id}/refund`).set(authHeader(owner)).send({ amountCents: 5000, reason: 'Wrong colour' });
+        expect(small.status).toBe(200);
     });
 });
 

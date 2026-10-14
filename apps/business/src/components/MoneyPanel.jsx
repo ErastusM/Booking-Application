@@ -677,7 +677,7 @@ const Approvals = ({ me, isDirector, onLocked }) => {
         } catch (err) { toast(apiError(err, 'Could not save.'), 'error'); }
     };
     if (!rows) return <p style={muted}>Loading…</p>;
-    if (!rows.length) return <div style={card}><p style={muted}>Nothing waiting. Refunds above the approval limit and balance adjustments show up here.</p></div>;
+    if (!rows.length) return <div style={card}><p style={muted}>Nothing waiting. Refunds above the approval limit, refunds a business asks Bookplus for, and balance adjustments show up here.</p></div>;
     return (
         <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'minmax(0, 1fr)' }}>
             {rows.map((r) => {
@@ -688,8 +688,16 @@ const Approvals = ({ me, isDirector, onLocked }) => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
                             <div style={{ minWidth: 0 }}>
                                 <p style={{ fontWeight: 600, margin: 0 }}>{r.type === 'refund' ? 'Refund' : 'Balance adjustment'} of {nad(r.amountCents)}{business ? `, ${business}` : ''}</p>
-                                <p style={muted}>{r.reason}</p>
-                                <p style={{ ...muted, fontSize: '0.78rem' }}>Prepared by {r.preparedBy?.name || 'someone'}, {when(r.createdAt)}</p>
+                                <p style={{ ...muted, overflowWrap: 'anywhere' }}>{r.reason}</p>
+                                <p style={{ ...muted, fontSize: '0.78rem' }}>
+                                    {r.requestedByBusiness ? `Asked by the business (${r.preparedBy?.name || 'the owner'}), more than it may refund on its own` : `Prepared by ${r.preparedBy?.name || 'someone'}`}, {when(r.createdAt)}
+                                </p>
+                                {r.requestedByBusiness && r.balanceNowCents !== null && r.balanceNowCents !== undefined && (
+                                    <p style={{ ...muted, fontSize: '0.78rem', color: r.amountCents > r.balanceNowCents ? '#92400e' : undefined }} data-testid="request-balance">
+                                        The business holds {nad(Math.max(0, r.balanceNowCents))} now.
+                                        {r.amountCents > r.balanceNowCents && ` Approving means Bookplus pays ${nad(r.amountCents - Math.max(0, r.balanceNowCents))} of it until the business earns it back.`}
+                                    </p>
+                                )}
                                 {r.status !== 'pending' && <p style={{ ...muted, fontSize: '0.78rem' }}>{r.status[0].toUpperCase() + r.status.slice(1)}{r.decidedBy?.name ? ` by ${r.decidedBy.name}` : ''}{r.decisionNote ? `: ${r.decisionNote}` : ''}</p>}
                             </div>
                             {r.status === 'pending' && isDirector && !mine && rejecting !== r._id && (

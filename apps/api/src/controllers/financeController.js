@@ -298,8 +298,32 @@ const requestRow = (r) => ({
     _id: r._id, type: r.type, status: r.status, provider: r.provider, payment: r.payment, appointment: r.appointment,
     amountCents: r.amountCents, currency: r.currency, reason: r.reason,
     preparedBy: r.preparedBy, decidedBy: r.decidedBy, decidedAt: r.decidedAt, decisionNote: r.decisionNote,
+    requestedByBusiness: !!r.requestedByBusiness, balanceAtRequestCents: r.balanceAtRequestCents ?? null, overBalance: !!r.overBalance,
     result: r.result, createdAt: r.createdAt,
 });
+
+/**
+ * A business asks Bookplus to refund more than it may on its own (more than
+ * its balance, or above the approval limit). It waits in the same queue as
+ * finance's own requests, for a director to approve or reject. One open
+ * request per payment. Call it holding the business's `payout:<id>` lock.
+ */
+exports.requestRefundFromBusiness = async ({ owner, payment, amountCents, reason, availableCents = null }) => {
+    if (!reason) return { ok: false, status: 400, code: 'reason_required', error: 'Say why the client should get this refund, so Bookplus can decide.' };
+    const open = await FinanceRequest.exists({ payment: payment._id, type: 'refund', status: 'pending' });
+    if (open) return { ok: false, status: 409, code: 'request_pending', error: 'Bookplus is already looking at a refund for this payment.' };
+    const request = await FinanceRequest.create({
+        type: 'refund', provider: payment.provider, payment: payment._id, appointment: payment.appointment,
+        amountCents, currency: payment.currency, reason, preparedBy: owner._id, requestedByBusiness: true,
+        balanceAtRequestCents: availableCents, overBalance: availableCents !== null && amountCents > availableCents,
+    });
+    await recordFinance({
+        actor: owner, action: 'refund.request', amountCents, provider: payment.provider, appointment: payment.appointment,
+        payment: payment._id, reference: payment.reference, reason, approvalStatus: 'pending', request: request._id,
+        details: { requestedByBusiness: true },
+    });
+    return { ok: true, request: requestRow(request) };
+};
 
 /**
  * POST /api/admin/finance/payments/:id/refund { amountCents?, reason }
@@ -412,7 +436,21 @@ exports.listRequests = async (req, res) => {
         const rows = await FinanceRequest.find(q).sort({ createdAt: -1 }).limit(100)
             .populate('preparedBy', 'name email').populate('decidedBy', 'name email')
             .populate('provider', 'name businessProfile.businessName').lean();
-        res.json({ success: true, data: rows.map(requestRow) });
+        // For a refund still waiting: what the business holds now, so a director
+        // sees whether Bookplus would be paying part of it.
+        const balances = new Map();
+        for (const r of rows.filter((x) => x.type === 'refund' && x.status === 'pending')) {
+            const pid = String(r.provider?._id || r.provider);
+            if (!balances.has(pid)) {
+                // eslint-disable-next-line no-await-in-loop
+                const { balanceOwedCents, refundsPendingCents } = await payments.balanceSummary(pid);
+                balances.set(pid, balanceOwedCents - refundsPendingCents);
+            }
+        }
+        res.json({
+            success: true,
+            data: rows.map((r) => ({ ...requestRow(r), balanceNowCents: balances.has(String(r.provider?._id || r.provider)) && r.status === 'pending' && r.type === 'refund' ? balances.get(String(r.provider?._id || r.provider)) : null })),
+        });
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
@@ -442,6 +480,20 @@ const decide = (approve) => async (req, res) => {
             approvalStatus: approve ? 'approved' : 'rejected', request: claimed._id,
         });
         const done = approve ? await runRequest(claimed, req.user) : claimed;
+        if (done.requestedByBusiness) {
+            const amount = `N$${(done.amountCents / 100).toFixed(2)}`;
+            // executed + no error: sent; executed + refund_pending: saved, PayGate
+            // did not take it yet (it is retried); failed: it could not be made.
+            const sent = done.status === 'executed' && !done.result?.error;
+            const message = !approve
+                ? `Bookplus did not approve the ${amount} refund you asked for: ${note}`
+                : sent
+                    ? `Bookplus approved the ${amount} refund you asked for. It is on its way back to your client's card.`
+                    : done.status === 'executed'
+                        ? `Bookplus approved the ${amount} refund you asked for, but the card processor did not take it yet. Send it again from Account, Online payments.`
+                        : `Bookplus approved the ${amount} refund you asked for, but it could not be made: ${done.result?.error || 'please contact Bookplus'}.`;
+            createNotification(done.provider, message, 'system', '/account?section=payments').catch(() => {});
+        }
         res.json({ success: true, data: requestRow(done) });
     } catch (err) {
         logger.error({ err: err.message }, 'finance decision failed');

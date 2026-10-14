@@ -433,6 +433,100 @@ const outbox = [];
             guestName, noShowName, clientName: client.name, clientEmail: client.email,
         });
     });
+    // Paying online, end to end, without the real PayGate: when the run asks
+    // for it (E2E_FAKE_PAYGATE=1), the integration tests' fake answers the
+    // API's PayHost calls. The browser's trip to PayGate's hosted page is
+    // played by the spec, which posts back the return this endpoint builds.
+    if (process.env.E2E_FAKE_PAYGATE === '1') {
+        const { createFakePaygate } = require('./src/tests/helpers/fakePaygate');
+        const gw = createFakePaygate();
+        gw.install();
+        // { reference, code: 1 approved | 2 declined | 4 cancelled } → the
+        // return post PayGate would send the browser back with.
+        outer.post('/__e2e/paygate/outcome', (req, res) => {
+            const { reference, code } = req.body || {};
+            try {
+                gw.setStatus(String(reference), Number(code));
+                res.json({ ok: true, returnBody: gw.returnBody(String(reference)) });
+            } catch (err) {
+                res.status(404).json({ ok: false, message: err.message });
+            }
+        });
+        // A guest booking at a paying business, already paid: booked through
+        // the API, approved on the stand-in PayGate, confirmed by its notify.
+        // { serviceId, date: 'YYYY-MM-DD', startTime, endTime, guestName }
+        outer.post('/__e2e/paygate/paid-booking', async (req, res) => {
+            const b = req.body || {};
+            const base = `http://127.0.0.1:${PORT}`;
+            const made = await fetch(`${base}/api/appointments`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    service: b.serviceId, appointmentDate: b.date, startTime: b.startTime || '10:00', endTime: b.endTime || '10:30',
+                    guestName: b.guestName || 'Ana Shilongo', guestEmail: 'ana@example.com',
+                }),
+            });
+            const body = await made.json();
+            if (made.status !== 201 || !body.payment) return res.status(400).json(body);
+            gw.setStatus(body.payment.reference, 1);
+            await fetch(`${base}/api/payments/paygate/notify`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: gw.notifyBody(body.payment.reference),
+            });
+            res.json({ ok: true, reference: body.payment.reference });
+        });
+        // The client is slow on PayGate's page: their booking's hold runs out
+        // and the sweeper lets the time go, before the payment comes back.
+        outer.post('/__e2e/paygate/expire-hold', async (req, res) => {
+            const Payment = require('./src/models/Payment');
+            const payments = require('./src/services/paymentService');
+            const pay = await Payment.findOne({ reference: String(req.body?.reference || '') }).select('appointment').lean();
+            if (!pay) return res.status(404).json({ ok: false });
+            await Appointment.updateOne({ _id: pay.appointment }, { $set: { paymentHoldExpiresAt: new Date(Date.now() - 60 * 1000) } });
+            await payments.sweepExpiredHolds();
+            res.json({ ok: true });
+        });
+        // The emailed "manage my booking" link for the booking a payment is for.
+        outer.post('/__e2e/paygate/manage-token', async (req, res) => {
+            const Payment = require('./src/models/Payment');
+            const pay = await Payment.findOne({ reference: String(req.body?.reference || '') }).select('appointment').lean();
+            const appt = pay && await Appointment.findById(pay.appointment).select('manageToken').lean();
+            if (!appt?.manageToken) return res.status(404).json({ ok: false });
+            res.json({ ok: true, token: appt.manageToken });
+        });
+    }
+
+    // A business that takes online payments: approved, switched on, asking a
+    // deposit (or the full price), with a N$200 service bookable every day.
+    let payingSeq = 0;
+    outer.post('/__e2e/paying-business', async (req, res) => {
+        payingSeq += 1;
+        const tag = `${payingSeq}-${Date.now()}`;
+        const mode = req.body?.mode === 'full' ? 'full' : 'deposit';
+        const businessName = `Paying Salon ${payingSeq}`;
+        const owner = await User.create({
+            name: `Paying Owner ${payingSeq}`, email: `e2e-paying-${tag}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000021', role: 'provider', providerCategory: 'Home services',
+            isVerified: true, provider: 'local', providerSetupComplete: true,
+            businessProfile: { businessName, currency: 'NAD' },
+            paymentSettings: mode === 'full' ? { mode: 'full' } : { mode: 'deposit', depositType: 'percent', depositValue: 25 },
+            paymentsApproval: { status: 'approved', plan: 'standard', switchOn: true },
+            pricing: { plan: 'standard', rates: { commissionBps: 300, fixedFeeCents: 150 } },
+            payoutAccount: { accountHolder: businessName, bankName: 'Bank Windhoek', branchCode: '483872', accountNumber: '80041234821' },
+        });
+        const svc = await Service.create({
+            name: 'Paid Cut', description: 'Half an hour', price: 200, duration: 30,
+            provider: owner._id, createdBy: owner._id, isActive: true, location: 'Windhoek',
+        });
+        const open = { enabled: true, slots: [{ start: '08:00', end: '18:00' }] };
+        await Availability.create({
+            provider: owner._id,
+            schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: open, sunday: open },
+        });
+        res.json({ providerId: String(owner._id), serviceId: String(svc._id), businessName, ownerEmail: owner.email });
+    });
+
     outer.use(app);
 
     outer.listen(PORT, () => {

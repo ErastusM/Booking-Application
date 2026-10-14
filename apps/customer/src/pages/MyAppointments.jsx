@@ -9,6 +9,7 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
 import { currencySymbol } from '../utils/currency';
+import { onlinePaymentLine } from '../utils/payOnline';
 import { apptLocalDate } from '../utils/date';
 import { fmtClock } from '../utils/time';
 import { cloudinaryThumb } from '../utils/cloudinary';
@@ -418,6 +419,7 @@ const MyAppointments = () => {
                                         <p style={labelStyle}>Service</p>
                                         <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '1rem' }}>{a.service?.name}</p>
                                         <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>{currencySymbol(a.service?.provider?.currency || a.service?.provider?.businessProfile?.currency)} {a.totalPrice}</p>
+                                        {onlinePaymentLine(a) && <p data-testid="appt-online-payment" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>{onlinePaymentLine(a)}</p>}
                                     </div>
                                     <div>
                                         <p style={labelStyle}>Date</p>
