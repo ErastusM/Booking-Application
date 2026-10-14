@@ -37,8 +37,21 @@ const apiError = (err, fallback) => err?.response?.data?.message || fallback;
 
 const CodeInput = ({ value, onChange, id, placeholder = '123456' }) => (
     <input id={id} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="one-time-code" inputMode="text"
-        maxLength={14} placeholder={placeholder} style={{ ...input, letterSpacing: '0.2em', fontSize: '1.05rem', maxWidth: '14rem' }} />
+        maxLength={14} placeholder={placeholder}
+        style={{ ...input, letterSpacing: '0.25em', fontSize: '1.15rem', textAlign: 'center', padding: '0.75rem' }} />
 );
+
+// One numbered step of the set-up: number, title, then its content.
+const Step = ({ n, title, children }) => (
+    <section style={{ display: 'grid', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+        <h3 style={{ ...h3, margin: 0, display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
+            <span aria-hidden="true" style={{ color: 'var(--gold-dark)', fontVariantNumeric: 'tabular-nums' }}>{n}.</span>
+            <span>{title}</span>
+        </h3>
+        {children}
+    </section>
+);
+const fullButton = { width: '100%', justifyContent: 'center', textAlign: 'center' };
 
 const MfaSetup = ({ onDone }) => {
     const { user, login } = useAuthContext();
@@ -77,42 +90,51 @@ const MfaSetup = ({ onDone }) => {
             <div style={card} data-testid="mfa-recovery-codes">
                 <h2 style={h2}>Two-step sign-in is on</h2>
                 <p style={muted}>Save these recovery codes somewhere safe, away from your phone. Each one signs you in once if you lose your phone. They are not shown again.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(8.5rem, 1fr))', gap: '0.5rem', margin: '1rem 0', fontFamily: 'ui-monospace, monospace', fontSize: '0.95rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(8rem, 1fr))', gap: '0.5rem', margin: '1rem 0', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.95rem' }}>
                     {codes.map((c) => <div key={c} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.45rem 0.6rem', textAlign: 'center' }}>{c}</div>)}
                 </div>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    <button type="button" className="btn-outline" onClick={download}>Download</button>
-                    <button type="button" className="btn-primary" onClick={onDone}>I have saved them</button>
+                <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))' }}>
+                    <button type="button" className="btn-outline" style={fullButton} onClick={download}>Download</button>
+                    <button type="button" className="btn-primary" style={fullButton} onClick={onDone}>I saved them</button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div style={card}>
-            <h2 style={h2}>Set up two-step sign-in</h2>
-            <p style={muted}>Money controls need a code from an authenticator app (Google Authenticator, Microsoft Authenticator or similar) as well as your password. After this, signing in to this console asks for the code too.</p>
-            {error && <div role="alert" style={{ ...errBox, marginTop: '1rem' }}>{error}</div>}
+        <div style={{ ...card, display: 'grid', gap: '1rem' }}>
+            <div>
+                <h2 style={h2}>Set up two-step sign-in</h2>
+                <p style={muted}>Money controls need a code from an authenticator app (Google Authenticator, Microsoft Authenticator or similar) as well as your password. After this, signing in to this console asks for the code too.</p>
+            </div>
+            {error && <div role="alert" style={errBox}>{error}</div>}
             {!setup ? (
-                <button type="button" className="btn-primary" style={{ marginTop: '1rem' }} onClick={start} disabled={busy}>
+                <button type="button" className="btn-primary" style={fullButton} onClick={start} disabled={busy}>
                     {busy ? 'Starting…' : 'Start set-up'}
                 </button>
             ) : (
-                <form onSubmit={enable} style={{ marginTop: '1rem', display: 'grid', gap: '1rem' }}>
-                    <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                        <img src={setup.qrDataUrl} alt="QR code to add Bookplus to your authenticator app" width={180} height={180} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} />
-                        <div style={{ flex: '1 1 14rem', minWidth: 0 }}>
-                            <p style={{ ...muted, marginBottom: '0.5rem' }}>1. In the app, add an account and scan this code. Can't scan? Enter this key instead:</p>
-                            <code style={{ display: 'block', wordBreak: 'break-all', fontSize: '0.85rem', background: 'var(--off-white)', padding: '0.5rem 0.6rem', borderRadius: 'var(--radius-sm)' }} data-testid="mfa-secret">
-                                {setup.secret.match(/.{1,4}/g).join(' ')}
-                            </code>
+                <form onSubmit={enable} style={{ display: 'grid', gap: '1rem' }}>
+                    <Step n={1} title="Scan this code with your authenticator app">
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <img src={setup.qrDataUrl} alt="QR code to add Bookplus to your authenticator app" width={200} height={200}
+                                style={{ display: 'block', width: '200px', height: '200px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'white' }} />
                         </div>
-                    </div>
-                    <div>
-                        <label style={label} htmlFor="mfa-enable-code">2. Enter the 6-digit code the app shows</label>
+                        <p style={{ ...muted, textAlign: 'center' }}>Can't scan it? In the app, choose to enter a key and type:</p>
+                        <code data-testid="mfa-secret" style={{
+                            display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.2rem 0.55rem',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.95rem', letterSpacing: '0.04em',
+                            background: 'var(--off-white)', padding: '0.7rem 0.75rem', borderRadius: 'var(--radius-sm)',
+                        }}>
+                            {setup.secret.match(/.{1,4}/g).map((g, i) => <span key={i} style={{ whiteSpace: 'nowrap' }}>{g}</span>)}
+                        </code>
+                    </Step>
+                    <Step n={2} title="Enter the 6-digit code the app shows">
+                        <label htmlFor="mfa-enable-code" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+                            Enter the 6-digit code the app shows
+                        </label>
                         <CodeInput id="mfa-enable-code" value={code} onChange={setCode} />
-                    </div>
-                    <div><button type="submit" className="btn-primary" disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Turn on'}</button></div>
+                        <button type="submit" className="btn-primary" style={fullButton} disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Turn on'}</button>
+                    </Step>
                 </form>
             )}
         </div>
@@ -138,11 +160,11 @@ const MfaConfirm = ({ onDone }) => {
             <h2 style={h2}>Confirm it's you</h2>
             <p style={muted}>Enter the code from your authenticator app, or one of your recovery codes. It stays confirmed for 12 hours.</p>
             {error && <div role="alert" style={{ ...errBox, marginTop: '1rem' }}>{error}</div>}
-            <div style={{ marginTop: '1rem' }}>
-                <label style={label} htmlFor="mfa-confirm-code">Code</label>
+            <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
+                <label style={{ ...label, marginBottom: 0 }} htmlFor="mfa-confirm-code">Code</label>
                 <CodeInput id="mfa-confirm-code" value={code} onChange={setCode} />
+                <button type="submit" className="btn-primary" style={fullButton} disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Confirm'}</button>
             </div>
-            <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }} disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Confirm'}</button>
         </form>
     );
 };
@@ -639,10 +661,10 @@ const MoneyPanel = () => {
         // minmax(0, 1fr): a wide table scrolls inside its card instead of
         // stretching the column past the phone's edge.
         <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0, 1fr)' }} data-testid="money-panel">
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }} role="tablist" aria-label="Money sections">
+            <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 8rem), 1fr))' }} role="tablist" aria-label="Money sections">
                 {VIEWS.map(([key, text]) => (
                     <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
-                        className={view === key ? 'btn-primary' : 'btn-outline'} style={{ fontSize: '0.82rem', padding: '0.4rem 0.9rem' }}>
+                        className={view === key ? 'btn-primary' : 'btn-outline'} style={{ ...fullButton, fontSize: '0.85rem', padding: '0.55rem 0.5rem' }}>
                         {text}
                     </button>
                 ))}

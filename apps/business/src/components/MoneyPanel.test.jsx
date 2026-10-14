@@ -65,7 +65,10 @@ describe('MoneyPanel — two-step sign-in comes first', () => {
         render(<MoneyPanel />);
         await userEvent.click(await screen.findByRole('button', { name: 'Start set-up' }));
         expect(await screen.findByAltText(/QR code/)).toHaveAttribute('src', 'data:image/png;base64,AAA');
-        expect(screen.getByTestId('mfa-secret')).toHaveTextContent('JBSW Y3DP');
+        // The key in groups of four, each kept whole when the line wraps.
+        const key = screen.getByTestId('mfa-secret');
+        expect(key).toHaveTextContent('JBSWY3DPEHPK3PXP');
+        expect(key.querySelectorAll('span')).toHaveLength(8);
         await userEvent.type(screen.getByLabelText(/Enter the 6-digit code/), '123456');
         await userEvent.click(screen.getByRole('button', { name: 'Turn on' }));
         expect(auth.authService.mfaEnable).toHaveBeenCalledWith('123456');
