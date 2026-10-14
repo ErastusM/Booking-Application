@@ -89,6 +89,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
             API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note, accountUpdatedAt }),
     },
 
+    // Paying online for a booking (customer side; all 404 while online payments
+    // are off). policy: what a booking of this price asks for now; status and
+    // retry use the unguessable payment reference, no sign-in needed.
+    paymentsService: {
+        policy: (providerId: string, priceCents: number) => API.get(`/payments/policy/${providerId}`, { params: { priceCents } }),
+        status: (reference: string) => API.get(`/payments/${encodeURIComponent(reference)}/status`),
+        retry: (reference: string) => API.post(`/payments/${encodeURIComponent(reference)}/retry`),
+    },
+
     // A business applying to take online payments, its switch, and its payout
     // bank account (all 404 while online payments are off).
     onlinePaymentsService: {
