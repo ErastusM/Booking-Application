@@ -35,6 +35,10 @@ test.describe('Admin two-step sign-in', () => {
         await page.getByRole('tab', { name: 'Money' }).click();
         const panel = page.getByTestId('money-panel');
         await expect(panel).toBeVisible();
+        // It opens on the dashboard, which points to what is left before launch.
+        await expect(panel.getByTestId('finance-dashboard')).toBeVisible();
+        await expect(panel.getByTestId('dash-launch')).toContainText('Online payments are off');
+        await panel.getByRole('button', { name: 'See the checklist' }).click();
         await expect(panel.getByRole('heading', { name: 'Before payments go live' })).toBeVisible();
         await expect(panel.getByTestId('launch-providerApproved')).toContainText('To do');
         await expect(panel.getByRole('heading', { name: 'Simulator' })).toBeVisible();
@@ -42,7 +46,7 @@ test.describe('Admin two-step sign-in', () => {
         // At phone width the wide tables scroll inside their cards; the page never scrolls sideways.
         await page.setViewportSize({ width: 390, height: 844 });
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-        for (const tab of ['Payments', 'Payouts', 'Disputes', 'Approvals', 'Audit log', 'Settings']) {
+        for (const tab of ['Dashboard', 'Payments', 'Payouts', 'Disputes', 'Approvals', 'Costs', 'Audit log', 'Settings']) {
             await panel.getByRole('tab', { name: tab }).click();
             await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
         }

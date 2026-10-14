@@ -61,8 +61,17 @@ beforeEach(() => {
         getApproval: vi.fn().mockResolvedValue({ data: { data: APPLICATION() } }),
         getApprovalDocument: vi.fn().mockResolvedValue({ data: { data: { url: 'https://api.cloudinary.com/v1_1/x/image/download?sig', expiresInSeconds: 300 } } }),
         decideApproval: vi.fn().mockResolvedValue({ data: { data: {} } }),
+        listAdmins: vi.fn().mockResolvedValue({ data: { data: [] } }),
+        // The panel opens on the dashboard (its own tests: FinanceDashboard.test.jsx).
+        dashboard: vi.fn(() => new Promise(() => {})),
     };
 });
+
+// Prices and fees, the launch checklist and the simulator are under Settings.
+const openSettings = async () => {
+    await screen.findByTestId('money-panel');
+    await userEvent.click(screen.getByRole('tab', { name: 'Settings' }));
+};
 
 const APPLICATION = (over = {}) => ({
     _id: 'b1', businessName: 'Vibe Cuts', name: 'Ndapewa Shilongo', email: 'nd@vibe.na', phone: '+264811234567', address: 'Windhoek',
@@ -108,9 +117,17 @@ describe('MoneyPanel — two-step sign-in comes first', () => {
 });
 
 describe('MoneyPanel — prices and fees', () => {
-    it('shows the simulator, flags a booking that loses money, and the launch checklist', async () => {
+    it('opens on the dashboard, with the way to the launch checklist', async () => {
         render(<MoneyPanel />);
         await screen.findByTestId('money-panel');
+        expect(screen.getByRole('tab', { name: 'Dashboard' })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getAllByRole('tab')).toHaveLength(8);
+        expect(auth.financeService.dashboard).toHaveBeenCalled();
+    });
+
+    it('shows the simulator, flags a booking that loses money, and the launch checklist', async () => {
+        render(<MoneyPanel />);
+        await openSettings();
         expect(screen.getByText('-N$0.25')).toBeInTheDocument();
         expect(screen.getAllByText('not entered').length).toBeGreaterThan(0);
         expect(screen.getByRole('alert')).toHaveTextContent(/loses money/);
@@ -119,7 +136,7 @@ describe('MoneyPanel — prices and fees', () => {
 
     it('a director saves a change with a reason, sent as nested values in cents and basis points', async () => {
         render(<MoneyPanel />);
-        await screen.findByTestId('money-panel');
+        await openSettings();
         const fee = screen.getByLabelText('Processing fee, percentage (%)');
         await userEvent.type(fee, '3.5');
         const save = screen.getByRole('button', { name: /Save 1 change/ });
@@ -133,7 +150,7 @@ describe('MoneyPanel — prices and fees', () => {
     it('finance (not a director) can read but not change them', async () => {
         auth.financeService.getSettings.mockResolvedValueOnce({ data: { data: PAYLOAD(['finance']) } });
         render(<MoneyPanel />);
-        await screen.findByTestId('money-panel');
+        await openSettings();
         expect(screen.getByText(/Only a director can change these/)).toBeInTheDocument();
         expect(screen.getByLabelText('Commission per online booking (%)', { selector: '#fin-plans\\.basic\\.commissionBps' })).toBeDisabled();
         expect(screen.queryByLabelText(/Why are these changing/)).not.toBeInTheDocument();

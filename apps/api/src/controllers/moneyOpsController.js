@@ -28,6 +28,8 @@ const { recordFinance } = require('../utils/financeAudit');
 const { createNotification } = require('../utils/notificationhelper');
 const { listPayments, paymentRow, csvCell } = require('./paymentController')._shared;
 const finance = require('./financeController');
+const OperatingCost = require('../models/OperatingCost');
+const financeDashboard = require('../services/financeDashboard');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const isId = (v) => mongoose.Types.ObjectId.isValid(String(v || ''));
@@ -499,6 +501,70 @@ exports.closeDispute = async (req, res) => {
         logger.error({ err: err.message }, 'close dispute failed');
         fail(res, 500, 'Internal server error');
     }
+};
+
+/* ───────────────────────────── dashboard ───────────────────────────── */
+
+// GET /api/admin/finance/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD (default: this month so far)
+exports.dashboard = async (req, res) => {
+    try {
+        const period = financeDashboard.periodOf(req.query.from, req.query.to);
+        if (!period) return fail(res, 400, 'Choose a period of at most two years, with the start before the end', 'bad_period');
+        res.json({ success: true, data: await financeDashboard.dashboard({ period }) });
+    } catch (err) {
+        logger.error({ err: err.message }, 'finance dashboard failed');
+        fail(res, 500, 'Internal server error');
+    }
+};
+
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+// GET /api/admin/finance/costs?month=YYYY-MM — the running costs entered for a month
+exports.getCosts = async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        if (!MONTH.test(month)) return fail(res, 400, 'Choose a month', 'bad_month');
+        const doc = await OperatingCost.findOne({ month }).populate('updatedBy', 'name').lean();
+        res.json({
+            success: true,
+            data: {
+                month,
+                items: doc?.items || [],
+                totalCents: (doc?.items || []).reduce((s, i) => s + i.amountCents, 0),
+                updatedAt: doc?.updatedAt || null,
+                updatedBy: doc?.updatedBy?.name || null,
+                categories: OperatingCost.CATEGORIES,
+            },
+        });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
+};
+
+// PUT /api/admin/finance/costs/:month { items: [{ category, label, amountCents }], reason } (director)
+exports.putCosts = async (req, res) => {
+    try {
+        const month = String(req.params.month || '');
+        if (!MONTH.test(month)) return fail(res, 400, 'Choose a month', 'bad_month');
+        const raw = Array.isArray(req.body?.items) ? req.body.items : null;
+        if (!raw || raw.length > 30) return fail(res, 400, 'Send the list of costs (at most 30)', 'bad_items');
+        const items = [];
+        for (const i of raw) {
+            if (!OperatingCost.CATEGORIES.includes(i?.category)) return fail(res, 400, 'Each cost needs a category', 'bad_category');
+            if (!Number.isInteger(i.amountCents) || i.amountCents < 0 || i.amountCents > 1e10) return fail(res, 400, 'Amounts must be whole cents, 0 or more', 'bad_amount');
+            items.push({ category: i.category, label: text(i.label, 80), amountCents: i.amountCents });
+        }
+        const before = await OperatingCost.findOne({ month }).lean();
+        const doc = await OperatingCost.findOneAndUpdate(
+            { month },
+            { $set: { items, updatedBy: req.user._id } },
+            { new: true, upsert: true, setDefaultsOnInsert: true },
+        );
+        const total = items.reduce((s, i) => s + i.amountCents, 0);
+        await recordFinance({
+            actor: req.user, action: 'costs.update', amountCents: total, reason: text(req.body?.reason, 500),
+            details: { month, before: (before?.items || []).reduce((s, i) => s + i.amountCents, 0), after: total },
+        });
+        res.json({ success: true, data: { month, items: doc.items, totalCents: total } });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
 exports._test = { nextRunDate };

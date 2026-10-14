@@ -74,5 +74,23 @@ test.describe('Money operations (admin)', () => {
 
         // No sideways scrolling on a phone.
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+        // Costs: this month's running costs (this admin holds both roles).
+        await panel.getByRole('tab', { name: 'Costs' }).click();
+        const costs = page.getByTestId('finance-costs');
+        await costs.getByRole('button', { name: 'Add a cost' }).click();
+        await costs.getByLabel('What it is').fill('Server');
+        await costs.getByLabel('Amount (N$)').fill('400');
+        await costs.getByLabel('Why (for the audit log)').fill('Hosting bill');
+        await costs.getByRole('button', { name: 'Save the costs' }).click();
+        await expect(page.getByText('Saved')).toBeVisible();
+
+        // Dashboard: the booking paid online is counted; the running costs are set against it.
+        await panel.getByRole('tab', { name: 'Dashboard' }).click();
+        const dash = page.getByTestId('finance-dashboard');
+        await expect(dash.getByTestId('dash-bookings')).not.toContainText('No bookings paid online');
+        await expect(dash.getByTestId('dash-breakeven')).toContainText('running costs');
+        await expect(dash.getByTestId('dash-costs')).toContainText('Running costs: Hosting');
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
 });
