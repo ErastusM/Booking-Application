@@ -28,7 +28,7 @@ const PlatformSettings = require('../../models/PlatformSettings');
 const payments = require('../../services/paymentService');
 const mfa = require('../../utils/mfa');
 const {
-    makeProvider, makeAdmin, makeFinanceAdmin, makeService, authHeader, financeHeader,
+    makeProvider, makeAdmin, makeFinanceAdmin, makeService, authHeader, financeHeader, APPROVED_FOR_PAYMENTS,
 } = require('../helpers/factories');
 const { refreshCookieOf } = require('../helpers/cookies');
 const { futureDate } = require('../helpers/dates');
@@ -53,7 +53,7 @@ const paidBooking = async (service, { start = '10:00', end = '10:30', name = 'An
 };
 
 const business = async (pricing) => {
-    const owner = await makeProvider({ businessProfile: { businessName: 'Vibe Cuts', currency: 'NAD' }, paymentSettings: { mode: 'full' }, ...(pricing ? { pricing } : {}) });
+    const owner = await makeProvider({ businessProfile: { businessName: 'Vibe Cuts', currency: 'NAD' }, paymentSettings: { mode: 'full' }, paymentsApproval: { ...APPROVED_FOR_PAYMENTS }, ...(pricing ? { pricing } : {}) });
     const service = await makeService(owner._id, { name: 'Taper Fade', price: 200, duration: 30 });
     return { owner, service };
 };

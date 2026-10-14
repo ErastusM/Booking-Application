@@ -1482,6 +1482,16 @@ exports.deleteAccount = async (req, res) => {
             }
         }
 
+        // A business with online payment money still open (owed either way, or
+        // refunds on their way) is settled before it can go: the payout bank
+        // account and records it would delete are needed for that.
+        if (user.role === 'provider') {
+            const o = await require('../services/paymentService').outstandingFor(user._id);
+            if (o.open) {
+                return res.status(409).json({ success: false, code: 'balance_outstanding', message: `Bookplus still ${o.balanceOwedCents < 0 ? 'has to recover' : 'owes'} N$${(Math.abs(o.balanceOwedCents) / 100).toFixed(2)}${o.refundsPendingCents ? ` and has refunds on their way` : ''} for online payments. That is settled first; contact Bookplus.` });
+            }
+        }
+
         // Cancel the user's upcoming appointments (whether they're the customer or
         // the provider), release any held wallet funds, and notify the other party.
         // Wrapped so a cleanup hiccup can never block the deletion itself.

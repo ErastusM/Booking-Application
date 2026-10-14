@@ -53,7 +53,13 @@ module.exports = defineConfig({
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,
             // CLIENT_URL is a comma-separated CORS allowlist — both app origins.
-            env: { PORT: String(API_PORT), CLIENT_URL: `${BASE_URL},${CUSTOMER_URL}` },
+            // Online payments on for the API (no seeded business is approved,
+            // so nothing else asks for payment) with a stand-in Cloudinary
+            // account: the browser's uploads to it are intercepted in the spec.
+            env: {
+                PORT: String(API_PORT), CLIENT_URL: `${BASE_URL},${CUSTOMER_URL}`,
+                PAYMENTS_ENABLED: 'true', CLOUDINARY_URL: 'cloudinary://e2ekey:e2esecret@e2e-cloud',
+            },
         },
         {
             command: `npx vite --port ${BUSINESS_PORT} --strictPort`,
@@ -63,6 +69,8 @@ module.exports = defineConfig({
             env: {
                 VITE_API_URL: `http://localhost:${API_PORT}`,
                 VITE_CUSTOMER_URL: CUSTOMER_URL,
+                // Shows Account → Online payments before the feature is switched on.
+                VITE_PAYMENTS_PREVIEW: 'true',
             },
         },
         {

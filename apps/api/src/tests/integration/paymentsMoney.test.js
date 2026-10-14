@@ -20,7 +20,7 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const Payout = require('../../models/Payout');
 const payments = require('../../services/paymentService');
-const { makeProvider, makeUser, makeFinanceAdmin, makeAdmin, makeService, authHeader, financeHeader } = require('../helpers/factories');
+const { makeProvider, makeUser, makeFinanceAdmin, makeAdmin, makeService, authHeader, financeHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { createFakePaygate } = require('../helpers/fakePaygate');
 
@@ -33,8 +33,8 @@ afterEach(async () => { gw.reset(); await testDb.clearDatabase(); });
 const ACCOUNT = { accountHolder: 'Vibe Cuts CC', bankName: 'Bank Windhoek', branchCode: '483872', accountNumber: '8004 123 4821' };
 
 const world = async () => {
-    const owner = await makeProvider({ businessProfile: { businessName: 'Vibe Cuts', currency: 'NAD' }, paymentSettings: { mode: 'full' } });
-    const otherOwner = await makeProvider({ businessProfile: { businessName: 'Other', currency: 'NAD' } });
+    const owner = await makeProvider({ businessProfile: { businessName: 'Vibe Cuts', currency: 'NAD' }, paymentSettings: { mode: 'full' }, paymentsApproval: { ...APPROVED_FOR_PAYMENTS } });
+    const otherOwner = await makeProvider({ businessProfile: { businessName: 'Other', currency: 'NAD' }, paymentsApproval: { ...APPROVED_FOR_PAYMENTS } });
     const staff = await makeUser({ role: 'staff', staffOf: owner._id, name: 'Sam Staff' });
     const client = await makeUser({ name: 'Ana Shilongo' });
     const admin = await makeFinanceAdmin();

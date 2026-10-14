@@ -15,7 +15,7 @@ jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn()
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const User = require('../../models/User');
-const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, authHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { refreshCookieOf } = require('../helpers/cookies');
 const { createFakePaygate } = require('../helpers/fakePaygate');
@@ -181,6 +181,7 @@ describe('paying online needs a confirmed email', () => {
         const provider = await makeProvider({
             businessProfile: { businessName: 'Vibe Cuts', currency: 'NAD' },
             paymentSettings: { mode: 'full' },
+            paymentsApproval: { ...APPROVED_FOR_PAYMENTS },
         });
         const service = await makeService(provider._id, { price: 200, duration: 30 });
         const customer = await makeUser({ isVerified: false });

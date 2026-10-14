@@ -451,4 +451,209 @@ const decide = (approve) => async (req, res) => {
 exports.approveRequest = decide(true);
 exports.rejectRequest = decide(false);
 
+/* ───────────────────────────── business approvals ───────────────────────────── */
+
+const approvalRules = require('../services/paymentsApproval');
+const cloudinary = require('../utils/cloudinary');
+const { createNotification } = require('../utils/notificationhelper');
+
+const approvalRow = (u) => ({
+    _id: u._id,
+    name: u.name,
+    email: u.email,
+    businessName: u.businessProfile?.businessName || '',
+    status: approvalRules.statusOf(u.paymentsApproval),
+    plan: u.paymentsApproval?.plan || null,
+    submittedAt: u.paymentsApproval?.submittedAt || null,
+    decidedAt: u.paymentsApproval?.decidedAt || null,
+    takingPayments: approvalRules.canTakePayments(u.paymentsApproval),
+    adminOff: !!u.paymentsApproval?.adminOff,
+    payoutAccountReviewNeeded: !!u.paymentsApproval?.payoutAccountReviewNeeded,
+});
+
+// GET /api/admin/finance/approvals?status=submitted (default: waiting for Bookplus)
+exports.listApprovals = async (req, res) => {
+    try {
+        const status = String(req.query.status || 'waiting');
+        const q = { role: 'provider', paymentsApproval: { $exists: true } };
+        if (status === 'waiting') q.$or = [{ 'paymentsApproval.status': 'submitted' }, { 'paymentsApproval.payoutAccountReviewNeeded': true }];
+        else if (approvalRules.STATUSES.includes(status)) q['paymentsApproval.status'] = status;
+        const rows = await User.find(q).select('+paymentsApproval name email businessProfile.businessName')
+            .sort({ 'paymentsApproval.submittedAt': 1 }).limit(200).lean();
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, data: rows.map(approvalRow) });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
+};
+
+const loadBusiness = (id) => User.findOne({ _id: id, role: 'provider' })
+    .select('+paymentsApproval +payoutAccount name email phone businessProfile.businessName businessProfile.address createdAt isActive pricing');
+
+// GET /api/admin/finance/approvals/:id — everything a reviewer needs
+exports.getApproval = async (req, res) => {
+    try {
+        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
+        const u = await loadBusiness(req.params.id).lean();
+        if (!u || !u.paymentsApproval) return fail(res, 404, 'No application from this business');
+        // The full ID and bank account numbers are shown here: who looked is recorded.
+        await recordFinance({ actor: req.user, action: 'approval.view', provider: u._id });
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            success: true,
+            data: {
+                ...approvalRow(u),
+                phone: u.phone || '',
+                address: u.businessProfile?.address || '',
+                accountCreatedAt: u.createdAt,
+                suspended: u.isActive === false,
+                application: approvalRules.reviewView(u.paymentsApproval),
+                missing: approvalRules.missingFor(u.paymentsApproval, { hasPayoutAccount: payments.hasPayoutAccount(u.payoutAccount) }),
+                // The full account number: the reviewer matches it against the bank letter.
+                payoutAccount: payments.publicPayoutAccount(u.payoutAccount, { full: true }),
+                pricing: u.pricing || null,
+            },
+        });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
+};
+
+// GET /api/admin/finance/approvals/:id/documents/:docId — a link that works for 5 minutes
+exports.getApprovalDocument = async (req, res) => {
+    try {
+        if (!isId(req.params.id) || !isId(req.params.docId)) return fail(res, 404, 'Document not found');
+        const u = await User.findOne({ _id: req.params.id, role: 'provider' }).select('+paymentsApproval').lean();
+        const doc = (u?.paymentsApproval?.documents || []).find((d) => String(d._id) === String(req.params.docId));
+        if (!doc) return fail(res, 404, 'Document not found');
+        if (!cloudinary.isConfigured()) return fail(res, 503, 'Documents can not be opened right now (file storage is not set up).', 'uploads_unavailable');
+        await recordFinance({ actor: req.user, action: 'approval.document_view', provider: u._id, reference: doc.kind });
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            success: true,
+            data: {
+                url: cloudinary.privateDownloadUrl({ publicId: doc.publicId, format: doc.format, resourceType: doc.resourceType, type: doc.deliveryType }),
+                expiresInSeconds: cloudinary.PROOF_LINK_SECONDS,
+                kind: doc.format === 'pdf' || doc.resourceType === 'raw' ? 'pdf' : 'image',
+            },
+        });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
+};
+
+const DECISIONS = { approve: 'approved', reject: 'rejected', request_info: 'info_requested' };
+const DECISION_MESSAGES = {
+    approved: 'Bookplus approved your business for online payments. Switch them on in Online payments when you are ready.',
+    rejected: 'Bookplus could not approve your business for online payments. See Online payments for why.',
+    info_requested: 'Bookplus needs a little more for your online payments application. See Online payments.',
+};
+
+// POST /api/admin/finance/approvals/:id/decision { decision: approve|reject|request_info, note }
+exports.decideApproval = async (req, res) => {
+    try {
+        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
+        const to = DECISIONS[req.body?.decision];
+        if (!to) return fail(res, 400, 'decision must be approve, reject or request_info');
+        const note = String(req.body?.note || '').trim().slice(0, 1000);
+        if (to !== 'approved' && !note) return fail(res, 400, 'Tell the business why, or what else is needed', 'reason_required');
+        const u = await loadBusiness(req.params.id);
+        if (!u || !u.paymentsApproval) return fail(res, 404, 'No application from this business');
+        if (approvalRules.statusOf(u.paymentsApproval) !== 'submitted') return fail(res, 409, 'Only an application waiting for Bookplus can be decided', 'not_submitted');
+        if (to === 'approved') {
+            const missing = approvalRules.missingFor(u.paymentsApproval, { hasPayoutAccount: payments.hasPayoutAccount(u.payoutAccount) });
+            if (missing.length) return res.status(409).json({ success: false, code: 'incomplete', message: 'The application is missing something', missing });
+        }
+        const now = new Date();
+        const set = {
+            'paymentsApproval.status': to, 'paymentsApproval.decidedAt': now,
+            'paymentsApproval.decidedBy': req.user._id, 'paymentsApproval.decisionNote': note,
+        };
+        const docs = u.paymentsApproval.documents || [];
+        if (to === 'approved') {
+            // The business gets its chosen plan at today's rates (kept until
+            // it is moved on purpose: setBusinessPricing).
+            const settings = await pricing.getSettings();
+            const plan = u.paymentsApproval.plan;
+            const p = settings.plans[plan];
+            Object.assign(set, {
+                'pricing.plan': plan,
+                'pricing.rates': { commissionBps: p.commissionBps, fixedFeeCents: p.fixedFeeCents },
+                'pricing.pricingVersion': settings.version,
+                'pricing.planAssignedAt': now,
+                'paymentsApproval.switchOn': false,
+                'paymentsApproval.payoutAccountReviewNeeded': false,
+            });
+        }
+        if (to === 'rejected') set['paymentsApproval.documents'] = []; // deleted below, as the Privacy Policy says
+        // Claim it atomically: two reviewers can't both decide it.
+        const r = await User.updateOne(
+            { _id: u._id, 'paymentsApproval.status': 'submitted' },
+            { $set: set, $push: { 'paymentsApproval.history': { status: to, at: now, by: req.user._id, note } } },
+        );
+        if (r.modifiedCount !== 1) return fail(res, 409, 'Someone else decided it first', 'already_decided');
+        await recordFinance({
+            actor: req.user, action: `approval.${req.body.decision}`, provider: u._id, reason: note,
+            reference: u.paymentsApproval.plan, approvalStatus: to === 'approved' ? 'approved' : to === 'rejected' ? 'rejected' : 'pending',
+            // What the approval set: the plan's rates at that moment, and what was there before.
+            details: to === 'approved'
+                ? { pricingBefore: u.pricing || null, pricingAfter: { plan: set['pricing.plan'], rates: set['pricing.rates'], pricingVersion: set['pricing.pricingVersion'] } }
+                : null,
+        });
+        if (to === 'rejected') {
+            const { destroyVerificationFiles } = require('../utils/accountData');
+            destroyVerificationFiles(u._id, docs).catch(() => {});
+        }
+        createNotification(u._id, DECISION_MESSAGES[to], 'system', '/account?section=payments').catch(() => {});
+        const fresh = await loadBusiness(u._id).lean();
+        res.json({ success: true, data: { ...approvalRow(fresh), application: approvalRules.reviewView(fresh.paymentsApproval) } });
+    } catch (err) {
+        logger.error({ err: err.message }, 'approval decision failed');
+        fail(res, 500, 'Internal server error');
+    }
+};
+
+// POST /api/admin/finance/approvals/:id/switch { off: true|false, reason } — Bookplus's override
+exports.setApprovalSwitch = async (req, res) => {
+    try {
+        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
+        const off = req.body?.off;
+        if (typeof off !== 'boolean') return fail(res, 400, 'off must be true or false');
+        const reason = String(req.body?.reason || '').trim().slice(0, 500);
+        if (!reason) return fail(res, 400, 'Say why', 'reason_required');
+        const u = await User.findOne({ _id: req.params.id, role: 'provider', paymentsApproval: { $exists: true } }).select('_id');
+        if (!u) return fail(res, 404, 'No application from this business');
+        await User.updateOne({ _id: u._id }, {
+            $set: { 'paymentsApproval.adminOff': off, 'paymentsApproval.adminOffReason': off ? reason : '' },
+            $push: { 'paymentsApproval.history': { status: off ? 'switched_off_by_bookplus' : 'switch_released_by_bookplus', at: new Date(), by: req.user._id, note: reason } },
+        });
+        await recordFinance({ actor: req.user, action: off ? 'payments.admin_off' : 'payments.admin_on', provider: u._id, reason });
+        if (off) createNotification(u._id, `Bookplus switched online payments off for your business: ${reason}`, 'system', '/account?section=payments').catch(() => {});
+        res.json({ success: true });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
+};
+
+// POST /api/admin/finance/approvals/:id/payout-account-checked { note, accountUpdatedAt }
+// — the new bank account is genuine. accountUpdatedAt is the version the
+// reviewer looked at: if the business changed it again since, nothing is confirmed.
+exports.confirmPayoutAccount = async (req, res) => {
+    try {
+        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
+        const note = String(req.body?.note || '').trim().slice(0, 500);
+        if (!note) return fail(res, 400, 'Say how it was checked (e.g. new bank letter, call to the owner)', 'reason_required');
+        const seen = new Date(req.body?.accountUpdatedAt || '');
+        if (Number.isNaN(seen.getTime())) return fail(res, 400, 'Say which version of the account was checked', 'account_version_required');
+        const u = await User.findOne({ _id: req.params.id, role: 'provider' }).select('+payoutAccount +paymentsApproval').lean();
+        if (!u?.paymentsApproval?.payoutAccountReviewNeeded) return fail(res, 409, 'There is no new bank account waiting to be checked', 'nothing_to_check');
+        const current = u.payoutAccount?.updatedAt ? new Date(u.payoutAccount.updatedAt) : null;
+        if (!current || current.getTime() !== seen.getTime()) {
+            return fail(res, 409, 'The bank account changed again since you opened it. Reload and check the new one.', 'account_changed');
+        }
+        const r = await User.updateOne(
+            { _id: u._id, 'paymentsApproval.payoutAccountReviewNeeded': true, 'payoutAccount.updatedAt': current },
+            { $set: { 'paymentsApproval.payoutAccountReviewNeeded': false } },
+        );
+        if (r.modifiedCount !== 1) return fail(res, 409, 'The bank account changed again since you opened it. Reload and check the new one.', 'account_changed');
+        await recordFinance({
+            actor: req.user, action: 'payout_account.confirm', provider: u._id, reason: note,
+            details: { account: payments.publicPayoutAccount(u.payoutAccount) },
+        });
+        res.json({ success: true });
+    } catch (err) { fail(res, 500, 'Internal server error'); }
+};
+
 exports._test = { EDITABLE, launchChecklist, hasFinanceRole, flatten };

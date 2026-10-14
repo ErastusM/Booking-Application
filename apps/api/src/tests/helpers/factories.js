@@ -129,3 +129,7 @@ exports.makeFinanceAdmin = async (overrides = {}) => {
 exports.financeHeader = (user, mfaAt = Math.floor(Date.now() / 1000)) => ({
     Authorization: `Bearer ${generateToken(user._id, user.tokenVersion || 0, { mfa: true, mfaAt })}`,
 });
+
+// A business Bookplus approved for online payments, with its switch on
+// (services/paymentsApproval.canTakePayments). Spread into makeProvider.
+exports.APPROVED_FOR_PAYMENTS = Object.freeze({ status: 'approved', plan: 'standard', switchOn: true });

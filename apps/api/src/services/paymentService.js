@@ -26,6 +26,7 @@ const Payout = require('../models/Payout');
 const User = require('../models/User');
 const paygate = require('./paygate');
 const pricing = require('./pricing');
+const { canTakePayments } = require('./paymentsApproval');
 const { paymentsEnabled } = require('../constants/features');
 const { primaryOrigin } = require('../utils/origins');
 const { withLock, withBookingLock } = require('../utils/lock');
@@ -146,8 +147,11 @@ const planFor = ({ settings, currency, priceCents }) => {
 /** The plan for a booking of `price` (N$) with this business. */
 const planForBooking = async (providerId, price) => {
     if (!paymentsEnabled() || !providerId) return null;
-    const provider = await User.findById(providerId).select('paymentSettings businessProfile.currency').lean();
+    const provider = await User.findById(providerId).select('paymentSettings businessProfile.currency +paymentsApproval').lean();
     if (!provider) return null;
+    // Only a business Bookplus approved, with its own switch on and not
+    // switched off by Bookplus, asks for payment online.
+    if (!canTakePayments(provider.paymentsApproval)) return null;
     // Below Bookplus's minimum online booking value (PlatformSettings), the
     // fees would eat the booking: it is paid at the appointment instead.
     const { minOnlineBookingCents } = await pricing.getSettings();
@@ -346,6 +350,16 @@ const balanceSummary = async (providerId) => {
             ? { amountCents: lastPayout.amountCents, paidAt: lastPayout.paidAt, reference: lastPayout.reference || '' }
             : null,
     };
+};
+
+/**
+ * Money still open between Bookplus and a business: a balance either way, or
+ * refunds on their way. While there is any, the business account can't be
+ * deleted (its payout bank account and records are needed to settle it).
+ */
+const outstandingFor = async (providerId) => {
+    const { balanceOwedCents, refundsPendingCents } = await balanceSummary(providerId);
+    return { balanceOwedCents, refundsPendingCents, open: balanceOwedCents !== 0 || refundsPendingCents > 0 };
 };
 
 /* ───────────────────────────── notify payload hygiene ───────────────────────────── */
@@ -781,6 +795,13 @@ const retryCheckout = async (reference) => {
     if (!appt.paymentHoldExpiresAt || appt.paymentHoldExpiresAt.getTime() <= Date.now()) {
         return { ok: false, status: 409, code: 'hold_expired', message: 'The time to pay for this booking has run out. Please book again.' };
     }
+    // Bookplus (or the business) switched online payments off since the hold
+    // was made: no new card session. The slot is let go.
+    const provider = await User.findById(appt.provider).select('+paymentsApproval').lean();
+    if (!canTakePayments(provider?.paymentsApproval)) {
+        await releaseHold(appt._id, { reason: 'payments_off', paymentStatus: 'cancelled', source: 'retry' });
+        return { ok: false, status: 409, code: 'payments_off', message: 'This business is not taking online payments right now. Please book again; you can pay at the appointment.' };
+    }
     const attempts = await Payment.countDocuments({ appointment: appt._id });
     if (attempts >= MAX_ATTEMPTS_PER_BOOKING) {
         return { ok: false, status: 429, code: 'too_many_attempts', message: 'Too many payment attempts for this booking. Please book again.' };
@@ -893,8 +914,11 @@ const startPaymentHoldJob = () => {
  */
 const recordPayout = async ({ providerId, amountCents, reference = '', note = '', paidAt, adminId, allowOverdraw = false, allowMissingAccount = false }) => {
     if (!Number.isInteger(amountCents) || amountCents <= 0) return { ok: false, status: 400, message: 'amountCents must be a whole number of cents above 0' };
-    const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('+payoutAccount name').lean();
+    const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('+payoutAccount +paymentsApproval name').lean();
     if (!provider) return { ok: false, status: 404, message: 'Business not found' };
+    if (provider.paymentsApproval?.payoutAccountReviewNeeded) {
+        return { ok: false, status: 409, code: 'payout_account_unchecked', message: 'This business changed its bank account. Confirm the new account (Money, Business approvals) before paying into it.' };
+    }
     const hasAccount = hasPayoutAccount(provider.payoutAccount);
     if (!hasAccount && !allowMissingAccount) {
         return { ok: false, status: 409, code: 'payout_account_missing', message: 'This business has not added a payout bank account.' };
@@ -928,7 +952,7 @@ module.exports = {
     toCents, formatCents, newReference,
     settingsOf, validateSettings, planFor, planForBooking,
     maskAccountNumber, validatePayoutAccount, hasPayoutAccount, publicPayoutAccount,
-    balanceOf, balanceSummary, monthStart, writeEntry,
+    balanceOf, balanceSummary, outstandingFor, monthStart, writeEntry,
     sanitizeNotify, applyQueryResult, syncPayment, ensurePaidEffects,
     PaymentStartError, startSession, checkoutPayload, retryCheckout,
     requestRefund, retryRefund, refundBooking, releaseHold, onAppointmentCancelled,

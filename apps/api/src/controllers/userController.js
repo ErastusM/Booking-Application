@@ -131,6 +131,13 @@ exports.deleteUser = async (req, res) => {
             return res.status(400).json({ success: false, code: 'delete_team_login', message: 'This is a team member’s login. Their business removes it from Team.' });
         }
 
+        if (user.role === 'provider') {
+            const o = await require('../services/paymentService').outstandingFor(user._id);
+            if (o.open) {
+                return res.status(409).json({ success: false, code: 'balance_outstanding', message: `Bookplus still ${o.balanceOwedCents < 0 ? 'has to recover' : 'owes'} N$${(Math.abs(o.balanceOwedCents) / 100).toFixed(2)}${o.refundsPendingCents ? ` and has refunds on their way` : ''} for online payments. That is settled first; pay it out (or recover it) and wait for refunds before deleting the business.` });
+            }
+        }
+
         let summary = {};
         if (user.role === 'provider') summary = await removeBusinessData(user._id, req.user._id);
         else summary = await keepClientNameOnBookings(user);

@@ -24,7 +24,7 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const Notification = require('../../models/Notification');
 const payments = require('../../services/paymentService');
-const { makeProvider, makeUser, makeAdmin, makeService, authHeader } = require('../helpers/factories');
+const { makeProvider, makeUser, makeAdmin, makeService, authHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { createFakePaygate } = require('../helpers/fakePaygate');
 
@@ -45,7 +45,7 @@ afterEach(async () => { gw.reset(); jest.clearAllMocks(); await testDb.clearData
 
 describe('payments switched off', () => {
     it('a client booking at a business set to "full" is confirmed at once, as today — no hold, no PayGate, the usual notices', async () => {
-        const provider = await makeProvider({ businessProfile: { currency: 'NAD' }, paymentSettings: { mode: 'full' } });
+        const provider = await makeProvider({ businessProfile: { currency: 'NAD' }, paymentSettings: { mode: 'full' }, paymentsApproval: { ...APPROVED_FOR_PAYMENTS } });
         const service = await makeService(provider._id, { price: 200, duration: 30 });
         const client = await makeUser({ name: 'Ana Shilongo' });
 
@@ -96,6 +96,14 @@ describe('payments switched off', () => {
             request(app).get('/api/payments/me/statement.csv'),
             request(app).get('/api/payments/me/payments'),
             request(app).post('/api/payments/507f1f77bcf86cd799439011/refund').send({}),
+            // Applying to take online payments.
+            request(app).get('/api/payments/onboarding'),
+            request(app).put('/api/payments/onboarding').send({ plan: 'basic' }),
+            request(app).post('/api/payments/onboarding/upload'),
+            request(app).post('/api/payments/onboarding/documents').send({}),
+            request(app).delete('/api/payments/onboarding/documents/507f1f77bcf86cd799439011'),
+            request(app).post('/api/payments/onboarding/submit').send({ acceptTerms: true }),
+            request(app).put('/api/payments/onboarding/switch').send({ on: true }),
         ];
         for (const r of asOwner) expect((await r.set(authHeader(provider))).status).toBe(404);
         const asAdmin = [

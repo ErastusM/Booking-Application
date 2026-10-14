@@ -19,6 +19,10 @@ const crypto = require('crypto');
 
 const PROOF_FOLDER = 'bookplus/proofs';
 const PROOF_FORMATS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'pdf'];
+// A business's documents for online payments (ID, company registration, bank
+// letter): the same private delivery as proofs, in their own folder.
+const VERIFY_FOLDER = 'bookplus/verification';
+const VERIFY_FORMATS = ['jpg', 'jpeg', 'png', 'pdf'];
 const PROOF_TYPE = 'authenticated';
 // How long a signed proof link works. Long enough to open it, short enough that a
 // forwarded or logged link is dead almost at once.
@@ -60,13 +64,13 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
  * folder, allowed formats) is covered by the signature, so the browser cannot
  * change it into a public upload or drop the file somewhere else.
  */
-const proofUploadParams = (userId) => {
+const privateUploadParams = (userId, root = PROOF_FOLDER, formats = PROOF_FORMATS) => {
     const c = config();
     const params = {
         timestamp: nowSeconds(),
         type: PROOF_TYPE,
-        folder: `${PROOF_FOLDER}/${userId}`,
-        allowed_formats: PROOF_FORMATS.join(','),
+        folder: `${root}/${userId}`,
+        allowed_formats: formats.join(','),
     };
     return {
         cloudName: c.cloudName,
@@ -82,17 +86,21 @@ const proofUploadParams = (userId) => {
  * uploader's own proof folder, of an allowed kind, is accepted — so nobody can
  * attach someone else's proof (or an arbitrary public URL) to their top-up.
  */
-const cleanProofRef = (ref, userId) => {
+const cleanPrivateRef = (ref, userId, root = PROOF_FOLDER, formats = PROOF_FORMATS) => {
     if (!ref || typeof ref !== 'object') return null;
     const publicId = typeof ref.publicId === 'string' ? ref.publicId : '';
     const resourceType = ref.resourceType === 'raw' ? 'raw' : ref.resourceType === 'image' ? 'image' : null;
     const format = typeof ref.format === 'string' ? ref.format.toLowerCase() : '';
     if (!resourceType || !publicId || publicId.length > 300) return null;
-    if (!publicId.startsWith(`${PROOF_FOLDER}/${userId}/`)) return null;
+    if (!publicId.startsWith(`${root}/${userId}/`)) return null;
     if (!/^[A-Za-z0-9_\-/.]+$/.test(publicId) || publicId.includes('..')) return null;
-    if (format && !PROOF_FORMATS.includes(format)) return null;
+    if (format && !formats.includes(format)) return null;
     return { publicId, resourceType, format, deliveryType: PROOF_TYPE };
 };
+const proofUploadParams = (userId) => privateUploadParams(userId, PROOF_FOLDER, PROOF_FORMATS);
+const cleanProofRef = (ref, userId) => cleanPrivateRef(ref, userId, PROOF_FOLDER, PROOF_FORMATS);
+const verificationUploadParams = (userId) => privateUploadParams(userId, VERIFY_FOLDER, VERIFY_FORMATS);
+const cleanVerificationRef = (ref, userId) => cleanPrivateRef(ref, userId, VERIFY_FOLDER, VERIFY_FORMATS);
 
 /**
  * A short-lived, signed download link for a private/authenticated asset (the
@@ -176,6 +184,31 @@ const assetExists = async ({ publicId, resourceType = 'image', type = PROOF_TYPE
     return res.ok;
 };
 
+/**
+ * Delete every private (authenticated) file under a folder prefix, images and
+ * PDFs/raw alike (Admin API, basic auth). Catches files that were uploaded but
+ * never attached to anything. Best effort; returns how many requests succeeded.
+ */
+const destroyByPrefix = async (prefix) => {
+    const c = config();
+    if (!isConfigured() || typeof prefix !== 'string' || !prefix.endsWith('/') || prefix.split('/').length < 3) return 0;
+    let ok = 0;
+    for (const resourceType of ['image', 'raw']) {
+        try {
+            const res = await fetch(
+                `https://api.cloudinary.com/v1_1/${c.cloudName}/resources/${resourceType}/${PROOF_TYPE}?prefix=${encodeURIComponent(prefix)}`,
+                {
+                    method: 'DELETE',
+                    headers: { Authorization: `Basic ${Buffer.from(`${c.apiKey}:${c.apiSecret}`).toString('base64')}` },
+                    signal: AbortSignal.timeout(20000),
+                },
+            );
+            if (res.ok) ok += 1;
+        } catch { /* best effort */ }
+    }
+    return ok;
+};
+
 /** Delete one asset (best effort, e.g. on account deletion). */
 const destroy = ({ publicId, resourceType = 'image', type = 'upload' }) =>
     signedPost(`${resourceType}/destroy`, { public_id: publicId, type, invalidate: 'true' });
@@ -188,11 +221,16 @@ module.exports = {
     config,
     isConfigured,
     signParams,
+    VERIFY_FOLDER,
+    VERIFY_FORMATS,
     proofUploadParams,
     cleanProofRef,
+    verificationUploadParams,
+    cleanVerificationRef,
     privateDownloadUrl,
     parseDeliveryUrl,
     makeAuthenticated,
     assetExists,
     destroy,
+    destroyByPrefix,
 };

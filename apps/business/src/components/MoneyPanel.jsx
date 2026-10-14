@@ -307,7 +307,7 @@ const Settings = ({ data, isDirector, onSaved, onLocked }) => {
                                 <div key={p}>
                                     {k === 'bool' ? (
                                         <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.88rem' }}>
-                                            <input type="checkbox" checked={!!form[p]} onChange={(e) => setForm((f) => ({ ...f, [p]: e.target.checked }))} /> {l}
+                                            <input type="checkbox" checked={!!form[p]} onChange={(e) => setForm((f) => ({ ...f, [p]: e.target.checked }))} style={{ accentColor: 'var(--gold)' }} /> {l}
                                         </label>
                                     ) : (
                                         <>
@@ -437,6 +437,219 @@ const Launch = ({ launch, isDirector, onChanged, onLocked }) => {
                     </li>
                 ))}
             </ul>
+        </div>
+    );
+};
+
+/* ───────────────────────── businesses applying for online payments ───────────────────────── */
+
+const APPLICATION_STATUS = {
+    draft: 'Not sent', submitted: 'Waiting for review', info_requested: 'Asked for more', approved: 'Approved', rejected: 'Rejected',
+};
+const DOC_LABEL = { owner_id: 'Owner\'s ID or passport', registration: 'Company registration', bank_letter: 'Bank confirmation letter', other: 'Other document' };
+const TYPE_LABEL = { sole_trader: 'Sole trader', cc: 'Close corporation (CC)', company: 'Company (Pty) Ltd', other: 'Other' };
+const MISSING_LABEL = {
+    plan: 'plan', businessType: 'kind of business', registeredName: 'registered name', registrationNumber: 'registration number',
+    ownerName: 'owner\'s name', ownerIdNumber: 'ID number', doc_owner_id: 'ID document', doc_registration: 'registration document',
+    doc_bank_letter: 'bank letter', payoutAccount: 'bank account',
+};
+
+const Row = ({ k, v }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(7rem, 38%) 1fr', gap: '0.5rem', fontSize: '0.86rem', padding: '0.3rem 0', borderTop: '1px solid var(--border)' }}>
+        <span style={{ color: 'var(--text-muted)' }}>{k}</span>
+        <span style={{ overflowWrap: 'anywhere', color: 'var(--charcoal)' }}>{v || '—'}</span>
+    </div>
+);
+
+const ApplicationReview = ({ id, onChanged, onLocked }) => {
+    const toast = useToast();
+    const [a, setA] = useState(null);
+    const [note, setNote] = useState('');
+    const [acting, setActing] = useState(null); // 'request_info' | 'reject' | 'switch' | 'bank'
+    const [busy, setBusy] = useState(false);
+    const load = useCallback(async () => {
+        try { setA((await financeService.getApproval(id)).data.data); } catch (err) {
+            if (err?.response?.data?.code === 'mfa_required') onLocked();
+            toast(apiError(err, 'Could not load the application.'), 'error');
+        }
+    }, [id, onLocked, toast]);
+    useEffect(() => { load(); }, [load]);
+
+    const openDoc = async (doc) => {
+        // Open the tab first (inside the click) so the browser doesn't block
+        // it, cut its link back to this page, then point it at the document.
+        // ('noopener' would make window.open return null, losing the tab.)
+        const tab = window.open('about:blank', '_blank');
+        if (!tab) { toast('Allow pop-ups for this site to open documents.', 'error'); return; }
+        tab.opener = null;
+        try {
+            const { url } = (await financeService.getApprovalDocument(id, doc._id)).data.data;
+            tab.location.href = url;
+        } catch (err) {
+            if (tab) tab.close();
+            toast(apiError(err, 'Could not open the document.'), 'error');
+        }
+    };
+    const act = async (fn, ok) => {
+        setBusy(true);
+        try {
+            await fn();
+            toast(ok, 'success');
+            setActing(null); setNote('');
+            await load();
+            onChanged();
+        } catch (err) {
+            if (err?.response?.data?.code === 'mfa_required') onLocked();
+            toast(apiError(err, 'That did not work.'), 'error');
+        }
+        setBusy(false);
+    };
+
+    if (!a) return <p style={muted}>Loading…</p>;
+    const app = a.application;
+    const acct = a.payoutAccount || {};
+    const noteBox = (placeholder, button, onGo) => (
+        <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder={placeholder} aria-label={placeholder}
+                style={{ ...input, resize: 'vertical', fontFamily: 'var(--font-body)' }} />
+            <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr 1fr' }}>
+                <button type="button" className="btn-outline" style={{ width: '100%' }} onClick={() => { setActing(null); setNote(''); }}>Cancel</button>
+                <button type="button" className="btn-primary" style={{ width: '100%' }} disabled={busy || !note.trim()} onClick={onGo}>{button}</button>
+            </div>
+        </div>
+    );
+    return (
+        <div style={{ display: 'grid', gap: '0.9rem', marginTop: '0.75rem', gridTemplateColumns: 'minmax(0, 1fr)', overflowWrap: 'anywhere' }} data-testid="application-review">
+            <div>
+                <p style={{ ...h3, marginBottom: '0.25rem' }}>Business</p>
+                <Row k="Business" v={a.businessName} />
+                <Row k="Account" v={`${a.name}, ${a.email}${a.phone ? `, ${a.phone}` : ''}`} />
+                <Row k="Address" v={a.address} />
+                <Row k="On Bookplus since" v={a.accountCreatedAt ? new Date(a.accountCreatedAt).toLocaleDateString('en-NA') : ''} />
+                <Row k="Plan chosen" v={app.plan ? app.plan[0].toUpperCase() + app.plan.slice(1) : ''} />
+            </div>
+            <div>
+                <p style={{ ...h3, marginBottom: '0.25rem' }}>Legal details</p>
+                <Row k="Kind" v={TYPE_LABEL[app.legal.businessType]} />
+                <Row k="Registered name" v={app.legal.registeredName} />
+                {app.legal.businessType !== 'sole_trader' && <Row k="Registration number" v={app.legal.registrationNumber} />}
+                <Row k="Owner" v={app.legal.ownerName} />
+                <Row k="ID or passport" v={app.legal.ownerIdNumber} />
+            </div>
+            <div>
+                <p style={{ ...h3, marginBottom: '0.25rem' }}>Bank account for payouts</p>
+                <Row k="Holder" v={acct.accountHolder} />
+                <Row k="Bank" v={acct.bankName} />
+                <Row k="Branch code" v={acct.branchCode} />
+                <Row k="Account number" v={acct.accountNumber} />
+                {a.payoutAccountReviewNeeded && <p style={{ ...muted, color: '#991b1b', marginTop: '0.35rem' }}>Changed after approval: payouts are held until it is checked.</p>}
+            </div>
+            <div>
+                <p style={{ ...h3, marginBottom: '0.4rem' }}>Documents</p>
+                {app.documents.length ? (
+                    <div style={{ display: 'grid', gap: '0.4rem' }}>
+                        {app.documents.map((doc) => (
+                            <div key={doc._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                                <span style={{ fontSize: '0.86rem', minWidth: 0, overflowWrap: 'anywhere' }}>{DOC_LABEL[doc.kind] || doc.kind}{doc.name ? ` (${doc.name})` : ''}</span>
+                                <button type="button" className="btn-outline" style={{ fontSize: '0.78rem', padding: '0.3rem 0.75rem', flexShrink: 0 }} onClick={() => openDoc(doc)}>Open</button>
+                            </div>
+                        ))}
+                        <p style={{ ...muted, fontSize: '0.78rem' }}>Each link works for 5 minutes. Opening one is recorded in the audit log.</p>
+                    </div>
+                ) : <p style={muted}>None (deleted when an application is rejected).</p>}
+            </div>
+            {a.missing?.length > 0 && <p style={{ ...muted, color: '#991b1b' }}>Missing: {a.missing.map((m) => MISSING_LABEL[m] || m).join(', ')}</p>}
+
+            {a.status === 'submitted' && (
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    {!acting && (
+                        <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 8rem), 1fr))' }}>
+                            <button type="button" className="btn-primary" style={{ width: '100%' }} disabled={busy || a.missing?.length > 0}
+                                onClick={() => act(() => financeService.decideApproval(id, 'approve'), 'Approved')}>Approve</button>
+                            <button type="button" className="btn-outline" style={{ width: '100%' }} onClick={() => setActing('request_info')}>Ask for more</button>
+                            <button type="button" className="btn-outline" style={{ width: '100%' }} onClick={() => setActing('reject')}>Reject</button>
+                        </div>
+                    )}
+                    {acting === 'request_info' && noteBox('What else is needed (the business sees this)', 'Send', () => act(() => financeService.decideApproval(id, 'request_info', note.trim()), 'Sent to the business'))}
+                    {acting === 'reject' && (
+                        <>
+                            <p style={{ ...muted, color: '#991b1b' }}>Rejecting deletes the documents the business sent.</p>
+                            {noteBox('Why it is rejected (the business sees this)', 'Reject', () => act(() => financeService.decideApproval(id, 'reject', note.trim()), 'Rejected'))}
+                        </>
+                    )}
+                </div>
+            )}
+            {a.status === 'approved' && (
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    <p style={muted}>{a.adminOff ? 'Switched off by Bookplus.' : a.takingPayments ? 'Taking online payments.' : 'Approved; the business has not switched online payments on.'}</p>
+                    {!acting && (
+                        <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))' }}>
+                            <button type="button" className="btn-outline" style={{ width: '100%' }} onClick={() => setActing('switch')}>{a.adminOff ? 'Allow online payments again' : 'Switch online payments off'}</button>
+                            {a.payoutAccountReviewNeeded && <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={() => setActing('bank')}>New bank account checked</button>}
+                        </div>
+                    )}
+                    {acting === 'switch' && noteBox('Why (recorded, and shown to the business when switched off)', a.adminOff ? 'Allow again' : 'Switch off',
+                        () => act(() => financeService.setApprovalSwitch(id, !a.adminOff, note.trim()), a.adminOff ? 'Allowed again' : 'Switched off'))}
+                    {acting === 'bank' && noteBox('How it was checked (e.g. new bank letter, called the owner)', 'Confirm',
+                        () => act(() => financeService.confirmPayoutAccount(id, note.trim(), acct.updatedAt), 'Bank account confirmed'))}
+                </div>
+            )}
+            {app.history?.length > 0 && (
+                <details>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>History</summary>
+                    <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6, overflowWrap: 'anywhere' }}>
+                        {app.history.map((h, i) => <li key={i}>{when(h.at)}: {APPLICATION_STATUS[h.status] || h.status.replace(/_/g, ' ')}{h.note ? `, ${h.note}` : ''}</li>)}
+                    </ul>
+                </details>
+            )}
+        </div>
+    );
+};
+
+const BusinessApprovals = ({ onLocked }) => {
+    const [filter, setFilter] = useState('waiting');
+    const [rows, setRows] = useState(null);
+    const [open, setOpen] = useState(null);
+    const load = useCallback(async () => {
+        try { setRows((await financeService.listApprovals(filter)).data.data); } catch (err) {
+            if (err?.response?.data?.code === 'mfa_required') onLocked();
+            setRows([]);
+        }
+    }, [filter, onLocked]);
+    useEffect(() => { setRows(null); load(); }, [load]);
+    return (
+        <div style={card} data-testid="business-approvals">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                <h3 style={{ ...h3, margin: 0 }}>Businesses applying for online payments</h3>
+                <select value={filter} onChange={(e) => { setFilter(e.target.value); setOpen(null); }} aria-label="Show" style={{ ...input, width: 'auto' }}>
+                    <option value="waiting">Waiting for Bookplus</option>
+                    <option value="info_requested">Asked for more</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+            {!rows ? <p style={muted}>Loading…</p> : !rows.length ? <p style={muted}>None.</p> : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {rows.map((r) => (
+                        <li key={r._id} style={{ borderTop: '1px solid var(--border)', padding: '0.7rem 0' }} data-testid="approval-row">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+                                <div style={{ minWidth: 0 }}>
+                                    <p style={{ margin: 0, fontWeight: 600, overflowWrap: 'anywhere' }}>{r.businessName || r.name}</p>
+                                    <p style={{ ...muted, fontSize: '0.8rem' }}>
+                                        {APPLICATION_STATUS[r.status] || r.status}{r.plan ? `, ${r.plan}` : ''}{r.submittedAt ? `, sent ${when(r.submittedAt)}` : ''}
+                                        {r.payoutAccountReviewNeeded ? ', new bank account to check' : ''}
+                                    </p>
+                                </div>
+                                <button type="button" className={open === r._id ? 'btn-primary' : 'btn-outline'} style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem', flexShrink: 0 }}
+                                    onClick={() => setOpen(open === r._id ? null : r._id)} aria-expanded={open === r._id}>
+                                    {open === r._id ? 'Close' : 'Review'}
+                                </button>
+                            </div>
+                            {open === r._id && <ApplicationReview id={r._id} onChanged={load} onLocked={onLocked} />}
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 };
@@ -601,7 +814,7 @@ const Admins = ({ me, isDirector, onLocked }) => {
                             <div style={{ display: 'flex', gap: '0.9rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                 {['finance', 'director'].map((role) => (
                                     <label key={role} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.85rem', textTransform: 'capitalize' }}>
-                                        <input type="checkbox" checked={a.roles.includes(role)} disabled={!isDirector} onChange={() => toggle(a, role)} /> {role}
+                                        <input type="checkbox" checked={a.roles.includes(role)} disabled={!isDirector} onChange={() => toggle(a, role)} style={{ accentColor: 'var(--gold)' }} /> {role}
                                     </label>
                                 ))}
                                 {isDirector && a.mfaEnabled && String(a._id) !== String(me) && resetting !== a._id && (
@@ -680,7 +893,13 @@ const MoneyPanel = () => {
                     <Settings data={data} isDirector={isDirector} onSaved={setData} onLocked={onLocked} />
                 </>
             )}
-            {view === 'approvals' && <Approvals me={me} isDirector={isDirector} onLocked={onLocked} />}
+            {view === 'approvals' && (
+                <>
+                    <BusinessApprovals onLocked={onLocked} />
+                    <h3 style={{ ...h3, margin: '0.25rem 0 0' }}>Refunds and adjustments</h3>
+                    <Approvals me={me} isDirector={isDirector} onLocked={onLocked} />
+                </>
+            )}
             {view === 'audit' && <Audit onLocked={onLocked} />}
             {view === 'admins' && <Admins me={me} isDirector={isDirector} onLocked={onLocked} />}
         </div>

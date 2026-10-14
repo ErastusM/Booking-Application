@@ -1,5 +1,5 @@
-const crypto = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { totp, adminWithTwoStep } = require('./helpers.cjs');
 
 const API = `http://localhost:${process.env.E2E_API_PORT || 5053}`;
 
@@ -9,33 +9,6 @@ const API = `http://localhost:${process.env.E2E_API_PORT || 5053}`;
  * the standard business login), and the code opens the console with the money
  * controls available for this session.
  */
-
-// What an authenticator app shows (RFC 6238: HMAC-SHA1, 30-second steps).
-const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-const totp = (secret, offset = 0) => {
-    let bits = 0; let value = 0; const bytes = [];
-    for (const ch of secret.replace(/\s/g, '')) {
-        value = (value << 5) | B32.indexOf(ch); bits += 5;
-        if (bits >= 8) { bytes.push((value >>> (bits - 8)) & 255); bits -= 8; }
-    }
-    const counter = Buffer.alloc(8);
-    counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000) + offset));
-    const h = crypto.createHmac('sha1', Buffer.from(bytes)).update(counter).digest();
-    const o = h[h.length - 1] & 0xf;
-    const n = ((h[o] & 0x7f) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3];
-    return String(n % 1e6).padStart(6, '0');
-};
-
-// A fresh admin with two-step sign-in turned on through the API.
-async function adminWithTwoStep(request) {
-    const admin = await (await request.post(`${API}/__e2e/fresh-admin`)).json();
-    const login = await (await request.post(`${API}/api/auth/login`, { data: { ...admin, accountType: 'business' } })).json();
-    const headers = { Authorization: `Bearer ${login.data.token}` };
-    const setup = await (await request.post(`${API}/api/auth/mfa/setup`, { headers })).json();
-    const on = await request.post(`${API}/api/auth/mfa/enable`, { headers, data: { code: totp(setup.data.secret) } });
-    expect(on.status()).toBe(200);
-    return { ...admin, secret: setup.data.secret };
-}
 
 test.describe('Admin two-step sign-in', () => {
     test('the admin door asks for the code, then the Money tab is open', async ({ page, request }) => {
