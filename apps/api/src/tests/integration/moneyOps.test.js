@@ -179,6 +179,22 @@ describe('payout run', () => {
         expect(statement.body.data[0]).toMatchObject({ type: 'payout_reversal', description: 'Payout returned by the bank: Account closed', amountCents: 19250 });
     });
 
+    it('a refund the business asked Bookplus to approve is held back from the payout', async () => {
+        const fin = await financeOnly();
+        const a = await business();
+        const p1 = await book(a.service);
+        await book(a.service);
+        // N$60 is over the N$50 limit: it waits for a director, and is not paid out.
+        await setSettings({ 'approvals.refundThresholdCents': 5000 });
+        const asked = await request(app).post(`/api/payments/${p1._id}/refund`).set(authHeader(a.owner)).send({ amountCents: 6000, reason: 'Wrong colour' });
+        expect(asked.status).toBe(202);
+        const due = await request(app).get('/api/admin/finance/payouts/due').set(financeHeader(fin));
+        expect(due.body.data[0]).toMatchObject({ balanceOwedCents: 38500, amountCents: 32500, payable: true });
+        const run = await request(app).post('/api/admin/finance/payouts/run').set(financeHeader(fin)).send({ providerIds: [a.owner._id] });
+        expect(run.body.data.created[0].amountCents).toBe(32500);
+        expect(await payments.balanceOf(a.owner._id)).toBe(6000);
+    });
+
     it('a business owed less than the threshold is not due', async () => {
         const fin = await financeOnly();
         const a = await business();

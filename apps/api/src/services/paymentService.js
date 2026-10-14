@@ -979,14 +979,16 @@ const recordPayout = async ({ providerId, amountCents, reference = '', note = ''
 
 const newPayoutReference = () => `BPP${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 
-// What Bookplus can pay a business now: its balance less refunds on their way.
+// What Bookplus can pay a business now: its balance less refunds on their
+// way and refunds it asked Bookplus to approve.
 const availableFor = async (providerId) => {
     const pid = new mongoose.Types.ObjectId(String(providerId));
-    const [balance, refunding] = await Promise.all([
+    const [balance, refunding, waiting] = await Promise.all([
         balanceOf(pid),
         Payment.aggregate([{ $match: { provider: pid, refundingCents: { $gt: 0 } } }, { $group: { _id: null, cents: { $sum: '$refundingCents' } } }]),
+        waitingRefundRequestsCents(pid),
     ]);
-    return balance - (refunding[0]?.cents || 0);
+    return balance - (refunding[0]?.cents || 0) - waiting;
 };
 
 // Why a business can't be paid now ('' = it can).
@@ -1012,17 +1014,23 @@ const payoutsDue = async () => {
         { $sort: { balance: -1 } },
     ]);
     const ids = owed.map((r) => r._id);
-    const [users, pending, refunding] = await Promise.all([
+    const FinanceRequest = require('../models/FinanceRequest');
+    const [users, pending, refunding, waiting] = await Promise.all([
         User.find({ _id: { $in: ids }, role: 'provider' }).select('+payoutAccount +paymentsApproval name email businessProfile.businessName').lean(),
         Payout.find({ provider: { $in: ids }, status: 'pending' }).select('provider').lean(),
         Payment.aggregate([{ $match: { provider: { $in: ids }, refundingCents: { $gt: 0 } } }, { $group: { _id: '$provider', cents: { $sum: '$refundingCents' } } }]),
+        FinanceRequest.aggregate([
+            { $match: { provider: { $in: ids }, type: 'refund', status: 'pending', requestedByBusiness: true } },
+            { $group: { _id: '$provider', cents: { $sum: '$amountCents' } } },
+        ]),
     ]);
     const byId = new Map(users.map((u) => [String(u._id), u]));
     const pendingSet = new Set(pending.map((p) => String(p.provider)));
-    const refundingBy = new Map(refunding.map((r) => [String(r._id), r.cents]));
+    const heldBy = new Map(refunding.map((r) => [String(r._id), r.cents]));
+    for (const w of waiting) heldBy.set(String(w._id), (heldBy.get(String(w._id)) || 0) + w.cents);
     const data = owed.filter((r) => byId.has(String(r._id))).map((r) => {
         const u = byId.get(String(r._id));
-        const available = r.balance - (refundingBy.get(String(r._id)) || 0);
+        const available = r.balance - (heldBy.get(String(r._id)) || 0);
         const blockedBy = payoutBlock(u, available, minCents, pendingSet.has(String(r._id)));
         return {
             providerId: r._id,
