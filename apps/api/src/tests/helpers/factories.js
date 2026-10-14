@@ -37,9 +37,12 @@ exports.makeProvider = async (overrides = {}) => {
     });
 };
 
-exports.makeAdmin = async (overrides = {}) => {
+// Every admin request needs two-step sign-in (middleware/auth), so an admin
+// has it on unless `{ twoStep: false }` (for the set-up flow itself); its
+// tokenFor/authHeader session has then passed it just now.
+exports.makeAdmin = async (overrides = {}, { twoStep = true } = {}) => {
     const n = uid();
-    return User.create({
+    const admin = await User.create({
         name: `Admin ${n}`,
         email: `admin${n}@test.com`,
         password: 'Password1!',
@@ -49,6 +52,11 @@ exports.makeAdmin = async (overrides = {}) => {
         provider: 'local',
         ...overrides,
     });
+    if (twoStep) {
+        await User.updateOne({ _id: admin._id }, { $set: { 'mfa.enabled': true, 'mfa.enabledAt': new Date() } });
+        admin.mfa = { enabled: true };
+    }
+    return admin;
 };
 
 exports.makeService = async (providerId, overrides = {}) => {
@@ -114,18 +122,16 @@ exports.giveHours = (member, schedule = exports.everyDayHours()) => StaffAvailab
     provider: member.provider, teamMember: member._id, schedule,
 });
 
-exports.tokenFor = (user) => generateToken(user._id, user.tokenVersion || 0);
+exports.tokenFor = (user) => generateToken(user._id, user.tokenVersion || 0,
+    user.role === 'admin' && user.mfa?.enabled ? { mfa: true, mfaAt: Math.floor(Date.now() / 1000) } : {});
 
 exports.authHeader = (user) => ({ Authorization: `Bearer ${exports.tokenFor(user)}` });
+// A session that has NOT passed two-step sign-in (password only).
+exports.passwordOnlyHeader = (user) => ({ Authorization: `Bearer ${generateToken(user._id, user.tokenVersion || 0)}` });
 
 // An admin set up for the money controls: two-step sign-in on, and a session
 // that passed it just now (utils/financeRoles.requireFinance).
-exports.makeFinanceAdmin = async (overrides = {}) => {
-    const admin = await exports.makeAdmin(overrides);
-    await User.updateOne({ _id: admin._id }, { $set: { 'mfa.enabled': true, 'mfa.enabledAt': new Date() } });
-    admin.mfa = { enabled: true };
-    return admin;
-};
+exports.makeFinanceAdmin = async (overrides = {}) => exports.makeAdmin(overrides);
 exports.financeHeader = (user, mfaAt = Math.floor(Date.now() / 1000)) => ({
     Authorization: `Bearer ${generateToken(user._id, user.tokenVersion || 0, { mfa: true, mfaAt })}`,
 });

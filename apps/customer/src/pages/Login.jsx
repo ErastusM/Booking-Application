@@ -4,13 +4,13 @@ import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
 import { Field } from '@bookplus/ui';
+import { safeNext } from '@bookplus/api-client';
 
 // Where to land after signing in. `?next=` lets a flow that had to interrupt the
 // visitor (e.g. joining a waiting list mid-booking) send them back where they
-// were instead of dropping them on Home. Only same-origin RELATIVE paths are
-// honoured — an absolute or protocol-relative URL would turn our own login into
-// an open redirect.
-const safeNext = (raw) => (raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : null);
+// were instead of dropping them on Home. safeNext honours only a same-origin
+// relative path (no `//host`, no `/\host` backslash trick), so our own login
+// can't be used as an open redirect.
 
 // ?error= codes other flows redirect here with (the axios refresh interceptor on a
 // lapsed session, the Google OAuth callback on failure) — map the known ones to a

@@ -69,7 +69,7 @@ const financeOnly = () => makeFinanceAdmin({ adminRoles: ['finance'] });
 
 describe('two-step sign-in for admins', () => {
     it('set up, turn on, then a password alone no longer opens the account', async () => {
-        const admin = await makeAdmin({ password: 'Password1!' });
+        const admin = await makeAdmin({ password: 'Password1!' }, { twoStep: false });
         const setup = await request(app).post('/api/auth/mfa/setup').set(authHeader(admin));
         expect(setup.status).toBe(200);
         expect(setup.body.data.otpauthUrl).toMatch(/^otpauth:\/\/totp\/Bookplus/);
@@ -122,7 +122,7 @@ describe('two-step sign-in for admins', () => {
     });
 
     it('recovery codes work once; five wrong codes pause it; Google and the switcher can not skip it', async () => {
-        const admin = await makeAdmin({ password: 'Password1!' });
+        const admin = await makeAdmin({ password: 'Password1!' }, { twoStep: false });
         const { body: { data: { secret } } } = await request(app).post('/api/auth/mfa/setup').set(authHeader(admin));
         const on = await request(app).post('/api/auth/mfa/enable').set(authHeader(admin)).send({ code: codeFor(secret) });
         const [recovery] = on.body.data.recoveryCodes;
@@ -151,7 +151,7 @@ describe('two-step sign-in for admins', () => {
     });
 
     it('a session over 12 hours old confirms with a code again', async () => {
-        const admin = await makeAdmin();
+        const admin = await makeAdmin({}, { twoStep: false });
         const { body: { data: { secret } } } = await request(app).post('/api/auth/mfa/setup').set(authHeader(admin));
         await request(app).post('/api/auth/mfa/enable').set(authHeader(admin)).send({ code: codeFor(secret) });
         const fresh = await User.findById(admin._id);

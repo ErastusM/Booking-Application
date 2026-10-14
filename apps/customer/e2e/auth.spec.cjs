@@ -8,6 +8,18 @@ test.describe('Authentication', () => {
         await expect(page.getByRole('button', { name: /^sign in/i })).toHaveCount(0);
     });
 
+    test('a ?next= link can only lead back into Bookplus', async ({ page }) => {
+        // `/\evil.example` is `//evil.example` to a browser: an open redirect
+        // after sign-in. It is ignored (home instead); a real path is followed.
+        await page.goto('/login?next=' + encodeURIComponent('/\\evil.example/steal'));
+        await page.getByPlaceholder('you@example.com').fill(SEED.customer.email);
+        await page.getByPlaceholder('••••••••').fill(SEED.customer.password);
+        await page.getByRole('button', { name: /sign in/i }).click();
+        await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15_000 });
+        expect(new URL(page.url()).host).toBe(new URL(test.info().project.use.baseURL).host);
+        expect(new URL(page.url()).pathname).toBe('/');
+    });
+
     test('business credentials on the customer app hand off to the business app', async ({ page }) => {
         // Login authenticates first, then routes by account type: a business
         // email with the right password is signed into its business account and

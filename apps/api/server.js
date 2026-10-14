@@ -87,6 +87,11 @@ function assertRequiredEnv() {
         logger.fatal({ missing }, 'Missing required environment variables — refusing to start');
         process.exit(1);
     }
+    // One key for both would let a 30-day refresh token pass as a session token.
+    if (process.env.JWT_SECRET === process.env.REFRESH_TOKEN_SECRET) {
+        logger.fatal('JWT_SECRET and REFRESH_TOKEN_SECRET must be different — refusing to start');
+        process.exit(1);
+    }
     const weak = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET'].filter((k) => (process.env[k] || '').length < 32);
     if (weak.length && process.env.NODE_ENV === 'production') {
         logger.fatal({ weak }, 'Token secrets are too short for production (need >= 32 chars)');
@@ -162,6 +167,21 @@ const readLimiter = rateLimit({
 const readOrWrite = (req, res, next) =>
     (req.method === 'GET' ? readLimiter : writeLimiter)(req, res, next);
 
+// Most handlers answer a failure with res.status(500) themselves rather than
+// next(err), so the error handler (alert webhook + Sentry) never saw them.
+// Report every 5xx answer once, whoever sent it: method and path only, never
+// the query string (it can hold tokens). The alert webhook is throttled.
+app.use((req, res, next) => {
+    res.on('finish', () => {
+        if (res.statusCode < 500 || res.locals.errorReported) return;
+        const what = `${res.statusCode} on ${req.method} ${scrubPath(String(req.originalUrl || '').split('?')[0])}`;
+        if (process.env.NODE_ENV !== 'test') logger.error({ status: res.statusCode }, what);
+        sendAlert(what, 'A request ended in a server error. Check the API logs around this time.').catch(() => {});
+        if (Sentry.isEnabled()) Sentry.captureMessage(what, 'error');
+    });
+    next();
+});
+
 // Middleware
 // Content-Security-Policy, enforced (not report-only). The API serves JSON, a
 // few redirects (verify-email, Google sign-in) and bot-only prerender pages
@@ -185,21 +205,23 @@ app.use(helmet({
 // Both are public by design and verified by checksum + a server-side Query;
 // 404 while PAYMENTS_ENABLED is off. See src/routes/paymentRoutes.js.
 app.use('/api/payments/paygate', paymentRoutes.callbacks);
+// Production allows only the apps' own addresses (comma-separated CLIENT_URL).
+// The local app ports (customer 3002 / business 3003) are for development: in
+// production they would let any page served on someone's own machine call the
+// API with their session.
 const allowedOrigins = new Set([
     ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()).filter(Boolean) : []),
-    'http://localhost:3000',
-    'http://localhost:3001',
-    // Epic 1 app shells (customer 3002 / business 3003) in local dev.
-    // Production subdomains are added via the comma-separated CLIENT_URL env.
-    'http://localhost:3002',
-    'http://localhost:3003',
+    ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3002', 'http://localhost:3003']),
 ]);
 
 app.use(cors({
     origin: (origin, callback) => {
         // Allow non-browser clients (curl, server-to-server) and configured browser origins.
         if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-        return callback(new Error('Not allowed by CORS'));
+        // A refused origin is the caller's problem: 403, not a 500 that pages the alert webhook.
+        const err = new Error('Not allowed by CORS');
+        err.statusCode = 403;
+        return callback(err);
     },
     credentials: true,
 }));

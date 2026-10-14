@@ -50,6 +50,7 @@ if (EMAIL_API_KEY) {
 const sendViaResend = async (mailOptions) => {
     const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
+        signal: AbortSignal.timeout(15000),
         headers: { Authorization: `Bearer ${EMAIL_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             from: mailOptions.from || FROM,

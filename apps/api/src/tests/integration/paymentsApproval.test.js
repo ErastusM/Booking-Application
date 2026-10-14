@@ -22,7 +22,7 @@ const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const Notification = require('../../models/Notification');
 const payments = require('../../services/paymentService');
 const {
-    makeProvider, makeUser, makeAdmin, makeFinanceAdmin, makeService, authHeader, financeHeader,
+    makeProvider, makeUser, makeAdmin, makeFinanceAdmin, makeService, authHeader, financeHeader, passwordOnlyHeader,
 } = require('../helpers/factories');
 
 const CLOUD = 'bookplus-test';
@@ -171,7 +171,7 @@ describe('Bookplus reviews it', () => {
         // Seeing the full ID and bank numbers is recorded too.
         expect(await FinancialAuditLog.countDocuments({ action: 'approval.view', provider: owner._id, actor: fin._id })).toBe(1);
         // Without a confirmed session or the role: no.
-        expect((await request(app).get('/api/admin/finance/approvals').set(authHeader(fin))).body.code).toBe('mfa_required');
+        expect((await request(app).get('/api/admin/finance/approvals').set(passwordOnlyHeader(fin))).body.code).toBe('mfa_required');
         expect((await request(app).get('/api/admin/finance/approvals').set(authHeader(owner))).status).toBe(403);
     });
 

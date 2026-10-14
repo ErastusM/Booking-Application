@@ -65,16 +65,25 @@ test.describe('Admin two-step sign-in', () => {
         await page.waitForURL(/\/bkplus-command$/, { timeout: 15_000 });
     });
 
-    test('an admin without it is asked to set it up on the Money tab', async ({ page, request }) => {
+    test('an admin without it is asked to set it up before the console opens', async ({ page, request }) => {
         const admin = await (await request.post(`${API}/__e2e/fresh-admin`)).json();
         await page.goto('/bkplus-command/login');
         await page.getByLabel('Admin email').fill(admin.email);
         await page.getByLabel('Password').fill(admin.password);
         await page.getByRole('button', { name: /enter console/i }).click();
         await page.waitForURL(/\/bkplus-command$/, { timeout: 15_000 });
-        await page.getByRole('tab', { name: 'Money' }).click();
+        // Nothing of the console until it is on: the API refuses admin requests without it.
         await expect(page.getByRole('heading', { name: 'Set up two-step sign-in' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toHaveCount(0);
         await page.getByRole('button', { name: 'Start set-up' }).click();
         await expect(page.getByAltText(/QR code/)).toBeVisible();
+        const secret = (await page.getByTestId('mfa-secret').innerText()).replace(/\s+/g, '');
+        await page.getByLabel('Enter the 6-digit code the app shows').fill(totp(secret));
+        await page.getByRole('button', { name: 'Turn on' }).click();
+        await expect(page.getByTestId('mfa-recovery-codes')).toBeVisible();
+        await page.getByRole('button', { name: 'I saved them' }).click();
+        await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible();
+        await page.getByRole('tab', { name: 'Users' }).click();
+        await expect(page.getByLabel('Search users by name or email')).toBeVisible();
     });
 });

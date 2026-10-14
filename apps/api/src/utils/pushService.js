@@ -55,7 +55,8 @@ exports.sendToUser = async (userId, payload) => {
                 }
                 await webpush.sendNotification(
                     { endpoint: sub.endpoint, keys: sub.keys },
-                    body
+                    body,
+                    { timeout: 10000 }
                 );
             } catch (err) {
                 if (err.statusCode === 410 || err.statusCode === 404) {

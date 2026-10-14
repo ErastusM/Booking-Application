@@ -14,6 +14,7 @@ import type { ConsentChoice } from './consent';
 export type { AccountType, ApiClientOptions, BookplusServices, Telemetry };
 export { inferApiBase, bootstrapSession, createTelemetry, forceLogout, isPublicTokenPath, PUBLIC_TOKEN_PATHS };
 export { scrubUrl, scrubText, scrubPath, routeTemplate };
+export { safeNext } from './safeNext';
 export {
     CONSENT_KEY, ANALYTICS_ID_KEY, CONSENT_CHANGE_EVENT, CONSENT_OPEN_EVENT, MIN_SIGNUP_AGE,
     getConsent, setConsent, hasAnalyticsConsent, openConsentSettings, onConsentChange,

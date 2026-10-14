@@ -14,6 +14,7 @@ exports.errorHandler = (err, req, res, next) => {
 
     // 5xx = something WE broke — page the webhook (throttled, fire-and-forget).
     if (status >= 500) {
+        res.locals.errorReported = true; // server.js reports the other 5xx answers
         sendAlert(`500 on ${req.method} ${path}`, err.message).catch(() => {});
     }
 
