@@ -341,6 +341,34 @@ describe('payment hold sweeper', () => {
     });
 });
 
+describe('two attempts both approved', () => {
+    it('the second payment is refunded, and the booking still reads as paid once, with its own payment refundable', async () => {
+        const { provider, service } = await setup();
+        const res = await bookAsGuest(service);
+        const first = res.body.payment.reference;
+        // The client tries again (the first attempt is closed), pays the new one...
+        const again = await request(app).post(`/api/payments/${first}/retry`);
+        expect(again.status).toBe(201);
+        const second = again.body.payment.reference;
+        gw.setStatus(second, 1);
+        await notify(gw.notifyBody(second));
+        // ...and the bank approves the first one after all.
+        gw.setStatus(first, 1);
+        await notify(gw.notifyBody(first));
+
+        const a = await Payment.findOne({ reference: first });
+        const b = await Payment.findOne({ reference: second });
+        expect(b.status).toBe('paid');
+        expect(a.status).toBe('refunded');
+        const appt = await Appointment.findById(res.body.data._id);
+        expect(String(appt.onlinePayment)).toBe(String(b._id));
+        // The refund of the duplicate does not count against the booking.
+        expect(appt.amountPaidOnlineCents).toBe(20000);
+        expect(appt.amountRefundedOnlineCents || 0).toBe(0);
+        expect(await ledgerSum(provider._id)).toBe(20000);
+    });
+});
+
 describe('cancellations and refunds', () => {
     const payFor = async (res) => {
         gw.setStatus(res.body.payment.reference, 1);

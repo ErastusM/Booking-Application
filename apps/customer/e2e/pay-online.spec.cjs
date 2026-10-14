@@ -17,7 +17,7 @@ const API = `http://localhost:${process.env.E2E_API_PORT || 5052}`;
 const playPayGate = (page, request, outcome) => page.route('https://secure.paygate.co.za/**', async (route) => {
     const form = new URLSearchParams(route.request().postData() || '');
     const reference = form.get('REFERENCE');
-    const code = typeof outcome === 'function' ? outcome() : outcome;
+    const code = typeof outcome === 'function' ? await outcome(reference) : outcome;
     const r = await (await request.post(`${API}/__e2e/paygate/outcome`, { data: { reference, code } })).json();
     const fields = [...new URLSearchParams(r.returnBody)]
         .map(([k, v]) => `<input type="hidden" name="${k}" value="${v}">`).join('');
@@ -92,6 +92,26 @@ test.describe('Paying online for a booking', () => {
         await page.waitForURL(/\/booking\/payment\?ref=/, { timeout: 20_000 });
         await expect(page.getByTestId('payment-result')).toHaveAttribute('data-view', 'paid', { timeout: 15_000 });
         await expect(page.getByTestId('payment-booking')).toContainText('Paid in full: N$200.00');
+    });
+
+    test('paid after the time to pay ran out: not booked, and the money goes back', async ({ page, request }) => {
+        const fx = await (await request.post(`${API}/__e2e/paying-business`, { data: { mode: 'full' } })).json();
+        await login(page, SEED.customer);
+        // On PayGate's page too long: the hold is released, then the card is approved.
+        await playPayGate(page, request, async (reference) => {
+            await request.post(`${API}/__e2e/paygate/expire-hold`, { data: { reference } });
+            return 1;
+        });
+        await bookOnePaidSlot(page, fx);
+        await page.getByRole('button', { name: 'Confirm and pay N$200.00' }).first().click();
+
+        await page.waitForURL(/\/booking\/payment\?ref=/, { timeout: 20_000 });
+        const result = page.getByTestId('payment-result');
+        await expect(result).toHaveAttribute('data-view', 'refunding', { timeout: 15_000 });
+        await expect(result).toContainText('This booking is not going ahead');
+        await expect(result).toContainText('Your payment of N$200.00 was refunded to your card');
+        await expect(result).not.toContainText('Paid and booked');
+        await expect(result.getByRole('link', { name: 'Back to Bookplus' })).toBeVisible();
     });
 
     test('a payment reference nobody knows says so, and offers the way back', async ({ page }) => {

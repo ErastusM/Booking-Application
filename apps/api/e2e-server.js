@@ -476,6 +476,17 @@ const outbox = [];
             });
             res.json({ ok: true, reference: body.payment.reference });
         });
+        // The client is slow on PayGate's page: their booking's hold runs out
+        // and the sweeper lets the time go, before the payment comes back.
+        outer.post('/__e2e/paygate/expire-hold', async (req, res) => {
+            const Payment = require('./src/models/Payment');
+            const payments = require('./src/services/paymentService');
+            const pay = await Payment.findOne({ reference: String(req.body?.reference || '') }).select('appointment').lean();
+            if (!pay) return res.status(404).json({ ok: false });
+            await Appointment.updateOne({ _id: pay.appointment }, { $set: { paymentHoldExpiresAt: new Date(Date.now() - 60 * 1000) } });
+            await payments.sweepExpiredHolds();
+            res.json({ ok: true });
+        });
         // The emailed "manage my booking" link for the booking a payment is for.
         outer.post('/__e2e/paygate/manage-token', async (req, res) => {
             const Payment = require('./src/models/Payment');

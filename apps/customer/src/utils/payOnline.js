@@ -63,6 +63,6 @@ export const onlinePaymentLine = (appt) => {
     const parts = [`${kind === 'deposit' ? 'Deposit paid online' : 'Paid online'}: ${nad(paid)}`];
     if (refunded) parts.push(`refunded ${nad(refunded)}`);
     const rest = total - paid;
-    if (kind === 'deposit' && rest > 0 && !refunded && !['cancelled', 'no-show'].includes(appt.status)) parts.push(`${nad(rest)} at the appointment`);
+    if (kind === 'deposit' && rest > 0 && !refunded && ['pending', 'confirmed'].includes(appt.status)) parts.push(`${nad(rest)} at the appointment`);
     return parts.join(', ');
 };

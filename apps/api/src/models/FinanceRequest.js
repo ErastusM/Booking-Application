@@ -19,6 +19,11 @@ const financeRequestSchema = new mongoose.Schema({
     // A business asked for it (a refund bigger than its balance or the approval
     // limit): preparedBy is the owner, and they hear back when it is decided.
     requestedByBusiness: { type: Boolean, default: false },
+    // What the business could refund on its own when it asked (its balance less
+    // refunds on their way and its other waiting requests); over it, Bookplus
+    // pays the difference until the business earns it back.
+    balanceAtRequestCents: { type: Number, default: null },
+    overBalance: { type: Boolean, default: false },
     decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     decidedAt: { type: Date, default: null },
     decisionNote: { type: String, default: '', maxlength: 1000 },

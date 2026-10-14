@@ -7,9 +7,16 @@ export const nad = (cents) => {
     return n < 0 ? `−${s}` : s;
 };
 
-/** "12.50" / "N$12.50" / "12,50" → cents, or null if it isn't an amount. */
+/**
+ * "12.50" / "N$12.50" / "12,50" / "1,234.50" / "1 234,50" → cents, or null if
+ * it isn't an amount. A comma followed by one or two digits at the end is the
+ * decimal point; any other comma separates thousands.
+ */
 export const parseCents = (text) => {
-    const t = String(text ?? '').replace(/N\$/i, '').replace(/\s/g, '').replace(',', '.');
+    let t = String(text ?? '').replace(/N\$/i, '').replace(/[\s\u00a0]/g, '');
+    if (!t.includes('.') && /,\d{1,2}$/.test(t)) t = t.replace(/,(\d{1,2})$/, '.$1');
+    if (/,/.test(t) && !/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(t)) return null;
+    t = t.replace(/,/g, '');
     if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
     return Math.round(parseFloat(t) * 100);
 };
@@ -51,7 +58,8 @@ export const bookingPaymentLine = (appt) => {
     if (refunded) return `${nad(paid)} paid · ${nad(refunded)} refunded`;
     if (appt.paymentKind === 'deposit') {
         const rest = total - paid;
-        return rest > 0 ? `${nad(paid)} deposit paid · ${nad(rest)} to collect` : `${nad(paid)} deposit paid`;
+        // The rest is collected only at an appointment that is still going ahead.
+        return rest > 0 && ['pending', 'confirmed'].includes(appt.status) ? `${nad(paid)} deposit paid · ${nad(rest)} to collect` : `${nad(paid)} deposit paid`;
     }
     return `${nad(paid)} paid in full`;
 };

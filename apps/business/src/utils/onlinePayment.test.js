@@ -10,6 +10,12 @@ describe('onlinePayment', () => {
         expect(parseCents('7,25')).toBe(725);
         expect(parseCents('1.234')).toBeNull();
         expect(parseCents('abc')).toBeNull();
+        // As the app writes amounts (N$1,234.50), and with a decimal comma.
+        expect(parseCents('1,234.50')).toBe(123450);
+        expect(parseCents('N$1,234.50')).toBe(123450);
+        expect(parseCents('1 234,50')).toBe(123450);
+        expect(parseCents('1,234')).toBe(123400);
+        expect(parseCents('12,3,4')).toBeNull();
     });
 
     it('says what state a payment is in', () => {
@@ -22,6 +28,9 @@ describe('onlinePayment', () => {
         const base = { paymentKind: 'deposit', status: 'confirmed', totalPrice: 200, amountPaidOnlineCents: 5000, amountRefundedOnlineCents: 0, onlinePayment: 'p1' };
         expect(bookingPaymentLine({ totalPrice: 200 })).toBe('');
         expect(bookingPaymentLine(base)).toBe('N$50.00 deposit paid · N$150.00 to collect');
+        // Nothing more to collect once it is not going ahead.
+        expect(bookingPaymentLine({ ...base, status: 'no-show' })).toBe('N$50.00 deposit paid');
+        expect(bookingPaymentLine({ ...base, status: 'cancelled' })).toBe('N$50.00 deposit paid');
         expect(bookingPaymentLine({ ...base, paymentKind: 'full', amountPaidOnlineCents: 20000 })).toBe('N$200.00 paid in full');
         expect(bookingPaymentLine({ ...base, amountRefundedOnlineCents: 5000, status: 'cancelled' })).toBe('N$50.00 paid · N$50.00 refunded');
         expect(bookingPaymentLine({ ...base, status: 'pending_payment', amountPaidOnlineCents: 0 })).toBe('Waiting for the client to pay online');

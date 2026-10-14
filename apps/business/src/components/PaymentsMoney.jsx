@@ -44,7 +44,9 @@ const FeeLines = ({ p }) => {
     if (!f) return null;
     const lines = [
         ['Client paid', p.amountCents],
-        [`Bookplus commission${f.commissionBps ? ` (${(f.commissionBps / 100).toLocaleString('en-NA', { maximumFractionDigits: 2 })}%${f.fixedFeeCents ? ' + fixed fee' : ''})` : ''}`, -f.commissionCents],
+        [f.minCommissionApplied
+            ? 'Bookplus commission (the minimum)'
+            : `Bookplus commission${f.commissionBps ? ` (${(f.commissionBps / 100).toLocaleString('en-NA', { maximumFractionDigits: 2 })}%${f.fixedFeeCents ? ' + fixed fee' : ''})` : ''}`, -f.commissionCents],
         ...(f.processingFeeCents && f.processingFeePayer === 'business' ? [['Card processing fee', -f.processingFeeCents]] : []),
         ...(p.refundedCents ? [['Refunded to the client', -p.refundedCents]] : []),
     ];

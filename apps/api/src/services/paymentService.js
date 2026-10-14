@@ -352,6 +352,16 @@ const balanceSummary = async (providerId) => {
     };
 };
 
+/** Refunds a business asked Bookplus to approve, still waiting: held back from its balance. */
+const waitingRefundRequestsCents = async (providerId) => {
+    const FinanceRequest = require('../models/FinanceRequest');
+    const [r] = await FinanceRequest.aggregate([
+        { $match: { provider: new mongoose.Types.ObjectId(String(providerId)), type: 'refund', status: 'pending', requestedByBusiness: true } },
+        { $group: { _id: null, cents: { $sum: '$amountCents' } } },
+    ]);
+    return r ? r.cents : 0;
+};
+
 /**
  * Money still open between Bookplus and a business: a balance either way, or
  * refunds on their way. While there is any, the business account can't be
@@ -443,8 +453,10 @@ const executeRefund = async (paymentId, refundId) => {
         if (done) {
             await debitRefund(done, refund);
             const refundedAll = done.refundedCents >= done.amountCents;
+            // Only refunds of the payment that confirmed the booking count on it:
+            // an auto-refunded second (duplicate or late) payment does not.
             await Appointment.updateOne(
-                { _id: done.appointment },
+                { _id: done.appointment, onlinePayment: done._id },
                 {
                     $inc: { amountRefundedOnlineCents: refund.amountCents },
                     ...(refundedAll && done.kind === 'full' ? { $set: { paymentStatus: 'refunded' } } : {}),
@@ -925,8 +937,15 @@ const recordPayout = async ({ providerId, amountCents, reference = '', note = ''
     }
     return withBookingLock(`payout:${providerId}`, async () => {
         const balance = await balanceOf(providerId);
-        if (amountCents > balance && !allowOverdraw) {
-            return { ok: false, status: 409, code: 'exceeds_balance', message: `The balance owed is N$${formatCents(balance)}.`, balanceOwedCents: balance };
+        // Held back: refunds on their way, and refunds the business asked Bookplus to approve.
+        const { refundsPendingCents } = await balanceSummary(providerId);
+        const held = refundsPendingCents + await waitingRefundRequestsCents(providerId);
+        if (amountCents > balance - held && !allowOverdraw) {
+            return {
+                ok: false, status: 409, code: 'exceeds_balance',
+                message: `The balance owed is N$${formatCents(balance)}${held ? `, of which N$${formatCents(held)} is held for refunds` : ''}.`,
+                balanceOwedCents: balance,
+            };
         }
         const overrides = [];
         if (amountCents > balance) overrides.push('balance');
@@ -952,7 +971,7 @@ module.exports = {
     toCents, formatCents, newReference,
     settingsOf, validateSettings, planFor, planForBooking,
     maskAccountNumber, validatePayoutAccount, hasPayoutAccount, publicPayoutAccount,
-    balanceOf, balanceSummary, outstandingFor, monthStart, writeEntry,
+    balanceOf, balanceSummary, outstandingFor, monthStart, writeEntry, waitingRefundRequestsCents,
     sanitizeNotify, applyQueryResult, syncPayment, ensurePaidEffects,
     PaymentStartError, startSession, checkoutPayload, retryCheckout,
     requestRefund, retryRefund, refundBooking, releaseHold, onAppointmentCancelled,

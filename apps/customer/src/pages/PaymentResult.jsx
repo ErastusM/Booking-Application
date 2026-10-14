@@ -32,6 +32,8 @@ const PaymentResult = () => {
     const [error, setError] = useState('');
     const [stillChecking, setStillChecking] = useState(false);
     const [retrying, setRetrying] = useState(false);
+    // Bumped by "Check again": polls for another two minutes.
+    const [round, setRound] = useState(0);
     const started = useRef(Date.now());
 
     const check = useCallback(async () => {
@@ -48,6 +50,8 @@ const PaymentResult = () => {
 
     useEffect(() => {
         if (!ref) { setError('not_found'); return undefined; }
+        started.current = Date.now();
+        setStillChecking(false);
         let timer;
         let stop = false;
         const tick = async () => {
@@ -59,7 +63,7 @@ const PaymentResult = () => {
         };
         tick();
         return () => { stop = true; clearTimeout(timer); };
-    }, [ref, check]);
+    }, [ref, check, round]);
 
     const retry = async () => {
         setRetrying(true);
@@ -74,10 +78,14 @@ const PaymentResult = () => {
     };
 
     const a = s?.appointment;
+    const cancelled = a?.status === 'cancelled';
     let view = 'checking';
     if (error === 'not_found') view = 'not_found';
+    // The booking decides first: money taken for a booking that is not going
+    // ahead (paid after the time ran out, or cancelled since) is being refunded.
+    else if (s && PAID.includes(s.status) && cancelled) view = 'refunding';
     else if (s && PAID.includes(s.status)) view = 'paid';
-    else if (s && (s.status === 'expired' || (a && a.status === 'cancelled'))) view = 'expired';
+    else if (s && (s.status === 'expired' || cancelled)) view = 'expired';
     else if (s && ['failed', 'cancelled'].includes(s.status)) view = 'failed';
 
     const VIEW = {
@@ -85,6 +93,10 @@ const PaymentResult = () => {
         paid: { Icon: CheckCircle, color: '#0e7a4f', title: 'Paid and booked', text: '' },
         failed: { Icon: XCircle, color: '#991b1b', title: 'The payment did not go through', text: 'Nothing was taken. Your time is still held for a few minutes, so you can try again.' },
         expired: { Icon: Clock, color: '#92400e', title: 'The time to pay ran out', text: 'The booking was not made and nothing was taken. Please book again.' },
+        refunding: {
+            Icon: XCircle, color: '#92400e', title: 'This booking is not going ahead',
+            text: s ? `Your payment of ${nad(s.amountCents)} ${s.status === 'refunded' ? 'was refunded' : 'is being refunded'} to your card. If it was because the time to pay ran out, please book again.` : '',
+        },
         not_found: { Icon: XCircle, color: '#991b1b', title: 'We could not find this payment', text: 'If money was taken, contact the business with the time of your booking.' },
     };
     const v = VIEW[view];
@@ -125,7 +137,7 @@ const PaymentResult = () => {
                             </button>
                         )}
                         {view === 'checking' && stillChecking && (
-                            <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={() => { started.current = Date.now(); setStillChecking(false); check(); }}>
+                            <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={() => setRound((n) => n + 1)}>
                                 Check again
                             </button>
                         )}
@@ -134,7 +146,7 @@ const PaymentResult = () => {
                                 ? <Link to="/appointments" className="btn-primary" style={{ width: '100%', textDecoration: 'none' }}>See my appointments</Link>
                                 : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>We have emailed your confirmation with a link to manage the booking.</p>
                         )}
-                        {['failed', 'expired', 'not_found'].includes(view) && (
+                        {['failed', 'expired', 'not_found', 'refunding'].includes(view) && (
                             <Link to="/" className={view === 'failed' && s?.canRetry ? 'btn-outline' : 'btn-primary'} style={{ width: '100%', textDecoration: 'none' }}>Back to Bookplus</Link>
                         )}
                     </div>

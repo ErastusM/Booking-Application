@@ -93,7 +93,11 @@ exports.getPolicy = async (req, res) => {
         // Not approved, or switched off: everything is paid at the appointment.
         if (!canTakePayments(user.paymentsApproval)) s.onlinePaymentAvailable = false;
         const priceCents = parseInt(req.query.priceCents, 10);
-        const plan = Number.isFinite(priceCents) && s.onlinePaymentAvailable
+        // Same rule as the booking itself (paymentService.planForBooking): below
+        // Bookplus's minimum online booking value, it is paid at the appointment.
+        const { minOnlineBookingCents } = await pricing.getSettings();
+        const belowMinimum = Number.isFinite(priceCents) && minOnlineBookingCents > 0 && priceCents < minOnlineBookingCents;
+        const plan = Number.isFinite(priceCents) && s.onlinePaymentAvailable && !belowMinimum
             ? payments.planFor({ settings: s, currency: s.currency, priceCents })
             : null;
         res.status(200).json({
@@ -407,14 +411,19 @@ exports.refundPayment = async (req, res) => {
         const remaining = p.amountCents - p.refundedCents - p.refundingCents;
         const want = amountCents === undefined || amountCents === null ? remaining : amountCents;
         const r = await withBookingLock(`payout:${p.provider}`, async () => {
+            // Bookplus is deciding a refund on this payment: nothing more on it meanwhile.
+            if (await FinanceRequest.exists({ payment: p._id, type: 'refund', status: 'pending' })) {
+                return { asked: true, ok: false, status: 409, code: 'request_pending', error: 'Bookplus is already looking at a refund for this payment. Wait for its decision.' };
+            }
             const { balanceOwedCents, refundsPendingCents } = await payments.balanceSummary(p.provider);
-            const available = balanceOwedCents - refundsPendingCents;
+            // Refunds the business already asked Bookplus to approve are held back too.
+            const available = balanceOwedCents - refundsPendingCents - await payments.waitingRefundRequestsCents(p.provider);
             const limit = (await pricing.getSettings()).approvals?.refundThresholdCents ?? 0;
             // More than the business holds, or above the approval limit: it
             // becomes a request for a Bookplus director to approve.
             if (want > 0 && want <= remaining && Payment.SETTLED.includes(p.status) && (want > available || want > limit)) {
                 const asked = await require('./financeController').requestRefundFromBusiness({
-                    owner: req.user, payment: p, amountCents: want, reason: (reason || '').trim().slice(0, 1000),
+                    owner: req.user, payment: p, amountCents: want, reason: (reason || '').trim().slice(0, 1000), availableCents: available,
                 });
                 return { ...asked, asked: true, overBalance: want > available };
             }
