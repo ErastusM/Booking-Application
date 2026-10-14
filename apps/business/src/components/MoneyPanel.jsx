@@ -3,6 +3,7 @@ import { authService, financeService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { PaymentsView, PayoutsView, DisputesView } from './MoneyOperations';
+import { DashboardView, CostsView } from './FinanceDashboard';
 
 // The admin console's "Money" tab: Bookplus's own prices and fees, the pricing
 // simulator, the launch checklist, second-person approvals, the financial
@@ -853,17 +854,17 @@ const Admins = ({ me, isDirector, onLocked }) => {
 
 /* ───────────────────────── the panel ───────────────────────── */
 
-// Six, so they sit in an even grid on a phone (2 × 3).
+// Eight, so they sit in an even grid: 2 × 4 on a phone, 4 × 2 wider.
 const VIEWS = [
-    ['payments', 'Payments'], ['payouts', 'Payouts'], ['disputes', 'Disputes'],
-    ['approvals', 'Approvals'], ['audit', 'Audit log'], ['prices', 'Settings'],
+    ['dashboard', 'Dashboard'], ['payments', 'Payments'], ['payouts', 'Payouts'], ['disputes', 'Disputes'],
+    ['approvals', 'Approvals'], ['costs', 'Costs'], ['audit', 'Audit log'], ['prices', 'Settings'],
 ];
 
 const MoneyPanel = () => {
     const { user } = useAuthContext();
     const [status, setStatus] = useState(null);
     const [data, setData] = useState(null);
-    const [view, setView] = useState('prices');
+    const [view, setView] = useState('dashboard');
     const [caseId, setCaseId] = useState(null);
     const [error, setError] = useState('');
 
@@ -894,7 +895,8 @@ const MoneyPanel = () => {
         // minmax(0, 1fr): a wide table scrolls inside its card instead of
         // stretching the column past the phone's edge.
         <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0, 1fr)' }} data-testid="money-panel">
-            <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 8rem), 1fr))' }} role="tablist" aria-label="Money sections">
+            <style>{'.money-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } @media (min-width: 640px) { .money-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }'}</style>
+            <div className="money-tabs" style={{ display: 'grid', gap: '0.5rem' }} role="tablist" aria-label="Money sections">
                 {VIEWS.map(([key, text]) => (
                     <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
                         className={view === key ? 'btn-primary' : 'btn-outline'} style={{ ...fullButton, fontSize: '0.85rem', padding: '0.55rem 0.5rem' }}>
@@ -922,6 +924,8 @@ const MoneyPanel = () => {
                     <Approvals me={me} isDirector={isDirector} onLocked={onLocked} />
                 </>
             )}
+            {view === 'dashboard' && <DashboardView launch={data.launch} onLocked={onLocked} onOpenSettings={() => setView('prices')} />}
+            {view === 'costs' && <CostsView isDirector={isDirector} onLocked={onLocked} />}
             {view === 'payments' && <PaymentsView onLocked={onLocked} onCaseOpened={(id) => { setCaseId(id); setView('disputes'); }} />}
             {view === 'payouts' && <PayoutsView onLocked={onLocked} />}
             {view === 'disputes' && <DisputesView onLocked={onLocked} openId={caseId} />}

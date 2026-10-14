@@ -108,6 +108,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         refundFromDispute: (id: string, data: { amountCents?: number; reason: string }) => API.post(`/admin/finance/disputes/${id}/refund`, data),
         closeDispute: (id: string, data: { outcome: 'won' | 'lost' | 'closed'; note: string; recover?: { amountCents?: number } | null }) =>
             API.post(`/admin/finance/disputes/${id}/close`, data),
+        // The finance dashboard, and Bookplus's own monthly running costs (YYYY-MM).
+        dashboard: (params: { from?: string; to?: string } = {}) => API.get('/admin/finance/dashboard', { params }),
+        getCosts: (month: string) => API.get('/admin/finance/costs', { params: { month } }),
+        putCosts: (month: string, items: { category: string; label?: string; amountCents: number }[], reason: string) =>
+            API.put(`/admin/finance/costs/${month}`, { items, reason }),
     },
 
     // Paying online for a booking (customer side; all 404 while online payments

@@ -59,6 +59,11 @@ router.get('/disputes/:id/evidence/:evidenceId', finance, ops.getEvidence);
 router.post('/disputes/:id/refund', finance, ops.refundFromDispute);
 router.post('/disputes/:id/close', finance, ops.closeDispute);
 
+// The finance dashboard, and Bookplus's own monthly running costs.
+router.get('/dashboard', finance, ops.dashboard);
+router.get('/costs', finance, ops.getCosts);
+router.put('/costs/:month', director, ops.putCosts);
+
 // Who did what.
 router.get('/audit', finance, c.getAudit);
 
