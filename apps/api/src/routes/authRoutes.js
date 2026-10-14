@@ -39,6 +39,11 @@ const {
     exportAccount,
     getGoogleSignup,
     completeGoogleSignup,
+    mfaLogin,
+    mfaStatus,
+    mfaSetup,
+    mfaEnable,
+    mfaConfirm,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { createInviteRequestLimiter } = require('../middleware/authRateLimit');
@@ -67,6 +72,13 @@ const accountProbeLimiter = rateLimit({
 router.post('/register', accountProbeLimiter, registerRules, register);
 router.post('/login', loginRules, login);
 router.post('/logout', auth, logout);
+// Two-step sign-in (admin accounts). The code is also limited per account
+// (five misses pause it), and per connection here.
+router.post('/mfa/login', accountProbeLimiter, mfaLogin);
+router.get('/mfa', auth, mfaStatus);
+router.post('/mfa/setup', auth, mfaSetup);
+router.post('/mfa/enable', auth, accountProbeLimiter, mfaEnable);
+router.post('/mfa/confirm', auth, accountProbeLimiter, mfaConfirm);
 router.post('/refresh', refresh);
 router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);

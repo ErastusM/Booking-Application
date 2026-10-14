@@ -12,6 +12,8 @@ exports.auth = async (req, res, next) => {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = await User.findById(decoded.id);
+        // What this session proved (e.g. two-step sign-in: utils/financeRoles).
+        req.authClaims = decoded;
 
         if (!req.user) {
             // A valid token whose user no longer exists (deleted/pruned account, or

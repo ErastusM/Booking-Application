@@ -63,6 +63,12 @@ const Login = () => {
             // authenticates the business account (provider/staff/admin) if one exists.
             const response = await authService.login(formData);
             const session = response.data.data;
+            // An admin with two-step sign-in: the code step lives on the admin
+            // sign-in page, which takes the ticket from here.
+            if (session?.mfaRequired) {
+                navigate('/bkplus-command/login', { replace: true, state: { mfaToken: session.mfaToken } });
+                return;
+            }
             // Straight in. They came to the business door, so a customer account
             // on the same email is not a question to put to them here.
             login(session);

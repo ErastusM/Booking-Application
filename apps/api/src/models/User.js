@@ -31,6 +31,37 @@ const payoutAccountSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: null },
 }, { _id: false });
 
+// Two-step sign-in for admin accounts (utils/mfa.js). The secret is stored
+// encrypted; recovery codes only as hashes.
+const mfaSchema = new mongoose.Schema({
+    enabled: { type: Boolean, default: false },
+    enabledAt: { type: Date, default: null },
+    secretEnc: { type: String, default: null, select: false },
+    pendingSecretEnc: { type: String, default: null, select: false },
+    lastStep: { type: Number, default: null, select: false },
+    recoveryHashes: { type: [String], default: undefined, select: false },
+    failures: { type: Number, default: 0, select: false },
+    lockedUntil: { type: Date, default: null, select: false },
+}, { _id: false });
+
+// A business's Bookplus plan. `rates` is what it agreed to when the plan was
+// set (later price changes don't reach it until it is moved on purpose);
+// `override` is a rate Bookplus agreed with this business alone.
+const pricingSchema = new mongoose.Schema({
+    plan: { type: String, enum: ['basic', 'standard'], default: null },
+    planAssignedAt: { type: Date, default: null },
+    pricingVersion: { type: Number, default: null },
+    rates: {
+        commissionBps: { type: Number, default: null },
+        fixedFeeCents: { type: Number, default: null },
+    },
+    override: {
+        commissionBps: { type: Number, default: null },
+        fixedFeeCents: { type: Number, default: null },
+        note: { type: String, default: '', maxlength: 300 },
+    },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -263,6 +294,16 @@ const userSchema = new mongoose.Schema(
         // Set when the user self-deactivates — signing in again reactivates the
         // account (distinct from an admin suspension, which stays blocked).
         deactivatedAt: { type: Date, default: null },
+        // Bookplus staff money roles (utils/financeRoles.js). Admin accounts only;
+        // empty on an admin = both roles (the owner's original admin).
+        adminRoles: { type: [{ type: String, enum: ['finance', 'director'] }], default: undefined },
+        // Two-step sign-in (utils/mfa.js) for admin accounts. Only `enabled` is
+        // ever read outside the sign-in code; the rest never leaves the API.
+        mfa: { type: mfaSchema, default: undefined },
+        // Which Bookplus plan this business is on for online payments and the
+        // rates it agreed to (services/pricing.js ratesFor). Unset = it has not
+        // chosen yet, and nothing changes for it until it does.
+        pricing: { type: pricingSchema, default: undefined },
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
         // Hash of the browser cookie the code was minted for (utils/handoffBinding).
@@ -321,6 +362,7 @@ const userSchema = new mongoose.Schema(
                 delete ret.loginFailures;
                 delete ret.loginLockedUntil;
                 delete ret.payoutAccount;
+                if (ret.mfa) ret.mfa = { enabled: !!ret.mfa.enabled, enabledAt: ret.mfa.enabledAt || null };
                 return ret;
             },
         },

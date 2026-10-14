@@ -16,6 +16,8 @@ const Payout = require('../models/Payout');
 const User = require('../models/User');
 const paygate = require('../services/paygate');
 const payments = require('../services/paymentService');
+const { recordFinance } = require('../utils/financeAudit');
+const { withBookingLock } = require('../utils/lock');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const isId = (v) => mongoose.isValidObjectId(v) && String(new mongoose.Types.ObjectId(String(v))) === String(v);
@@ -142,7 +144,10 @@ exports.getMyBalance = async (req, res) => {
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
-const ENTRY_LABEL = { payment: 'Online payment', refund: 'Refund', commission: 'Bookplus commission', payout: 'Payout', adjustment: 'Adjustment' };
+const ENTRY_LABEL = {
+    payment: 'Online payment', refund: 'Refund', commission: 'Bookplus commission', fixed_fee: 'Bookplus fixed fee',
+    processing_fee: 'Card processing fee', payout: 'Payout', adjustment: 'Adjustment',
+};
 
 // Statement rows with a human description (client first name + service).
 const describeEntries = async (entries) => {
@@ -318,6 +323,9 @@ const loadOwnPayment = async (req, res) => {
 // POST /api/payments/:id/refund { amountCents?, reason } (owner / admin)
 exports.refundPayment = async (req, res) => {
     try {
+        // Bookplus staff refund through the finance controls: a reason, the
+        // audit log, and a second person above the approval limit.
+        if (req.user.role === 'admin') return require('./financeController').prepareRefund(req, res);
         const p = await loadOwnPayment(req, res);
         if (!p) return;
         const { amountCents, reason } = req.body || {};
@@ -325,10 +333,29 @@ exports.refundPayment = async (req, res) => {
             return fail(res, 400, 'amountCents must be a whole number of cents', 'bad_amount');
         }
         if (reason !== undefined && typeof reason !== 'string') return fail(res, 400, 'reason must be text');
-        const r = await payments.requestRefund({ paymentId: p._id, amountCents, reason: (reason || '').trim(), by: req.user._id, trigger: 'manual' });
+        // An owner can give back only what Bookplus holds for them: a refund
+        // bigger than their balance would be paid from other businesses' money.
+        // Refunds still on their way count against it too. Serialized with
+        // payouts for this business, so two at once can't both pass the check.
+        const remaining = p.amountCents - p.refundedCents - p.refundingCents;
+        const want = amountCents === undefined || amountCents === null ? remaining : amountCents;
+        const r = await withBookingLock(`payout:${p.provider}`, async () => {
+            const { balanceOwedCents, refundsPendingCents } = await payments.balanceSummary(p.provider);
+            const available = balanceOwedCents - refundsPendingCents;
+            if (want > 0 && want > available) {
+                return { ok: false, code: 'balance_too_low', error: `Your Bookplus balance is N$${(Math.max(0, available) / 100).toFixed(2)}, so this refund needs Bookplus to approve it. Contact support.` };
+            }
+            if (want > 0 && want <= remaining) {
+                await recordFinance({
+                    actor: req.user, action: 'refund.owner', amountCents: want, provider: p.provider, appointment: p.appointment,
+                    payment: p._id, reference: p.reference, reason: (reason || '').trim(),
+                });
+            }
+            return payments.requestRefund({ paymentId: p._id, amountCents, reason: (reason || '').trim(), by: req.user._id, trigger: 'manual' });
+        });
         // A validation refusal carries a code; a PayGate failure does not.
         if (!r.ok && r.code) {
-            const status = r.code === 'not_found' ? 404 : ['exceeds_refundable', 'nothing_to_refund', 'not_refundable'].includes(r.code) ? 409 : 400;
+            const status = r.code === 'not_found' ? 404 : ['exceeds_refundable', 'nothing_to_refund', 'not_refundable', 'balance_too_low'].includes(r.code) ? 409 : 400;
             return fail(res, status, r.error, r.code);
         }
         const fresh = await Payment.findById(p._id).lean();
@@ -338,6 +365,7 @@ exports.refundPayment = async (req, res) => {
         }
         res.status(200).json({ success: true, message: 'Refund sent', data: paymentRow(fresh) });
     } catch (err) {
+        if (err && err.code === 'BOOKING_BUSY') return fail(res, 409, 'Another refund or payout for this business is going through. Try again.');
         logger.error({ err: err.message }, 'Refund request failed');
         fail(res, 500, 'Internal server error');
     }
@@ -417,6 +445,15 @@ exports.adminRecordPayout = async (req, res) => {
             adminId: req.user._id, allowOverdraw: allowOverdraw === true, allowMissingAccount: allowMissingAccount === true,
         });
         if (!r.ok) return res.status(r.status).json({ success: false, code: r.code, message: r.message, ...(r.balanceOwedCents !== undefined ? { balanceOwedCents: r.balanceOwedCents } : {}) });
+        try {
+            await recordFinance({
+                actor: req.user, action: 'payout.record', amountCents, provider: providerId, reference: (reference || '').trim(),
+                reason: (note || '').trim(), details: { payout: r.payout?._id, allowOverdraw: allowOverdraw === true, allowMissingAccount: allowMissingAccount === true },
+            });
+        } catch (auditErr) {
+            // The payout is already recorded (Payout + ledger); say so loudly.
+            logger.error({ err: auditErr.message, payout: String(r.payout?._id) }, 'Payout recorded but its audit entry failed');
+        }
         res.status(201).json({ success: true, message: 'Payout recorded', data: r.payout, balanceOwedCents: r.balanceOwedCents });
     } catch (err) {
         if (err && err.code === 'BOOKING_BUSY') return fail(res, 409, 'Another payout for this business is being recorded. Try again.');

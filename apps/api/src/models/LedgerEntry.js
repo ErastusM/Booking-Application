@@ -5,8 +5,12 @@ const mongoose = require('mongoose');
  * PayGate account, so every movement of a business's money is an entry here:
  *
  *   payment     +  a client paid online for one of the business's bookings
- *   commission  −  the platform's commission on that payment (0 by default);
- *                  a refund hands the commission on the refunded part back (+)
+ *   commission  −  Bookplus's percentage commission on that payment; a refund
+ *                  hands the commission on the refunded part back (+)
+ *   fixed_fee   −  the plan's fixed fee per online booking (Standard: N$1.50);
+ *                  handed back (+) only when the payment is refunded in full
+ *   processing_fee − the card processing fee, when the business bears it; the
+ *                  card company keeps it, so a refund never returns it
  *   refund      −  money given back to the client
  *   payout      −  Bookplus paid the business (bank transfer)
  *   adjustment  ±  a correction recorded by an admin
@@ -17,7 +21,7 @@ const mongoose = require('mongoose');
  */
 const ledgerEntrySchema = new mongoose.Schema({
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    type: { type: String, enum: ['payment', 'refund', 'commission', 'payout', 'adjustment'], required: true },
+    type: { type: String, enum: ['payment', 'refund', 'commission', 'fixed_fee', 'processing_fee', 'payout', 'adjustment'], required: true },
     amountCents: { type: Number, required: true },
     currency: { type: String, required: true, uppercase: true },
     payment: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },

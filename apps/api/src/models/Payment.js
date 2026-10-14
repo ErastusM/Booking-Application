@@ -66,6 +66,24 @@ const paymentSchema = new mongoose.Schema({
     payMethod: { type: String, default: null },
     // Platform commission on this payment (basis points, snapshot at payment time).
     commissionBps: { type: Number, default: 0 },
+    // The fees on this payment, fixed at the moment it was paid
+    // (services/pricing.js feesFor) — later price changes never touch it.
+    // Absent on payments made before plans existed (commissionBps alone).
+    fees: {
+        type: new mongoose.Schema({
+            plan: { type: String, default: null },
+            pricingVersion: { type: Number, default: null },
+            commissionBps: { type: Number, default: 0 },
+            percentCommissionCents: { type: Number, default: 0 },
+            fixedFeeCents: { type: Number, default: 0 },
+            commissionCents: { type: Number, default: 0 }, // percentage + fixed (or the minimum)
+            minCommissionApplied: { type: Boolean, default: false },
+            processingFeeCents: { type: Number, default: 0 },
+            processingFeePayer: { type: String, enum: ['business', 'bookplus'], default: 'business' },
+            businessShareCents: { type: Number, default: 0 },
+        }, { _id: false }),
+        default: undefined,
+    },
     refundedCents: { type: Number, default: 0 },
     // Refunds requested but not yet confirmed by PayGate — reserved so two
     // refunds can never together exceed what was paid.

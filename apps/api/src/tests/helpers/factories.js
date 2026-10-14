@@ -117,3 +117,15 @@ exports.giveHours = (member, schedule = exports.everyDayHours()) => StaffAvailab
 exports.tokenFor = (user) => generateToken(user._id, user.tokenVersion || 0);
 
 exports.authHeader = (user) => ({ Authorization: `Bearer ${exports.tokenFor(user)}` });
+
+// An admin set up for the money controls: two-step sign-in on, and a session
+// that passed it just now (utils/financeRoles.requireFinance).
+exports.makeFinanceAdmin = async (overrides = {}) => {
+    const admin = await exports.makeAdmin(overrides);
+    await User.updateOne({ _id: admin._id }, { $set: { 'mfa.enabled': true, 'mfa.enabledAt': new Date() } });
+    admin.mfa = { enabled: true };
+    return admin;
+};
+exports.financeHeader = (user, mfaAt = Math.floor(Date.now() / 1000)) => ({
+    Authorization: `Bearer ${generateToken(user._id, user.tokenVersion || 0, { mfa: true, mfaAt })}`,
+});

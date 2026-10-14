@@ -20,7 +20,7 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const Payout = require('../../models/Payout');
 const payments = require('../../services/paymentService');
-const { makeProvider, makeUser, makeAdmin, makeService, authHeader } = require('../helpers/factories');
+const { makeProvider, makeUser, makeFinanceAdmin, makeAdmin, makeService, authHeader, financeHeader } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { createFakePaygate } = require('../helpers/fakePaygate');
 
@@ -37,7 +37,7 @@ const world = async () => {
     const otherOwner = await makeProvider({ businessProfile: { businessName: 'Other', currency: 'NAD' } });
     const staff = await makeUser({ role: 'staff', staffOf: owner._id, name: 'Sam Staff' });
     const client = await makeUser({ name: 'Ana Shilongo' });
-    const admin = await makeAdmin();
+    const admin = await makeFinanceAdmin();
     const service = await makeService(owner._id, { name: 'Taper Fade', price: 200, duration: 30 });
     return { owner, otherOwner, staff, client, admin, service };
 };
@@ -67,8 +67,8 @@ describe('payment setting', () => {
             expect((await request(app).get('/api/payments/settings').set(authHeader(who))).status).toBe(403);
             expect((await request(app).put('/api/payments/settings').set(authHeader(who)).send({ mode: 'at_appointment' })).status).toBe(403);
         }
-        expect((await request(app).put('/api/payments/settings').set(authHeader(admin)).send({ mode: 'full' })).status).toBe(400);
-        const byAdmin = await request(app).put('/api/payments/settings').set(authHeader(admin)).send({ providerId: String(owner._id), mode: 'full' });
+        expect((await request(app).put('/api/payments/settings').set(financeHeader(admin)).send({ mode: 'full' })).status).toBe(400);
+        const byAdmin = await request(app).put('/api/payments/settings').set(financeHeader(admin)).send({ providerId: String(owner._id), mode: 'full' });
         expect(byAdmin.status).toBe(200);
         expect((await User.findById(owner._id)).paymentSettings.mode).toBe('full');
         expect((await request(app).get('/api/payments/settings')).status).toBe(401);
@@ -144,7 +144,7 @@ describe('the owner’s money', () => {
         await paidBooking(service);
         await paidBooking(service, { start: '11:00', end: '11:30', name: 'Ben Iipinge' });
         await User.updateOne({ _id: owner._id }, { $set: { payoutAccount: { ...ACCOUNT, accountNumber: '80041234821' } } });
-        const payout = await request(app).post('/api/payments/admin/payouts').set(authHeader(admin))
+        const payout = await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin))
             .send({ providerId: String(owner._id), amountCents: 15000, reference: 'EFT-0001' });
         expect(payout.status).toBe(201);
 
@@ -203,7 +203,10 @@ describe('the owner’s money', () => {
         expect((await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(staff)).send({ amountCents: 100 })).status).toBe(403);
         expect((await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(otherOwner)).send({ amountCents: 100 })).status).toBe(404);
         expect((await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(owner)).send({ amountCents: 100 })).status).toBe(200);
-        expect((await request(app).post(`/api/payments/${payment._id}/refund`).set(authHeader(admin)).send({ amountCents: 100 })).status).toBe(200);
+        // Bookplus staff go through the finance controls: a reason is required.
+        const noReason = await request(app).post(`/api/payments/${payment._id}/refund`).set(financeHeader(admin)).send({ amountCents: 100 });
+        expect(noReason.body.code).toBe('reason_required');
+        expect((await request(app).post(`/api/payments/${payment._id}/refund`).set(financeHeader(admin)).send({ amountCents: 100, reason: 'Client complaint' })).status).toBe(200);
         expect((await Payment.findById(payment._id)).refundedCents).toBe(200);
         expect((await request(app).post('/api/payments/not-an-id/refund').set(authHeader(owner)).send({})).status).toBe(404);
     });
@@ -219,7 +222,7 @@ describe('admin: balances and payouts', () => {
         await paidBooking(svc2, { name: 'Ben Iipinge' });
         await User.updateOne({ _id: owner._id }, { $set: { payoutAccount: { ...ACCOUNT, accountNumber: '80041234821' } } });
 
-        const r = await request(app).get('/api/payments/admin/balances').set(authHeader(admin));
+        const r = await request(app).get('/api/payments/admin/balances').set(financeHeader(admin));
         expect(r.status).toBe(200);
         expect(r.body.totalOwedCents).toBe(30000);
         const mine = r.body.data.find((x) => String(x.providerId) === String(owner._id));
@@ -229,10 +232,20 @@ describe('admin: balances and payouts', () => {
         expect(JSON.stringify(r.body)).not.toContain('80041234821');
 
         expect((await request(app).get('/api/payments/admin/balances').set(authHeader(owner))).status).toBe(403);
+        // Bookplus money needs a session confirmed with two-step sign-in.
+        const unconfirmed = await request(app).get('/api/payments/admin/balances').set(authHeader(admin));
+        expect(unconfirmed.status).toBe(403);
+        expect(unconfirmed.body.code).toBe('mfa_required');
+        const stale = await request(app).get('/api/payments/admin/balances').set(financeHeader(admin, Math.floor(Date.now() / 1000) - 13 * 3600));
+        expect(stale.body.code).toBe('mfa_required');
+        const noMfa = await makeAdmin();
+        const r2 = await request(app).get('/api/payments/admin/balances').set(financeHeader(noMfa));
+        expect(r2.status).toBe(403);
+        expect(r2.body.code).toBe('mfa_setup_required');
         expect((await request(app).get('/api/payments/admin/balances').set(authHeader(staff))).status).toBe(403);
-        const list = await request(app).get(`/api/payments/admin/payments?providerId=${owner._id}&status=paid`).set(authHeader(admin));
+        const list = await request(app).get(`/api/payments/admin/payments?providerId=${owner._id}&status=paid`).set(financeHeader(admin));
         expect(list.body.total).toBe(1);
-        const led = await request(app).get(`/api/payments/admin/providers/${owner._id}/ledger`).set(authHeader(admin));
+        const led = await request(app).get(`/api/payments/admin/providers/${owner._id}/ledger`).set(financeHeader(admin));
         expect(led.body.balanceOwedCents).toBe(20000);
     });
 
@@ -240,22 +253,22 @@ describe('admin: balances and payouts', () => {
         const { owner, admin, service } = await world();
         await paidBooking(service);
 
-        const noAccount = await request(app).post('/api/payments/admin/payouts').set(authHeader(admin)).send({ providerId: String(owner._id), amountCents: 5000 });
+        const noAccount = await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin)).send({ providerId: String(owner._id), amountCents: 5000 });
         expect(noAccount.status).toBe(409);
         expect(noAccount.body.code).toBe('payout_account_missing');
         await User.updateOne({ _id: owner._id }, { $set: { payoutAccount: { ...ACCOUNT, accountNumber: '80041234821' } } });
 
-        const over = await request(app).post('/api/payments/admin/payouts').set(authHeader(admin)).send({ providerId: String(owner._id), amountCents: 20001 });
+        const over = await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin)).send({ providerId: String(owner._id), amountCents: 20001 });
         expect(over.status).toBe(409);
         expect(over.body).toMatchObject({ code: 'exceeds_balance', balanceOwedCents: 20000 });
 
-        const ok = await request(app).post('/api/payments/admin/payouts').set(authHeader(admin)).send({ providerId: String(owner._id), amountCents: 20000, reference: 'EFT-1' });
+        const ok = await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin)).send({ providerId: String(owner._id), amountCents: 20000, reference: 'EFT-1' });
         expect(ok.status).toBe(201);
         expect(ok.body.data).toMatchObject({ amountCents: 20000, status: 'paid', bankName: 'Bank Windhoek', accountNumberMasked: '•••• 4821' });
         expect(ok.body.balanceOwedCents).toBe(0);
         expect(await payments.balanceOf(owner._id)).toBe(0);
 
-        const forced = await request(app).post('/api/payments/admin/payouts').set(authHeader(admin))
+        const forced = await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin))
             .send({ providerId: String(owner._id), amountCents: 100, allowOverdraw: true, note: 'advance' });
         expect(forced.status).toBe(201);
         expect(forced.body.data.overrides).toEqual(['balance']);
@@ -264,9 +277,9 @@ describe('admin: balances and payouts', () => {
 
         // Owners can't record payouts; bad input is refused.
         expect((await request(app).post('/api/payments/admin/payouts').set(authHeader(owner)).send({ providerId: String(owner._id), amountCents: 1 })).status).toBe(403);
-        expect((await request(app).post('/api/payments/admin/payouts').set(authHeader(admin)).send({ providerId: String(owner._id), amountCents: 1.5 })).status).toBe(400);
-        expect((await request(app).post('/api/payments/admin/payouts').set(authHeader(admin)).send({ providerId: 'x', amountCents: 1 })).status).toBe(400);
-        const payouts = await request(app).get('/api/payments/admin/payouts').set(authHeader(admin));
+        expect((await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin)).send({ providerId: String(owner._id), amountCents: 1.5 })).status).toBe(400);
+        expect((await request(app).post('/api/payments/admin/payouts').set(financeHeader(admin)).send({ providerId: 'x', amountCents: 1 })).status).toBe(400);
+        const payouts = await request(app).get('/api/payments/admin/payouts').set(financeHeader(admin));
         expect(payouts.body.total).toBe(2);
         expect(await Payout.countDocuments()).toBe(2);
     });

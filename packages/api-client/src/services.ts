@@ -51,6 +51,33 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         setMarketingEmails: (optIn: boolean) => API.put('/auth/marketing', { optIn }),
         blockUser: (userId: string) => API.post('/auth/block', { userId }),
         unblockUser: (userId: string) => API.delete(`/auth/block/${userId}`),
+        // Two-step sign-in (admin accounts). mfaLogin finishes a password
+        // sign-in that answered { mfaRequired, mfaToken }; enable and confirm
+        // return a fresh token for this session.
+        mfaLogin: (mfaToken: string, code: string) => API.post('/auth/mfa/login', { mfaToken, code }),
+        mfaStatus: () => API.get('/auth/mfa'),
+        mfaSetup: () => API.post('/auth/mfa/setup'),
+        mfaEnable: (code: string) => API.post('/auth/mfa/enable', { code }),
+        mfaConfirm: (code: string) => API.post('/auth/mfa/confirm', { code }),
+    },
+
+    // Bookplus's money controls (admin, two-step sign-in, finance/director roles).
+    // Settings changes are nested objects: { processingFee: { bps: 350 } }.
+    financeService: {
+        getSettings: () => API.get('/admin/finance/settings'),
+        updateSettings: (changes: any, reason: string) => API.put('/admin/finance/settings', { changes, reason }),
+        simulate: (valuesCents: number[]) => API.get('/admin/finance/simulate', { params: { values: valuesCents.join(',') } }),
+        setLaunchGate: (gate: string, done: boolean, note: string) => API.post(`/admin/finance/launch/${encodeURIComponent(gate)}`, { done, note }),
+        setBusinessPricing: (providerId: string, data: any) => API.put(`/admin/finance/businesses/${providerId}/pricing`, data),
+        prepareRefund: (paymentId: string, data: { amountCents?: number; reason: string }) => API.post(`/admin/finance/payments/${paymentId}/refund`, data),
+        prepareAdjustment: (data: { providerId: string; amountCents: number; reason: string }) => API.post('/admin/finance/adjustments', data),
+        listRequests: (status?: string) => API.get('/admin/finance/requests', { params: status ? { status } : {} }),
+        approveRequest: (id: string, note?: string) => API.post(`/admin/finance/requests/${id}/approve`, { note }),
+        rejectRequest: (id: string, note: string) => API.post(`/admin/finance/requests/${id}/reject`, { note }),
+        getAudit: (params: any = {}) => API.get('/admin/finance/audit', { params }),
+        listAdmins: () => API.get('/admin/finance/admins'),
+        setAdminRoles: (id: string, roles: string[]) => API.put(`/admin/finance/admins/${id}/roles`, { roles }),
+        resetAdminMfa: (id: string, reason: string) => API.post(`/admin/finance/admins/${id}/reset-mfa`, { reason }),
     },
 
     // One-click unsubscribe from marketing email. Public: the signed token from

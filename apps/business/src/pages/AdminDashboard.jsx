@@ -16,6 +16,7 @@ import { appointmentClient, appointmentBusiness, userActions, roleLabel, suspend
 import AdminTabs from '../components/AdminTabs';
 import DeleteUserDialog from '../components/DeleteUserDialog';
 import WalletAdjustDialog from '../components/WalletAdjustDialog';
+import MoneyPanel from '../components/MoneyPanel';
 
 
 const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
@@ -382,7 +383,7 @@ const AdminDashboard = () => {
         } finally { setPendingId(null); }
     };
 
-    const tabs = ['appointments', 'services', 'users', 'revenue', 'wallet'];
+    const tabs = ['appointments', 'services', 'users', 'revenue', 'wallet', 'money'];
     // Counted on the server, so they never change with a filter or page. "Users"
     // is the same definition as Insights: client + business accounts (no admins,
     // no team logins — those are shown underneath).
@@ -840,6 +841,9 @@ const AdminDashboard = () => {
                         )}
                     </div>
                 )}
+
+                {/* Bookplus's own prices, fees, approvals and audit log (two-step sign-in) */}
+                {activeTab === 'money' && <MoneyPanel />}
 
                 {activeTab === 'wallet' && (
                     <div>

@@ -25,6 +25,7 @@ const LedgerEntry = require('../models/LedgerEntry');
 const Payout = require('../models/Payout');
 const User = require('../models/User');
 const paygate = require('./paygate');
+const pricing = require('./pricing');
 const { paymentsEnabled } = require('../constants/features');
 const { primaryOrigin } = require('../utils/origins');
 const { withLock, withBookingLock } = require('../utils/lock');
@@ -147,6 +148,10 @@ const planForBooking = async (providerId, price) => {
     if (!paymentsEnabled() || !providerId) return null;
     const provider = await User.findById(providerId).select('paymentSettings businessProfile.currency').lean();
     if (!provider) return null;
+    // Below Bookplus's minimum online booking value (PlatformSettings), the
+    // fees would eat the booking: it is paid at the appointment instead.
+    const { minOnlineBookingCents } = await pricing.getSettings();
+    if (minOnlineBookingCents > 0 && toCents(price) < minOnlineBookingCents) return null;
     return planFor({
         settings: settingsOf(provider),
         currency: provider.businessProfile?.currency || 'NAD',
@@ -199,11 +204,58 @@ const writeEntry = async (entry) => {
     }
 };
 
+/**
+ * The fees on a payment of `amountCents` to this business, as they stand now
+ * (fixed onto the payment when it is paid). A business that hasn't chosen a
+ * plan yet pays the old flat PLATFORM_COMMISSION_BPS (0 unless set) and no
+ * fixed fee, so nothing changes for it until it chooses.
+ */
+const feeSnapshotFor = async (providerId, amountCents) => {
+    const settings = await pricing.getSettings();
+    const provider = await User.findById(providerId).select('pricing').lean();
+    const rates = pricing.ratesFor(provider, settings) || { plan: null, commissionBps: commissionBps(), fixedFeeCents: 0 };
+    const f = pricing.feesFor(amountCents, rates, settings);
+    return {
+        plan: rates.plan,
+        pricingVersion: rates.plan ? (provider?.pricing?.pricingVersion ?? settings.version ?? null) : null,
+        commissionBps: f.commissionBps || 0,
+        percentCommissionCents: f.percentCommissionCents,
+        fixedFeeCents: f.fixedFeeCents,
+        commissionCents: f.commissionCents,
+        minCommissionApplied: f.minCommissionApplied,
+        processingFeeCents: f.processingFeeCents,
+        processingFeePayer: f.processingFeePayer,
+        businessShareCents: f.businessShareCents,
+    };
+};
+
+// The commission split into its percentage part and its fixed part (the
+// fixed part can't be more than the whole, e.g. when the amount is tiny).
+const commissionParts = (fees) => {
+    const fixed = Math.min(Math.max(0, fees.fixedFeeCents || 0), Math.max(0, fees.commissionCents || 0));
+    return { percent: Math.max(0, (fees.commissionCents || 0) - fixed), fixed };
+};
+
 const creditPayment = async (payment) => {
     await writeEntry({
         provider: payment.provider, type: 'payment', amountCents: payment.amountCents, currency: payment.currency,
         payment: payment._id, appointment: payment.appointment, key: `payment:${payment._id}`,
     });
+    if (payment.fees) {
+        const { percent, fixed } = commissionParts(payment.fees);
+        const base = { provider: payment.provider, currency: payment.currency, payment: payment._id, appointment: payment.appointment };
+        if (percent > 0) {
+            await writeEntry({ ...base, type: 'commission', amountCents: -percent, commissionBps: payment.fees.commissionBps, key: `commission:${payment._id}` });
+        }
+        if (fixed > 0) {
+            await writeEntry({ ...base, type: 'fixed_fee', amountCents: -fixed, key: `fixed-fee:${payment._id}` });
+        }
+        const processing = payment.fees.processingFeePayer === 'business' ? payment.fees.processingFeeCents || 0 : 0;
+        if (processing > 0) {
+            await writeEntry({ ...base, type: 'processing_fee', amountCents: -processing, key: `processing-fee:${payment._id}` });
+        }
+        return;
+    }
     const fee = commissionOn(payment.amountCents, payment.commissionBps);
     if (fee > 0) {
         await writeEntry({
@@ -220,6 +272,27 @@ const debitRefund = async (payment, refund) => {
         payment: payment._id, appointment: payment.appointment, note: refund.reason || '', createdBy: refund.by || null,
         key: `refund:${refund._id}`,
     });
+    if (payment.fees) {
+        // The percentage commission on the refunded part goes back to the
+        // business, worked out on the running total so partial refunds add up
+        // to exactly the whole. The fixed fee goes back only once the payment
+        // is refunded in full. The card processing fee is never returned:
+        // the card company keeps it. `payment` already includes this refund
+        // in refundedCents.
+        const total = payment.amountCents;
+        const after = Math.min(total, payment.refundedCents);
+        const before = Math.max(0, after - refund.amountCents);
+        const { percent, fixed } = commissionParts(payment.fees);
+        const back = Math.round((percent * after) / total) - Math.round((percent * before) / total);
+        const base = { provider: payment.provider, currency: payment.currency, payment: payment._id, appointment: payment.appointment };
+        if (back > 0) {
+            await writeEntry({ ...base, type: 'commission', amountCents: back, commissionBps: payment.fees.commissionBps, note: 'Commission returned on refund', key: `commission-refund:${refund._id}` });
+        }
+        if (fixed > 0 && after >= total && before < total) {
+            await writeEntry({ ...base, type: 'fixed_fee', amountCents: fixed, note: 'Fixed fee returned: refunded in full', key: `fixed-fee-refund:${payment._id}` });
+        }
+        return;
+    }
     // The commission on the refunded part goes back to the business: a fully
     // refunded payment nets to zero for everyone.
     const fee = commissionOn(refund.amountCents, payment.commissionBps);
@@ -571,10 +644,11 @@ const applyQueryResult = async (payment, q, source) => {
             notifyAdminsSafe(`Online payment ${payment._id} needs review: ${reason}. The booking was not confirmed.`);
             return Payment.findById(payment._id);
         }
+        const fees = await feeSnapshotFor(payment.provider, payment.amountCents);
         const claimed = await Payment.findOneAndUpdate(
             { _id: payment._id, status: { $in: [...OPEN, 'failed', 'cancelled', 'expired'] } },
             {
-                $set: { ...gatewayFields, status: 'paid', paidAt: now, commissionBps: commissionBps() },
+                $set: { ...gatewayFields, status: 'paid', paidAt: now, commissionBps: fees.commissionBps, fees },
                 $push: { statusHistory: historyEntry('paid', source) },
             },
             { new: true },
@@ -850,7 +924,7 @@ const recordPayout = async ({ providerId, amountCents, reference = '', note = ''
 
 module.exports = {
     ONLINE_CURRENCY, REFERENCE_RE,
-    holdMinutes, commissionBps, notifyUrl, returnUrl, resultPageUrl,
+    holdMinutes, commissionBps, feeSnapshotFor, notifyUrl, returnUrl, resultPageUrl,
     toCents, formatCents, newReference,
     settingsOf, validateSettings, planFor, planForBooking,
     maskAccountNumber, validatePayoutAccount, hasPayoutAccount, publicPayoutAccount,
