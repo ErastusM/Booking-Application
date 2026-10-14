@@ -13,6 +13,9 @@ const mongoose = require('mongoose');
  *                  card company keeps it, so a refund never returns it
  *   refund      −  money given back to the client
  *   payout      −  Bookplus paid the business (bank transfer)
+ *   payout_reversal + the bank returned a payout, so the money is owed again
+ *   chargeback  −  a card chargeback Bookplus lost, recovered from the business
+ *                  (director-approved; keyed chargeback:<dispute id>, so once)
  *   adjustment  ±  a correction recorded by an admin
  *
  * The balance owed is the plain sum of amountCents (signed, integer cents).
@@ -21,7 +24,7 @@ const mongoose = require('mongoose');
  */
 const ledgerEntrySchema = new mongoose.Schema({
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    type: { type: String, enum: ['payment', 'refund', 'commission', 'fixed_fee', 'processing_fee', 'payout', 'adjustment'], required: true },
+    type: { type: String, enum: ['payment', 'refund', 'commission', 'fixed_fee', 'processing_fee', 'payout', 'payout_reversal', 'chargeback', 'adjustment'], required: true },
     amountCents: { type: Number, required: true },
     currency: { type: String, required: true, uppercase: true },
     payment: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },

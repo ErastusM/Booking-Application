@@ -14,6 +14,7 @@ const Payment = require('../models/Payment');
 const PlatformSettings = require('../models/PlatformSettings');
 const FinancialAuditLog = require('../models/FinancialAuditLog');
 const FinanceRequest = require('../models/FinanceRequest');
+const Dispute = require('../models/Dispute');
 const LedgerEntry = require('../models/LedgerEntry');
 const pricing = require('../services/pricing');
 const payments = require('../services/paymentService');
@@ -299,7 +300,7 @@ const requestRow = (r) => ({
     amountCents: r.amountCents, currency: r.currency, reason: r.reason,
     preparedBy: r.preparedBy, decidedBy: r.decidedBy, decidedAt: r.decidedAt, decisionNote: r.decisionNote,
     requestedByBusiness: !!r.requestedByBusiness, balanceAtRequestCents: r.balanceAtRequestCents ?? null, overBalance: !!r.overBalance,
-    result: r.result, createdAt: r.createdAt,
+    dispute: r.dispute || null, result: r.result, createdAt: r.createdAt,
 });
 
 /**
@@ -326,43 +327,54 @@ exports.requestRefundFromBusiness = async ({ owner, payment, amountCents, reason
 };
 
 /**
- * POST /api/admin/finance/payments/:id/refund { amountCents?, reason }
  * Finance prepares a refund. At or below the approval threshold it runs at
- * once; above it, it waits for a director who didn't prepare it.
+ * once; above it, it waits for a director who didn't prepare it. Returns
+ * { status, body } for the response. `dispute` links it to a case.
  */
+const prepareRefundFor = async ({ actor, payment, amountCents, reason, dispute = null }) => {
+    if (!reason) return { status: 400, body: { success: false, code: 'reason_required', message: 'Say why the refund is being made' } };
+    const remaining = payment.amountCents - (payment.refundedCents || 0) - (payment.refundingCents || 0);
+    const amt = amountCents === undefined || amountCents === null ? remaining : amountCents;
+    if (!Number.isInteger(amt) || amt <= 0) return { status: 400, body: { success: false, code: 'bad_amount', message: 'amountCents must be a whole number of cents above 0' } };
+    if (amt > remaining) return { status: 409, body: { success: false, code: 'exceeds_refundable', message: 'More than is left to refund' } };
+    const settings = await pricing.getSettings();
+    const threshold = settings.approvals?.refundThresholdCents ?? 0;
+
+    if (amt <= threshold) {
+        await recordFinance({
+            actor, action: 'refund.execute', amountCents: amt, provider: payment.provider,
+            appointment: payment.appointment, payment: payment._id, reference: payment.reference, reason,
+            ...(dispute ? { details: { dispute } } : {}),
+        });
+        const r = await payments.requestRefund({ paymentId: payment._id, amountCents: amt, reason, by: actor._id, trigger: 'manual' });
+        if (!r.ok && r.code) return { status: r.code === 'exceeds_refundable' ? 409 : 400, body: { success: false, code: r.code, message: r.error } };
+        return {
+            status: r.ok ? 200 : 202,
+            ran: true,
+            body: { success: r.ok, code: r.ok ? 'refunded' : 'refund_pending', message: r.ok ? 'Refund sent' : 'Saved; PayGate did not take it yet. It can be retried.' },
+        };
+    }
+
+    const request = await FinanceRequest.create({
+        type: 'refund', provider: payment.provider, payment: payment._id, appointment: payment.appointment, dispute,
+        amountCents: amt, currency: payment.currency, reason, preparedBy: actor._id,
+    });
+    await recordFinance({
+        actor, action: 'refund.request', amountCents: amt, provider: payment.provider, appointment: payment.appointment,
+        payment: payment._id, reference: payment.reference, reason, approvalStatus: 'pending', request: request._id,
+    });
+    return { status: 202, request, body: { success: true, code: 'approval_required', message: 'Above the approval limit: a director must approve it.', data: requestRow(request) } };
+};
+exports.prepareRefundFor = prepareRefundFor;
+
+// POST /api/admin/finance/payments/:id/refund { amountCents?, reason }
 exports.prepareRefund = async (req, res) => {
     try {
         if (!isId(req.params.id)) return fail(res, 404, 'Payment not found');
         const payment = await Payment.findById(req.params.id).lean();
         if (!payment) return fail(res, 404, 'Payment not found');
-        const reason = String(req.body?.reason || '').trim();
-        if (!reason) return fail(res, 400, 'Say why the refund is being made', 'reason_required');
-        const remaining = payment.amountCents - (payment.refundedCents || 0) - (payment.refundingCents || 0);
-        const amt = req.body?.amountCents === undefined || req.body?.amountCents === null ? remaining : req.body.amountCents;
-        if (!Number.isInteger(amt) || amt <= 0) return fail(res, 400, 'amountCents must be a whole number of cents above 0', 'bad_amount');
-        if (amt > remaining) return fail(res, 409, 'More than is left to refund', 'exceeds_refundable');
-        const settings = await pricing.getSettings();
-        const threshold = settings.approvals?.refundThresholdCents ?? 0;
-
-        if (amt <= threshold) {
-            await recordFinance({
-                actor: req.user, action: 'refund.execute', amountCents: amt, provider: payment.provider,
-                appointment: payment.appointment, payment: payment._id, reference: payment.reference, reason,
-            });
-            const r = await payments.requestRefund({ paymentId: payment._id, amountCents: amt, reason, by: req.user._id, trigger: 'manual' });
-            if (!r.ok && r.code) return fail(res, r.code === 'exceeds_refundable' ? 409 : 400, r.error, r.code);
-            return res.status(r.ok ? 200 : 202).json({ success: r.ok, code: r.ok ? 'refunded' : 'refund_pending', message: r.ok ? 'Refund sent' : 'Saved; PayGate did not take it yet. It can be retried.' });
-        }
-
-        const request = await FinanceRequest.create({
-            type: 'refund', provider: payment.provider, payment: payment._id, appointment: payment.appointment,
-            amountCents: amt, currency: payment.currency, reason, preparedBy: req.user._id,
-        });
-        await recordFinance({
-            actor: req.user, action: 'refund.request', amountCents: amt, provider: payment.provider, appointment: payment.appointment,
-            payment: payment._id, reference: payment.reference, reason, approvalStatus: 'pending', request: request._id,
-        });
-        res.status(202).json({ success: true, code: 'approval_required', message: 'Above the approval limit: a director must approve it.', data: requestRow(request) });
+        const r = await prepareRefundFor({ actor: req.user, payment, amountCents: req.body?.amountCents, reason: String(req.body?.reason || '').trim() });
+        res.status(r.status).json(r.body);
     } catch (err) {
         logger.error({ err: err.message }, 'prepare refund failed');
         fail(res, 500, 'Internal server error');
@@ -407,6 +419,22 @@ const runRequest = async (request, actor) => {
             const r = await payments.requestRefund({ paymentId: request.payment, amountCents: request.amountCents, reason: request.reason, by: actor._id, trigger: 'manual' });
             request.status = r.ok || !r.code ? 'executed' : 'failed';
             request.result = r.ok ? { refundId: r.refundId } : { error: r.error || 'PayGate did not take it yet', code: r.code || 'refund_pending', refundId: r.refundId || null };
+            if (request.dispute && request.status === 'executed') {
+                await Dispute.updateOne({ _id: request.dispute, status: 'open' }, { $set: { status: 'refunded', closedBy: actor._id, closedAt: new Date() } });
+            }
+        } else if (request.type === 'recovery') {
+            // Once per dispute: the ledger key is unique.
+            const key = `chargeback:${request.dispute}`;
+            const wrote = await payments.writeEntry({
+                provider: request.provider, type: 'chargeback', amountCents: -request.amountCents, currency: request.currency,
+                payment: request.payment, appointment: request.appointment, note: request.reason, createdBy: actor._id, key,
+            });
+            request.status = wrote ? 'executed' : 'failed';
+            request.result = wrote ? { ledgerKey: key } : { error: 'This chargeback was already recovered', code: 'already_recovered' };
+            await Dispute.updateOne({ _id: request.dispute }, { $set: { 'recovery.status': wrote ? 'done' : 'failed', 'recovery.at': new Date() } });
+            if (wrote) {
+                createNotification(request.provider, `Bookplus took N$${(request.amountCents / 100).toFixed(2)} from your balance for a card chargeback it lost: ${request.reason}`, 'system', '/account?section=payments').catch(() => {});
+            }
         } else {
             await LedgerEntry.create({
                 provider: request.provider, type: 'adjustment', amountCents: request.amountCents, currency: request.currency,
@@ -480,6 +508,9 @@ const decide = (approve) => async (req, res) => {
             approvalStatus: approve ? 'approved' : 'rejected', request: claimed._id,
         });
         const done = approve ? await runRequest(claimed, req.user) : claimed;
+        if (!approve && done.type === 'recovery' && done.dispute) {
+            await Dispute.updateOne({ _id: done.dispute }, { $set: { 'recovery.status': 'rejected', 'recovery.at': new Date() } });
+        }
         if (done.requestedByBusiness) {
             const amount = `N$${(done.amountCents / 100).toFixed(2)}`;
             // executed + no error: sent; executed + refund_pending: saved, PayGate
@@ -709,3 +740,4 @@ exports.confirmPayoutAccount = async (req, res) => {
 };
 
 exports._test = { EDITABLE, launchChecklist, hasFinanceRole, flatten };
+exports.requestRow = requestRow;

@@ -26,6 +26,7 @@ const Balance = ({ b }) => {
             </p>
             {owed < 0 && <p style={{ ...muted, marginBottom: '0.5rem' }}>Refunds took more than you had. It comes off your next payments.</p>}
             <div style={{ display: 'grid', gap: '0.35rem', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                {b.payoutsOnTheirWayCents > 0 && <div style={row} data-testid="money-payout-on-way"><span>Payout on its way to your bank</span><span>{nad(b.payoutsOnTheirWayCents)}</span></div>}
                 {b.refundsPendingCents > 0 && <div style={row}><span>Refunds on their way</span><span>{nad(b.refundsPendingCents)}</span></div>}
                 <div style={row}><span>Paid online this month</span><span>{nad(b.paidOnlineThisMonthCents)}</span></div>
                 <div style={row}><span>Paid out this month</span><span>{nad(b.paidOutThisMonthCents)}</span></div>

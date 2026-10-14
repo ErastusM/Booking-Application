@@ -1,6 +1,6 @@
 // Unsigned Cloudinary upload for PUBLIC pictures (avatars, portfolio, team photos).
 // Proofs of payment use the private, signed uploadProof below — never this.
-import { walletService, onlinePaymentsService } from '../services';
+import { walletService, onlinePaymentsService, financeService } from '../services';
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
 
@@ -59,4 +59,14 @@ export const uploadVerificationDocument = (file) => {
         return Promise.reject(new Error('Send a PDF, JPG or PNG.'));
     }
     return uploadPrivate(file, () => onlinePaymentsService.uploadParams());
+};
+
+// Evidence for a card dispute or complaint (admin, Money → Disputes): the same
+// private upload, into the case's own folder. PDF, JPG or PNG, at most 10 MB.
+export const uploadDisputeEvidence = (file, disputeId) => {
+    if (file.size > VERIFICATION_MAX_BYTES) return Promise.reject(new Error('That file is over 10 MB.'));
+    if (!/\.(pdf|jpe?g|png)$/i.test(file.name || '') && !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
+        return Promise.reject(new Error('Send a PDF, JPG or PNG.'));
+    }
+    return uploadPrivate(file, () => financeService.disputeUploadParams(disputeId));
 };
