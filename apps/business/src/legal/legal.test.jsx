@@ -162,7 +162,7 @@ describe('Privacy Policy content matches what the platform does', () => {
         it(`${audience}: names every processor, sensitive data type and retention period`, () => {
             const t = textOf(privacyPolicy(audience));
             for (const name of ['Cloudinary', 'Resend', 'Sentry', 'Google', 'OpenStreetMap', 'DigitalOcean']) expect(t).toContain(name);
-            for (const topic of ['bp_sid', 'bp_rt', 'GPS', 'allergy', 'intake', 'health', 'Reviews', 'Messages']) expect(t.toLowerCase()).toContain(topic.toLowerCase());
+            for (const topic of ['bp_sid', 'bp_rt_c', 'bp_rt_b', 'bp_ho', 'GPS', 'allergy', 'intake', 'health', 'Reviews', 'Messages']) expect(t.toLowerCase()).toContain(topic.toLowerCase());
             for (const period of Object.values(RETENTION)) expect(t).toContain(period);
             expect(t).toContain('16 and older');
             expect(t).toMatch(/Access and export/);

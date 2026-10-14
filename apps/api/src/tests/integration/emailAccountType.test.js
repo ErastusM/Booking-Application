@@ -4,6 +4,7 @@
  * authenticates its own account type.
  */
 const request = require('supertest');
+const { refreshCookieOf, handoffCookieOf } = require('../helpers/cookies');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider } = require('../helpers/factories');
@@ -159,7 +160,9 @@ describe('POST /api/auth/refresh with accountType (SSO bootstrap scoping)', () =
     const loginAs = async (password, accountType) => {
         const res = await request(app).post('/api/auth/login')
             .send({ email: EMAIL, password, accountType });
-        return res.body.data;
+        // The refresh token only travels in its httpOnly cookie; an older app
+        // version's stored copy is still accepted in the body.
+        return { ...res.body.data, refreshToken: refreshCookieOf(res) };
     };
 
     it('accepts a refresh scoped to the matching account type', async () => {

@@ -32,6 +32,12 @@ module.exports = defineConfig({
                 localStorage: [{ name: 'bp_consent', value: JSON.stringify({ v: 1, analytics: false, at: '2026-01-01T00:00:00.000Z' }) }],
             }],
         },
+        // Sandboxed containers often pre-install one Chromium at a fixed path
+        // instead of the exact build this @playwright/test version downloads
+        // (same switch as apps/business/playwright.config.cjs).
+        ...(process.env.PW_EXECUTABLE_PATH
+            ? { launchOptions: { executablePath: process.env.PW_EXECUTABLE_PATH } }
+            : {}),
     },
     projects: [
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

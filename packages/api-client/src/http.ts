@@ -82,9 +82,13 @@ export const bootstrapSession = async (apiBase: string, accountType?: AccountTyp
     try {
         // accountType scopes the exchange: a cookie belonging to the other
         // side's account is rejected (403) and this app stays logged out.
+        // The refresh token lives only in an httpOnly cookie. A copy an older
+        // version kept in storage is sent once, so that session moves to the
+        // cookie, and then deleted.
+        const legacyRefresh = localStorage.getItem('refreshToken');
         const { data } = await axios.post(
             `${apiBase}/api/auth/refresh`,
-            accountType ? { accountType } : {},
+            { ...(accountType ? { accountType } : {}), ...(legacyRefresh ? { refreshToken: legacyRefresh } : {}) },
             // Explicit timeout: this is a BARE axios call, so it does not inherit the
             // instance timeout. Without it a hung (not failed) connection leaves
             // useAuth awaiting forever and ProtectedRoute on a permanent spinner.
@@ -93,7 +97,7 @@ export const bootstrapSession = async (apiBase: string, accountType?: AccountTyp
         const token = data?.data?.token;
         if (!token) return false;
         localStorage.setItem('token', token);
-        if (data?.data?.refreshToken) localStorage.setItem('refreshToken', data.data.refreshToken);
+        localStorage.removeItem('refreshToken');
         return true;
     } catch {
         return false;
@@ -170,10 +174,9 @@ export const createHttp = (
                 return Promise.reject(error);
             }
 
-            // No locally stored refresh token can still mean a valid session:
-            // the SSO cookie (set by a login on a sibling subdomain) is sent
-            // withCredentials and the server accepts it in place of the body
-            // token. Only give up when the refresh itself is rejected.
+            // The session renews from the httpOnly refresh cookie, sent
+            // withCredentials. A copy an older version kept in storage is sent
+            // once (it moves that session to the cookie) and then deleted.
             const refreshToken = localStorage.getItem('refreshToken');
 
             originalRequest._retry = true;
@@ -211,7 +214,6 @@ export const createHttp = (
                     { withCredentials: true, timeout: 20000 }
                 );
                 const newToken = data?.data?.token;
-                const newRefreshToken = data?.data?.refreshToken;
                 if (!newToken) {
                     // A 2xx with no token is just as unrecoverable as a 401/403 refresh:
                     // there is no valid session to keep waiters queued behind. Mark it
@@ -225,7 +227,7 @@ export const createHttp = (
                 }
 
                 localStorage.setItem('token', newToken);
-                if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
+                localStorage.removeItem('refreshToken');
 
                 onRefreshed(newToken);
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;

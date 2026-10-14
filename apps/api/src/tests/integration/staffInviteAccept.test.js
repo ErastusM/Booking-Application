@@ -71,7 +71,7 @@ describe('POST /api/auth/staff-invite/:token/accept', () => {
         expect(res.status).toBe(200);
         // Auto-login: a real session comes back, not just a success flag.
         expect(res.body.data.token).toBeTruthy();
-        expect(res.body.data.refreshToken).toBeTruthy();
+        expect(res.body.data.refreshToken).toBeUndefined();
         expect(res.body.data.user.email).toBe(email);
         expect(res.body.data.user.role).toBe('staff');
         // No access level rides along any more — every member is the same.
@@ -79,7 +79,7 @@ describe('POST /api/auth/staff-invite/:token/accept', () => {
         expect(res.body.data.user).not.toHaveProperty('staffPermissions');
         expect(String(res.body.data.user.staffOf)).toBe(String(owner._id));
         // Refresh cookie is set so the sibling-app SSO bootstrap works too.
-        expect(res.headers['set-cookie'].join(';')).toMatch(/bp_rt=/);
+        expect(res.headers['set-cookie'].join(';')).toMatch(/bp_rt_b=[^;]/);
 
         // Token is consumed, mailbox proven, account active.
         const user = await User.findOne({ email }).select('+passwordResetToken');

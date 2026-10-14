@@ -1,6 +1,12 @@
 const pino = require('pino');
 const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const { newClientContact } = require('../utils/newClientContact');
+
+// Upcoming bookings one guest email may hold at one business (no account).
+const GUEST_UPCOMING_LIMIT = 3;
+// The person behind the account has proved their email: confirmed by link,
+// or signed in with Google (or another social provider).
+const ownsEmail = (u) => u.isVerified === true || !!u.googleId || (!!u.provider && u.provider !== 'local');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { randomUUID } = require('crypto');
 const Appointment = require('../models/Appointment');
@@ -1200,6 +1206,30 @@ exports.createAppointment = async (req, res) => {
         if (isGuest && !isFullName(guestName)) {
             return res.status(400).json({ success: false, code: 'full_name_required', message: FULL_NAME_MESSAGE });
         }
+        // A guest has no account behind them, so one request must not be able to
+        // fill a calendar or send dozens of emails to any address: no repeat
+        // series, and only a few upcoming bookings per email at one business.
+        if (isGuest && isRecurring) {
+            return res.status(400).json({ success: false, code: 'guest_recurring_unsupported', message: 'Please sign in to book repeat appointments.' });
+        }
+        if (isGuest && svc.provider) {
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            const upcoming = await Appointment.countDocuments({
+                provider: svc.provider,
+                customer: null,
+                guestEmail: guestEmail.trim().toLowerCase(),
+                status: { $in: ['pending', 'confirmed', 'pending_payment'] },
+                appointmentDate: { $gte: startOfToday },
+            });
+            if (upcoming >= GUEST_UPCOMING_LIMIT) {
+                return res.status(429).json({
+                    success: false,
+                    code: 'guest_booking_limit',
+                    message: `You already have ${upcoming} upcoming bookings here. Please sign in to book more.`,
+                });
+            }
+        }
         if (req.user?.role === 'customer' && !isFullName(req.user.name)) {
             return res.status(400).json({ success: false, code: 'full_name_required', message: 'Please add your surname to your name so the business can tell you apart.' });
         }
@@ -1525,6 +1555,15 @@ exports.createAppointment = async (req, res) => {
         const paymentPlan = isOnlineClient && chosenMethod !== 'wallet' && svc.provider
             ? await payments.planForBooking(svc.provider, basePrice)
             : null;
+        // Paying online needs a confirmed email: the receipt and any refund
+        // notice go there. A guest gives their email on the booking itself.
+        if (paymentPlan && req.user && !ownsEmail(req.user)) {
+            return res.status(403).json({
+                success: false,
+                code: 'email_unverified',
+                message: 'Please confirm your email address before paying online. We sent you a link when you signed up.',
+            });
+        }
         if (paymentPlan && isRecurring) {
             return res.status(400).json({
                 success: false,

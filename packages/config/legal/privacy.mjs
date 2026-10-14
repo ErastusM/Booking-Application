@@ -36,7 +36,7 @@ export const RETENTION = {
     bookingRejections: '7 days',
     unfinishedGoogleSignUps: '30 minutes',
     backups: '14 days', // ops/backup/backup.sh BACKUP_RETENTION_DAYS default
-    refreshCookie: '30 days', // bp_rt cookie Max-Age / REFRESH_TOKEN_EXPIRE
+    refreshCookie: '30 days', // bp_rt_c / bp_rt_b cookie Max-Age / REFRESH_TOKEN_EXPIRE
 };
 
 const op = operatorName(COMPANY);
@@ -227,9 +227,10 @@ const cookies = (cookieList) => ({
             rows: cookieList?.items?.length
                 ? cookieList.items.map((i) => [`${i.key} (${String(i.storage).startsWith('cookie') ? 'cookie' : 'browser storage'})`, i.purpose, CATEGORY_LABEL[i.category] || i.category, i.duration])
                 : [
-                    ['bp_rt (cookie)', 'Keeps you signed in securely', 'Necessary', RETENTION.refreshCookie],
+                    ['bp_rt_c and bp_rt_b (cookies)', 'Keep you signed in securely, one for customer accounts and one for business accounts', 'Necessary', RETENTION.refreshCookie],
+                    ['bp_ho (cookie)', 'Makes a one-time sign-in link work only in the browser that asked for it', 'Necessary', '10 minutes'],
                     ['bp_oauth_state (cookie)', 'Protects Google sign-in against forgery', 'Necessary', '10 minutes'],
-                    ['token, refreshToken, user', 'Your signed-in session', 'Necessary', 'Until you sign out'],
+                    ['token, user', 'Your signed-in session', 'Necessary', 'Until you sign out'],
                     ['bp_consent', 'Remembers whether you allowed analytics', 'Necessary', 'Until you change it'],
                     ['darkMode, bp_recent_providers, dismissed prompts', 'Remember your light/dark setting, businesses you viewed recently and prompts you closed', 'Necessary', 'Until you clear it'],
                     ['bp_sid', 'Analytics ID that links your visits so we can see where people get stuck', 'Analytics (only after “Accept analytics”)', 'Until you withdraw consent or clear it'],

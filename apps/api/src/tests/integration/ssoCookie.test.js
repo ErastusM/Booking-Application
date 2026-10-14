@@ -19,11 +19,12 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(async () => { await testDb.clearDatabase(); jest.clearAllMocks(); });
 
-const cookieOf = (res) =>
-    (res.headers['set-cookie'] || []).find((c) => c.startsWith('bp_rt='));
+// A customer account's refresh cookie is bp_rt_c (a business account's: bp_rt_b).
+const cookieOf = (res, name = 'bp_rt_c') =>
+    (res.headers['set-cookie'] || []).find((c) => c.startsWith(`${name}=`));
 
 describe('SSO refresh cookie', () => {
-    it('login sets an httpOnly bp_rt cookie', async () => {
+    it('login sets an httpOnly bp_rt_c cookie and retires the old shared bp_rt', async () => {
         const user = await makeUser();
         const res = await request(app)
             .post('/api/auth/login')
@@ -34,6 +35,9 @@ describe('SSO refresh cookie', () => {
         expect(cookie).toMatch(/HttpOnly/i);
         expect(cookie).toMatch(/SameSite=Lax/i);
         expect(cookie).toMatch(/Path=\/api\/auth/i);
+        expect(cookieOf(res, 'bp_rt')).toMatch(/Max-Age=0/i);
+        // The page never gets the refresh token itself.
+        expect(res.body.data.refreshToken).toBeUndefined();
     });
 
     it('refresh accepts the cookie with no body token (cross-subdomain bootstrap)', async () => {
@@ -49,7 +53,7 @@ describe('SSO refresh cookie', () => {
             .send({});
         expect(res.status).toBe(200);
         expect(res.body.data.token).toBeTruthy();
-        expect(res.body.data.refreshToken).toBeTruthy();
+        expect(res.body.data.refreshToken).toBeUndefined();
         // …and rotates the cookie too
         expect(cookieOf(res)).toBeTruthy();
 

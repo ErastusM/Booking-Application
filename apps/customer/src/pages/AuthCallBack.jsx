@@ -22,9 +22,8 @@ const AuthCallback = () => {
 
     // A session was started (code exchange, or a just-finished Google sign-up):
     // store it and send the person where they belong.
-    const handleSession = ({ token, refreshToken, user, otherSide }, switched = false) => {
+    const handleSession = ({ token, user, otherSide }, switched = false) => {
         localStorage.setItem('token', token);
-        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
         login({ token, user });
 
         setTimeout(() => {

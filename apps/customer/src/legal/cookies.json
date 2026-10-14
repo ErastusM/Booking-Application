@@ -20,7 +20,7 @@
       "key": "refreshToken",
       "storage": "localStorage",
       "category": "necessary",
-      "purpose": "Renews your sign-in without asking for your password again.",
+      "purpose": "Legacy key from an older version, which kept a copy of the sign-in renewal token here. No longer written; deleted on the next visit.",
       "duration": "Until you log out, or it expires (30 days)",
       "sentTo": "Bookplus API only"
     },
@@ -73,11 +73,19 @@
       "sentTo": "Bookplus API (POST /api/events) — our own analytics, no third parties"
     },
     {
-      "key": "bp_rt",
+      "key": "bp_rt_c / bp_rt_b",
       "storage": "cookie (HttpOnly, Secure, SameSite=Lax, Domain=.bookplus.pro, Path=/api/auth)",
       "category": "necessary",
-      "purpose": "Keeps you signed in across app.bookplus.pro and business.bookplus.pro (single sign-on refresh token). Not readable by page scripts.",
+      "purpose": "Keeps you signed in across app.bookplus.pro and business.bookplus.pro: bp_rt_c for a customer account, bp_rt_b for a business account (refresh token). Not readable by page scripts.",
       "duration": "30 days, renewed while you use the app; removed at log-out",
+      "sentTo": "Bookplus API only"
+    },
+    {
+      "key": "bp_ho",
+      "storage": "cookie (HttpOnly, Secure, SameSite=Lax, Domain=.bookplus.pro, Path=/api/auth)",
+      "category": "necessary",
+      "purpose": "Makes a one-time sign-in link (Google sign-in, or switching between the customer and business apps) work only in the browser that asked for it.",
+      "duration": "10 minutes",
       "sentTo": "Bookplus API only"
     },
     {

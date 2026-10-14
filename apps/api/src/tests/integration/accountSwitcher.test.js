@@ -9,6 +9,7 @@
  *                                 account (mirror of become-provider).
  */
 const request = require('supertest');
+const { refreshCookieOf, handoffCookieOf } = require('../helpers/cookies');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, authHeader } = require('../helpers/factories');
@@ -85,7 +86,7 @@ describe('POST /auth/switch-side', () => {
         const code = res.body.data.handoffCode;
         expect(code).toHaveLength(64);
 
-        const exchanged = await request(app).post('/api/auth/exchange-code').send({ code });
+        const exchanged = await request(app).post('/api/auth/exchange-code').set('Cookie', handoffCookieOf(res)).send({ code });
         expect(exchanged.status).toBe(200);
         expect(exchanged.body.data.user.role).toBe('provider');
     });
@@ -120,7 +121,7 @@ describe('POST /auth/add-customer-account', () => {
         // Shares the owner's password so the switch is instant next time.
         expect(customer.password).toBeTruthy();
 
-        const exchanged = await request(app).post('/api/auth/exchange-code').send({ code });
+        const exchanged = await request(app).post('/api/auth/exchange-code').set('Cookie', handoffCookieOf(res)).send({ code });
         expect(exchanged.status).toBe(200);
         expect(exchanged.body.data.user.role).toBe('customer');
     });
@@ -191,7 +192,7 @@ describe('switching into a self-deactivated sibling reactivates it', () => {
 
         const sw = await request(app).post('/api/auth/switch-side').set(authHeader(customer));
         expect(sw.status).toBe(200);
-        const exchanged = await request(app).post('/api/auth/exchange-code').send({ code: sw.body.data.handoffCode });
+        const exchanged = await request(app).post('/api/auth/exchange-code').set('Cookie', handoffCookieOf(sw)).send({ code: sw.body.data.handoffCode });
         expect(exchanged.status).toBe(200);
         const after = await User.findById(business._id);
         expect(after.isActive).toBe(true);

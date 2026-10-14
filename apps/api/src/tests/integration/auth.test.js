@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeAdmin } = require('../helpers/factories');
+const { refreshCookieOf } = require('../helpers/cookies');
 const User = require('../../models/User');
 
 jest.mock('../../utils/emailService', () => ({
@@ -135,7 +136,8 @@ describe('POST /api/auth/login', () => {
             .send({ email: 'login@example.com', password: 'Password1!' });
         expect(res.status).toBe(200);
         expect(res.body.data.token).toBeTruthy();
-        expect(res.body.data.refreshToken).toBeTruthy();
+        expect(res.body.data.refreshToken).toBeUndefined();
+        expect(refreshCookieOf(res)).toBeTruthy();
     });
 
     it('returns 401 for wrong password', async () => {
@@ -247,7 +249,8 @@ describe('POST /api/auth/refresh', () => {
 
     const loginAndGetTokens = async () => {
         const res = await request(app).post('/api/auth/login').send(creds);
-        return res.body.data; // { token, refreshToken, user }
+        // The refresh token only travels in its httpOnly cookie.
+        return { ...res.body.data, refreshToken: refreshCookieOf(res) };
     };
 
     it('exchanges a valid refresh token for a fresh, working access token', async () => {
@@ -256,7 +259,8 @@ describe('POST /api/auth/refresh', () => {
         const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
         expect(res.status).toBe(200);
         expect(res.body.data.token).toBeTruthy();
-        expect(res.body.data.refreshToken).toBeTruthy();
+        expect(res.body.data.refreshToken).toBeUndefined();
+        expect(refreshCookieOf(res)).toBeTruthy();
 
         // The newly minted access token must authenticate a real request
         const profile = await request(app)
@@ -283,7 +287,7 @@ describe('POST /api/auth/refresh', () => {
         expect(again.status).toBe(200);
 
         // …and the rotated tokens work too.
-        const ok = await request(app).post('/api/auth/refresh').send({ refreshToken: a.body.data.refreshToken });
+        const ok = await request(app).post('/api/auth/refresh').send({ refreshToken: refreshCookieOf(a) });
         expect(ok.status).toBe(200);
     });
 
@@ -296,7 +300,7 @@ describe('POST /api/auth/refresh', () => {
         for (let i = 0; i < 10; i++) {
             const r = await request(app).post('/api/auth/refresh').send({ refreshToken: current });
             expect(r.status).toBe(200);
-            current = r.body.data.refreshToken;
+            current = refreshCookieOf(r);
         }
         const evicted = await request(app).post('/api/auth/refresh').send({ refreshToken });
         expect(evicted.status).toBe(401);
@@ -436,7 +440,7 @@ describe('PUT /api/auth/change-password', () => {
 
     const login = async () => {
         const res = await request(app).post('/api/auth/login').send(creds);
-        return res.body.data; // { token, refreshToken }
+        return { ...res.body.data, refreshToken: refreshCookieOf(res) };
     };
 
     it('changes the password and lets the user sign in with the new one', async () => {

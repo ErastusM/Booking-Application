@@ -7,9 +7,10 @@ exports.errorHandler = (err, req, res, next) => {
     // and password-reset links carry secrets in the query, and this handler has its
     // own pino instance that bypasses the request logger's query-stripping serializer.
     const path = String(req.originalUrl || '').split('?')[0];
-    log.error({ err, method: req.method, url: path }, err.message);
-
     const status = err.statusCode || 500;
+    // A 4xx is the caller's problem: keep it out of the error log's signal.
+    if (status >= 500) log.error({ err, method: req.method, url: path }, err.message);
+    else log.warn({ method: req.method, url: path, status }, err.message);
 
     // 5xx = something WE broke — page the webhook (throttled, fire-and-forget).
     if (status >= 500) {
@@ -26,8 +27,12 @@ exports.errorHandler = (err, req, res, next) => {
     });
 };
 
+// An unknown address is the caller's mistake, not ours: answer 404 (the error
+// handler reads statusCode, so without it this was a 500 that also paged the
+// alert webhook). The path only, never the query string, which can hold tokens.
 exports.notFound = (req, res, next) => {
-    const error = new Error(`Not Found - ${req.originalUrl}`);
-    res.status(404);
+    const path = String(req.originalUrl || '').split('?')[0];
+    const error = new Error(`Not Found - ${path}`);
+    error.statusCode = 404;
     next(error);
 };
