@@ -1,5 +1,10 @@
 # Weekly pull requests for outdated or vulnerable dependencies. Each one runs
 # the full CI (tests + e2e) like any PR; nothing merges or deploys by itself.
+#
+# Major upgrades of npm packages (React 19, Vite 8, Express 5, vitest 5, ...)
+# and of Node itself are held until online payments are live: each needs its
+# own migration work. Minor and patch updates keep coming. Remove the ignore
+# blocks to receive majors again.
 version: 2
 updates:
   - package-ecosystem: npm          # the API (npm-managed, own package-lock)
@@ -9,6 +14,9 @@ updates:
     groups:
       api-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
   - package-ecosystem: npm          # pnpm workspace: both apps + shared packages
     directory: /
     schedule: { interval: weekly }
@@ -16,9 +24,17 @@ updates:
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
   - package-ecosystem: docker
     directories: [/apps/api, /apps/customer, /apps/business]
     schedule: { interval: weekly }
+    ignore:
+      # Node 24 (LTS) in the images and in CI; a new major moves on purpose,
+      # in both places together.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
