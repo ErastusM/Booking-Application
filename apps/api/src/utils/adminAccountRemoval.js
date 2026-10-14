@@ -68,6 +68,11 @@ async function removeBusinessData(providerId, adminId) {
     ['Service', 'Package', 'Location', 'FormTemplate', 'TeamMember', 'Availability', 'StaffAvailability',
         'Shift', 'TimeOff', 'BlockedTime', 'Category', 'WaitingList', 'ClientNote', 'TimeClock', 'User'].forEach(load);
     const cancelled = await cancelUpcomingForBusiness(providerId, adminId);
+    // Its online payments documents (ID, registration, bank letter) go with it;
+    // read before the account itself is deleted by the caller.
+    const withDocs = await M('User').findById(providerId).select('+paymentsApproval').lean();
+    const { destroyVerificationFiles } = require('./accountData');
+    destroyVerificationFiles(providerId, withDocs?.paymentsApproval?.documents || []).catch(() => {});
     const staff = await M('User').find({ staffOf: providerId, role: 'staff' }).select('_id').lean();
     await Promise.all([
         M('Service').updateMany({ provider: providerId }, { $set: { isActive: false } }),

@@ -184,6 +184,31 @@ const assetExists = async ({ publicId, resourceType = 'image', type = PROOF_TYPE
     return res.ok;
 };
 
+/**
+ * Delete every private (authenticated) file under a folder prefix, images and
+ * PDFs/raw alike (Admin API, basic auth). Catches files that were uploaded but
+ * never attached to anything. Best effort; returns how many requests succeeded.
+ */
+const destroyByPrefix = async (prefix) => {
+    const c = config();
+    if (!isConfigured() || typeof prefix !== 'string' || !prefix.endsWith('/') || prefix.split('/').length < 3) return 0;
+    let ok = 0;
+    for (const resourceType of ['image', 'raw']) {
+        try {
+            const res = await fetch(
+                `https://api.cloudinary.com/v1_1/${c.cloudName}/resources/${resourceType}/${PROOF_TYPE}?prefix=${encodeURIComponent(prefix)}`,
+                {
+                    method: 'DELETE',
+                    headers: { Authorization: `Basic ${Buffer.from(`${c.apiKey}:${c.apiSecret}`).toString('base64')}` },
+                    signal: AbortSignal.timeout(20000),
+                },
+            );
+            if (res.ok) ok += 1;
+        } catch { /* best effort */ }
+    }
+    return ok;
+};
+
 /** Delete one asset (best effort, e.g. on account deletion). */
 const destroy = ({ publicId, resourceType = 'image', type = 'upload' }) =>
     signedPost(`${resourceType}/destroy`, { public_id: publicId, type, invalidate: 'true' });
@@ -207,4 +232,5 @@ module.exports = {
     makeAuthenticated,
     assetExists,
     destroy,
+    destroyByPrefix,
 };

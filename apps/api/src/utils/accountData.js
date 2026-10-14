@@ -139,6 +139,18 @@ async function destroyPrivateFiles(docs) {
     return n;
 }
 
+/**
+ * Remove every verification document a business sent (the ones on record and
+ * any uploaded but never attached): its whole private verification folder.
+ */
+async function destroyVerificationFiles(userId, docs = []) {
+    const cloudinary = require('./cloudinary');
+    if (!cloudinary.isConfigured()) return 0;
+    const n = await destroyPrivateFiles(docs);
+    await cloudinary.destroyByPrefix(`${cloudinary.VERIFY_FOLDER}/${userId}/`);
+    return n;
+}
+
 const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@deleted.bookplus`;
 
 /**
@@ -242,7 +254,7 @@ async function purgeAccount(user) {
     await Promise.all(tasks);
     // Images last and without blocking the response on Cloudinary latency.
     destroyImages(images).catch(() => {});
-    destroyPrivateFiles(privateDocs).catch(() => {});
+    destroyVerificationFiles(id, privateDocs).catch(() => {});
 }
 
-module.exports = { exportAccount, purgeAccount, destroyImages, destroyPrivateFiles, EXPORT_VERSION, MESSAGE_DELETED };
+module.exports = { exportAccount, purgeAccount, destroyImages, destroyPrivateFiles, destroyVerificationFiles, EXPORT_VERSION, MESSAGE_DELETED };

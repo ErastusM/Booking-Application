@@ -136,6 +136,11 @@ exports.updatePayoutAccount = async (req, res) => {
         const before = await User.findById(req.user._id).select('+payoutAccount +paymentsApproval businessProfile.businessName name').lean();
         const old = before?.payoutAccount || {};
         const changed = old.accountNumber !== v.value.accountNumber || old.branchCode !== v.value.branchCode || old.bankName !== v.value.bankName;
+        // While Bookplus is reviewing the application, the account it is
+        // matching against the bank letter must not change underneath it.
+        if (changed && before?.paymentsApproval?.status === 'submitted') {
+            return fail(res, 409, 'Your application is with Bookplus. The bank account can be changed once it is decided, or if Bookplus asks for more.', 'application_under_review');
+        }
         // A new bank account on an approved business is held until Bookplus
         // checks it: redirecting payouts is a classic account-takeover move.
         const hold = changed && !!old.accountNumber && before?.paymentsApproval?.status === 'approved';

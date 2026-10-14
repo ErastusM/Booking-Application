@@ -61,13 +61,27 @@ const payload = async (user) => {
     };
 };
 
-// Moves a rejected application back to a draft when the business edits it.
-const reopenIfRejected = (user) => {
-    if (rules.statusOf(user.paymentsApproval) === 'rejected') {
-        user.paymentsApproval.status = 'draft';
-        user.paymentsApproval.history.push({ status: 'draft', at: new Date(), by: user._id, note: 'Started again after a rejection' });
-    }
-};
+// Every change is one atomic update that only applies while the application
+// can still be edited, so an edit from another tab can never land after it was
+// sent, and two first edits can't overwrite each other.
+const EDITABLE_FILTER = (userId) => ({ _id: userId, role: 'provider', 'paymentsApproval.status': { $in: rules.EDITABLE } });
+
+// Create the (empty) application the first time; a no-op afterwards.
+const ensureApplication = (userId) => User.updateOne(
+    { _id: userId, role: 'provider', paymentsApproval: { $exists: false } },
+    { $set: { paymentsApproval: { status: 'draft', documents: [], history: [] } } },
+);
+
+// A rejected application becomes a draft again when the business changes it.
+const reopenIfRejected = (userId) => User.updateOne(
+    { _id: userId, 'paymentsApproval.status': 'rejected' },
+    {
+        $set: { 'paymentsApproval.status': 'draft' },
+        $push: { 'paymentsApproval.history': { status: 'draft', at: new Date(), by: userId, note: 'Started again after a rejection' } },
+    },
+);
+
+const NOT_EDITABLE = 'Your application is with Bookplus. It can be changed again if Bookplus asks for more.';
 
 // GET /api/payments/onboarding
 exports.getOnboarding = async (req, res) => {
@@ -86,22 +100,17 @@ const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : undef
 // PUT /api/payments/onboarding { plan?, legal?: { businessType, registeredName, registrationNumber, ownerName, ownerIdNumber } }
 exports.updateOnboarding = async (req, res) => {
     try {
-        const user = await load(req.user._id);
-        if (!user.paymentsApproval) user.paymentsApproval = { status: 'draft', history: [] };
-        if (!rules.isEditable(user.paymentsApproval)) {
-            return fail(res, 409, 'Your application is with Bookplus. It can be changed again if Bookplus asks for more.', 'not_editable');
-        }
         const { plan, legal } = req.body || {};
-        const a = user.paymentsApproval;
+        const set = {};
         if (plan !== undefined) {
             if (!['basic', 'standard'].includes(plan)) return fail(res, 400, 'Choose Basic or Standard', 'bad_plan');
-            a.plan = plan;
+            set['paymentsApproval.plan'] = plan;
         }
         if (legal !== undefined) {
             if (!legal || typeof legal !== 'object') return fail(res, 400, 'Send your details', 'bad_details');
             if (legal.businessType !== undefined) {
                 if (!rules.BUSINESS_TYPES.includes(legal.businessType)) return fail(res, 400, 'Choose what kind of business it is', 'bad_business_type');
-                a.legal.businessType = legal.businessType;
+                set['paymentsApproval.legal.businessType'] = legal.businessType;
             }
             const fields = { registeredName: 120, registrationNumber: 40, ownerName: 100, ownerIdNumber: 30 };
             for (const [k, max] of Object.entries(fields)) {
@@ -110,12 +119,19 @@ exports.updateOnboarding = async (req, res) => {
                 if (k === 'ownerIdNumber' && v && !/^[A-Za-z0-9 -]{5,30}$/.test(v)) {
                     return fail(res, 400, 'Enter the ID or passport number as it appears on the document', 'bad_id_number');
                 }
-                a.legal[k] = v;
+                set[`paymentsApproval.legal.${k}`] = v;
             }
         }
-        reopenIfRejected(user);
-        await user.save();
-        res.json({ success: true, data: await payload(user) });
+        await ensureApplication(req.user._id);
+        if (Object.keys(set).length) {
+            const r = await User.updateOne(EDITABLE_FILTER(req.user._id), { $set: set });
+            if (r.matchedCount !== 1) return fail(res, 409, NOT_EDITABLE, 'not_editable');
+            await reopenIfRejected(req.user._id);
+        } else {
+            const now = await load(req.user._id);
+            if (!rules.isEditable(now.paymentsApproval)) return fail(res, 409, NOT_EDITABLE, 'not_editable');
+        }
+        res.json({ success: true, data: await payload(await load(req.user._id)) });
     } catch (err) {
         logger.error({ err: err.message }, 'onboarding update failed');
         fail(res, 500, 'Internal server error');
@@ -142,16 +158,25 @@ exports.addDocument = async (req, res) => {
         if (!rules.DOC_KINDS.includes(kind)) return fail(res, 400, 'Say which document this is', 'bad_kind');
         const clean = cloudinary.cleanVerificationRef(ref, req.user._id);
         if (!clean) return fail(res, 400, 'That upload was not accepted. Upload a PDF, JPG or PNG again.', 'bad_upload');
-        const user = await load(req.user._id);
-        if (!user.paymentsApproval) user.paymentsApproval = { status: 'draft', history: [] };
-        if (!rules.isEditable(user.paymentsApproval)) return fail(res, 409, 'Your application is with Bookplus.', 'not_editable');
-        const docs = user.paymentsApproval.documents;
-        if (docs.length >= rules.MAX_DOCS) return fail(res, 409, `At most ${rules.MAX_DOCS} documents. Remove one first.`, 'too_many_documents');
-        if (docs.some((d) => d.publicId === clean.publicId)) return fail(res, 409, 'That file is already attached.', 'duplicate_document');
-        docs.push({ kind, name: text(name, 120) || '', ...clean, uploadedAt: new Date() });
-        reopenIfRejected(user);
-        await user.save();
-        res.status(201).json({ success: true, data: await payload(user) });
+        await ensureApplication(req.user._id);
+        // One atomic push: only while editable, not twice, at most MAX_DOCS.
+        const r = await User.updateOne(
+            {
+                ...EDITABLE_FILTER(req.user._id),
+                'paymentsApproval.documents.publicId': { $ne: clean.publicId },
+                $expr: { $lt: [{ $size: { $ifNull: ['$paymentsApproval.documents', []] } }, rules.MAX_DOCS] },
+            },
+            { $push: { 'paymentsApproval.documents': { kind, name: text(name, 120) || '', ...clean, uploadedAt: new Date() } } },
+        );
+        if (r.matchedCount !== 1) {
+            const now = await load(req.user._id);
+            const a = now.paymentsApproval;
+            if (!rules.isEditable(a)) return fail(res, 409, NOT_EDITABLE, 'not_editable');
+            if ((a.documents || []).some((d) => d.publicId === clean.publicId)) return fail(res, 409, 'That file is already attached.', 'duplicate_document');
+            return fail(res, 409, `At most ${rules.MAX_DOCS} documents. Remove one first.`, 'too_many_documents');
+        }
+        await reopenIfRejected(req.user._id);
+        res.status(201).json({ success: true, data: await payload(await load(req.user._id)) });
     } catch (err) {
         logger.error({ err: err.message }, 'onboarding document add failed');
         fail(res, 500, 'Internal server error');
@@ -164,17 +189,17 @@ exports.removeDocument = async (req, res) => {
         if (!mongoose.isValidObjectId(req.params.docId)) return fail(res, 404, 'Document not found');
         const user = await load(req.user._id);
         const a = user.paymentsApproval;
-        if (!a) return fail(res, 404, 'Document not found');
-        if (!rules.isEditable(a)) return fail(res, 409, 'Your application is with Bookplus.', 'not_editable');
-        const doc = a.documents.id(req.params.docId);
+        const doc = a?.documents?.id(req.params.docId);
         if (!doc) return fail(res, 404, 'Document not found');
-        const gone = { publicId: doc.publicId, resourceType: doc.resourceType, deliveryType: doc.deliveryType };
-        doc.deleteOne();
-        await user.save();
+        const r = await User.updateOne(
+            { ...EDITABLE_FILTER(req.user._id), 'paymentsApproval.documents._id': doc._id },
+            { $pull: { 'paymentsApproval.documents': { _id: doc._id } } },
+        );
+        if (r.modifiedCount !== 1) return fail(res, 409, NOT_EDITABLE, 'not_editable');
         if (cloudinary.isConfigured()) {
-            cloudinary.destroy({ publicId: gone.publicId, resourceType: gone.resourceType, type: gone.deliveryType }).catch(() => {});
+            cloudinary.destroy({ publicId: doc.publicId, resourceType: doc.resourceType, type: doc.deliveryType }).catch(() => {});
         }
-        res.json({ success: true, data: await payload(user) });
+        res.json({ success: true, data: await payload(await load(req.user._id)) });
     } catch (err) {
         logger.error({ err: err.message }, 'onboarding document remove failed');
         fail(res, 500, 'Internal server error');

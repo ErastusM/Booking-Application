@@ -591,7 +591,7 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
                     {acting === 'switch' && noteBox('Why (recorded, and shown to the business when switched off)', a.adminOff ? 'Allow again' : 'Switch off',
                         () => act(() => financeService.setApprovalSwitch(id, !a.adminOff, note.trim()), a.adminOff ? 'Allowed again' : 'Switched off'))}
                     {acting === 'bank' && noteBox('How it was checked (e.g. new bank letter, called the owner)', 'Confirm',
-                        () => act(() => financeService.confirmPayoutAccount(id, note.trim()), 'Bank account confirmed'))}
+                        () => act(() => financeService.confirmPayoutAccount(id, note.trim(), acct.updatedAt), 'Bank account confirmed'))}
                 </div>
             )}
             {app.history?.length > 0 && (

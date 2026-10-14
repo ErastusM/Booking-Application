@@ -494,6 +494,8 @@ exports.getApproval = async (req, res) => {
         if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
         const u = await loadBusiness(req.params.id).lean();
         if (!u || !u.paymentsApproval) return fail(res, 404, 'No application from this business');
+        // The full ID and bank account numbers are shown here: who looked is recorded.
+        await recordFinance({ actor: req.user, action: 'approval.view', provider: u._id });
         res.set('Cache-Control', 'no-store');
         res.json({
             success: true,
@@ -587,10 +589,14 @@ exports.decideApproval = async (req, res) => {
         await recordFinance({
             actor: req.user, action: `approval.${req.body.decision}`, provider: u._id, reason: note,
             reference: u.paymentsApproval.plan, approvalStatus: to === 'approved' ? 'approved' : to === 'rejected' ? 'rejected' : 'pending',
+            // What the approval set: the plan's rates at that moment, and what was there before.
+            details: to === 'approved'
+                ? { pricingBefore: u.pricing || null, pricingAfter: { plan: set['pricing.plan'], rates: set['pricing.rates'], pricingVersion: set['pricing.pricingVersion'] } }
+                : null,
         });
-        if (to === 'rejected' && docs.length) {
-            const { destroyPrivateFiles } = require('../utils/accountData');
-            destroyPrivateFiles(docs).catch(() => {});
+        if (to === 'rejected') {
+            const { destroyVerificationFiles } = require('../utils/accountData');
+            destroyVerificationFiles(u._id, docs).catch(() => {});
         }
         createNotification(u._id, DECISION_MESSAGES[to], 'system', '/account?section=payments').catch(() => {});
         const fresh = await loadBusiness(u._id).lean();
@@ -621,18 +627,31 @@ exports.setApprovalSwitch = async (req, res) => {
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
-// POST /api/admin/finance/approvals/:id/payout-account-checked { note } — the new bank account is genuine
+// POST /api/admin/finance/approvals/:id/payout-account-checked { note, accountUpdatedAt }
+// — the new bank account is genuine. accountUpdatedAt is the version the
+// reviewer looked at: if the business changed it again since, nothing is confirmed.
 exports.confirmPayoutAccount = async (req, res) => {
     try {
         if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
         const note = String(req.body?.note || '').trim().slice(0, 500);
         if (!note) return fail(res, 400, 'Say how it was checked (e.g. new bank letter, call to the owner)', 'reason_required');
+        const seen = new Date(req.body?.accountUpdatedAt || '');
+        if (Number.isNaN(seen.getTime())) return fail(res, 400, 'Say which version of the account was checked', 'account_version_required');
+        const u = await User.findOne({ _id: req.params.id, role: 'provider' }).select('+payoutAccount +paymentsApproval').lean();
+        if (!u?.paymentsApproval?.payoutAccountReviewNeeded) return fail(res, 409, 'There is no new bank account waiting to be checked', 'nothing_to_check');
+        const current = u.payoutAccount?.updatedAt ? new Date(u.payoutAccount.updatedAt) : null;
+        if (!current || current.getTime() !== seen.getTime()) {
+            return fail(res, 409, 'The bank account changed again since you opened it. Reload and check the new one.', 'account_changed');
+        }
         const r = await User.updateOne(
-            { _id: req.params.id, role: 'provider', 'paymentsApproval.payoutAccountReviewNeeded': true },
+            { _id: u._id, 'paymentsApproval.payoutAccountReviewNeeded': true, 'payoutAccount.updatedAt': current },
             { $set: { 'paymentsApproval.payoutAccountReviewNeeded': false } },
         );
-        if (r.modifiedCount !== 1) return fail(res, 409, 'There is no new bank account waiting to be checked', 'nothing_to_check');
-        await recordFinance({ actor: req.user, action: 'payout_account.confirm', provider: req.params.id, reason: note });
+        if (r.modifiedCount !== 1) return fail(res, 409, 'The bank account changed again since you opened it. Reload and check the new one.', 'account_changed');
+        await recordFinance({
+            actor: req.user, action: 'payout_account.confirm', provider: u._id, reason: note,
+            details: { account: payments.publicPayoutAccount(u.payoutAccount) },
+        });
         res.json({ success: true });
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };

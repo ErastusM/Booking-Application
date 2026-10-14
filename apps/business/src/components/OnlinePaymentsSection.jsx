@@ -325,7 +325,9 @@ const OnlinePaymentsSection = () => {
                 {bankView?.hasAccount && !bankEditing ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '0.9rem' }}>{bankView.accountHolder}, {bankView.bankName}, {bankView.accountNumberMasked}</span>
-                        <button type="button" className="btn-outline" style={{ fontSize: '0.8rem', padding: '0.35rem 0.8rem' }} onClick={editBank}>Change</button>
+                        {d.status === 'submitted'
+                            ? <span style={{ ...muted, fontSize: '0.8rem' }}>Locked while Bookplus reviews it</span>
+                            : <button type="button" className="btn-outline" style={{ fontSize: '0.8rem', padding: '0.35rem 0.8rem' }} onClick={editBank}>Change</button>}
                     </div>
                 ) : (
                     <form onSubmit={saveBank} style={stack}>

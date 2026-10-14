@@ -145,3 +145,13 @@ describe('OnlinePaymentsSection', () => {
         expect(status).toHaveTextContent('The documents you sent were deleted');
     });
 });
+
+describe('OnlinePaymentsSection — under review', () => {
+    it('locks the bank account while Bookplus reviews the application', async () => {
+        svc.onlinePaymentsService.getApplication.mockReturnValueOnce(res(app({ status: 'submitted', editable: false, missing: [] })));
+        svc.onlinePaymentsService.getPayoutAccount.mockReturnValueOnce(res({ hasAccount: true, accountHolder: 'Vibe Cuts CC', bankName: 'Bank Windhoek', accountNumberMasked: '•••• 4821' }));
+        render(<OnlinePaymentsSection />);
+        expect(await screen.findByText('Locked while Bookplus reviews it')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
+    });
+});

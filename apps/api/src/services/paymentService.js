@@ -785,6 +785,13 @@ const retryCheckout = async (reference) => {
     if (!appt.paymentHoldExpiresAt || appt.paymentHoldExpiresAt.getTime() <= Date.now()) {
         return { ok: false, status: 409, code: 'hold_expired', message: 'The time to pay for this booking has run out. Please book again.' };
     }
+    // Bookplus (or the business) switched online payments off since the hold
+    // was made: no new card session. The slot is let go.
+    const provider = await User.findById(appt.provider).select('+paymentsApproval').lean();
+    if (!canTakePayments(provider?.paymentsApproval)) {
+        await releaseHold(appt._id, { reason: 'payments_off', paymentStatus: 'cancelled', source: 'retry' });
+        return { ok: false, status: 409, code: 'payments_off', message: 'This business is not taking online payments right now. Please book again; you can pay at the appointment.' };
+    }
     const attempts = await Payment.countDocuments({ appointment: appt._id });
     if (attempts >= MAX_ATTEMPTS_PER_BOOKING) {
         return { ok: false, status: 429, code: 'too_many_attempts', message: 'Too many payment attempts for this booking. Please book again.' };

@@ -85,7 +85,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         decideApproval: (providerId: string, decision: 'approve' | 'reject' | 'request_info', note?: string) =>
             API.post(`/admin/finance/approvals/${providerId}/decision`, { decision, note }),
         setApprovalSwitch: (providerId: string, off: boolean, reason: string) => API.post(`/admin/finance/approvals/${providerId}/switch`, { off, reason }),
-        confirmPayoutAccount: (providerId: string, note: string) => API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note }),
+        confirmPayoutAccount: (providerId: string, note: string, accountUpdatedAt: string) =>
+            API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note, accountUpdatedAt }),
     },
 
     // A business applying to take online payments, its switch, and its payout

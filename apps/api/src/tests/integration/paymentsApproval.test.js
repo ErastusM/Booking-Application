@@ -115,7 +115,11 @@ describe('the business applies', () => {
         const sent = await request(app).post('/api/payments/onboarding/submit').set(h).send({ acceptTerms: true });
         expect(sent.body.data).toMatchObject({ status: 'submitted', editable: false });
 
-        // With Bookplus now: no changes, no second send.
+        // With Bookplus now: no changes (the bank account included), no second send.
+        const swap = await request(app).put('/api/payments/payout-account').set(h).send({ ...ACCOUNT, accountNumber: '62000111222' });
+        expect(swap.status).toBe(409);
+        expect(swap.body.code).toBe('application_under_review');
+        expect((await User.findById(owner._id).select('+payoutAccount').lean()).payoutAccount.accountNumber).toBe('80041234821');
         expect((await request(app).put('/api/payments/onboarding').set(h).send({ plan: 'standard' })).body.code).toBe('not_editable');
         expect((await request(app).post('/api/payments/onboarding/submit').set(h).send({ acceptTerms: true })).body.code).toBe('not_editable');
         expect(await FinancialAuditLog.countDocuments({ action: 'approval.submit', provider: owner._id })).toBe(1);
@@ -160,6 +164,8 @@ describe('Bookplus reviews it', () => {
         expect(link.body.data.url).toMatch(new RegExp(`^https://api\\.cloudinary\\.com/v1_1/${CLOUD}/image/download\\?`));
         expect(link.body.data.url).toContain('expires_at=');
         expect(await FinancialAuditLog.countDocuments({ action: 'approval.document_view', provider: owner._id })).toBe(1);
+        // Seeing the full ID and bank numbers is recorded too.
+        expect(await FinancialAuditLog.countDocuments({ action: 'approval.view', provider: owner._id, actor: fin._id })).toBe(1);
         // Without a confirmed session or the role: no.
         expect((await request(app).get('/api/admin/finance/approvals').set(authHeader(fin))).body.code).toBe('mfa_required');
         expect((await request(app).get('/api/admin/finance/approvals').set(authHeader(owner))).status).toBe(403);
@@ -186,6 +192,8 @@ describe('Bookplus reviews it', () => {
         expect(ok.body.data.status).toBe('approved');
         const after = await User.findById(owner._id).lean();
         expect(after.pricing).toMatchObject({ plan: 'standard', rates: { commissionBps: 300, fixedFeeCents: 150 } });
+        const approvedEntry = await FinancialAuditLog.findOne({ action: 'approval.approve', provider: owner._id }).lean();
+        expect(approvedEntry.details).toMatchObject({ pricingBefore: null, pricingAfter: { plan: 'standard', rates: { commissionBps: 300, fixedFeeCents: 150 } } });
         // Decided once only.
         expect((await request(app).post(`/api/admin/finance/approvals/${owner._id}/decision`).set(financeHeader(fin)).send({ decision: 'approve' })).body.code).toBe('not_submitted');
         expect(await Notification.countDocuments({ user: owner._id, message: /approved your business/ })).toBe(1);
@@ -221,6 +229,9 @@ describe('Bookplus reviews it', () => {
         expect(stored.paymentsApproval.documents).toEqual([]);
         await new Promise((r) => setTimeout(r, 50));
         expect(fetchCalls.filter((c) => c.url.includes('/destroy'))).toHaveLength(3);
+        // ...and anything else in its private folder (uploaded but never attached).
+        const byPrefix = fetchCalls.filter((c) => c.opts.method === 'DELETE' && c.url.includes(`prefix=${encodeURIComponent(`bookplus/verification/${owner._id}/`)}`));
+        expect(byPrefix.map((c) => c.url.match(/resources\/(image|raw)\/authenticated/)?.[1]).sort()).toEqual(['image', 'raw']);
         const h = authHeader(owner);
         const view = await request(app).get('/api/payments/onboarding').set(h);
         expect(view.body.data).toMatchObject({ status: 'rejected', editable: true, decisionNote: 'The ID does not match the owner' });
@@ -241,9 +252,20 @@ describe('Bookplus reviews it', () => {
         expect(payout.body.code).toBe('payout_account_unchecked');
         expect((await request(app).get('/api/admin/finance/approvals').set(financeHeader(fin))).body.data[0]).toMatchObject({ payoutAccountReviewNeeded: true });
         expect((await request(app).post(`/api/admin/finance/approvals/${owner._id}/payout-account-checked`).set(financeHeader(fin)).send({})).body.code).toBe('reason_required');
-        await request(app).post(`/api/admin/finance/approvals/${owner._id}/payout-account-checked`).set(financeHeader(fin)).send({ note: 'New bank letter, called the owner' });
+        // The reviewer confirms the version they looked at...
+        const seen = (await request(app).get(`/api/admin/finance/approvals/${owner._id}`).set(financeHeader(fin))).body.data.payoutAccount;
+        expect(seen.accountNumber).toBe('62000111222');
+        // ...and if the business changes it again meanwhile, nothing is confirmed.
+        await new Promise((r) => setTimeout(r, 5));
+        await request(app).put('/api/payments/payout-account').set(authHeader(owner)).send({ ...ACCOUNT, accountNumber: '73000999888' });
+        const stale = await request(app).post(`/api/admin/finance/approvals/${owner._id}/payout-account-checked`).set(financeHeader(fin)).send({ note: 'Checked', accountUpdatedAt: seen.updatedAt });
+        expect(stale.status).toBe(409);
+        expect(stale.body.code).toBe('account_changed');
+        const fresh = (await request(app).get(`/api/admin/finance/approvals/${owner._id}`).set(financeHeader(fin))).body.data.payoutAccount;
+        await request(app).post(`/api/admin/finance/approvals/${owner._id}/payout-account-checked`).set(financeHeader(fin)).send({ note: 'New bank letter, called the owner', accountUpdatedAt: fresh.updatedAt });
         expect((await request(app).post('/api/payments/admin/payouts').set(financeHeader(fin)).send({ providerId: String(owner._id), amountCents: 5000 })).status).toBe(201);
-        expect(await FinancialAuditLog.countDocuments({ action: { $in: ['payout_account.change', 'payout_account.confirm'] } })).toBe(2);
+        expect(await FinancialAuditLog.countDocuments({ action: 'payout_account.change' })).toBe(2);
+        expect(await FinancialAuditLog.findOne({ action: 'payout_account.confirm' }).lean()).toMatchObject({ details: { account: { accountNumberMasked: '•••• 9888' } } });
     });
 });
 
@@ -259,5 +281,44 @@ describe('deleting the business account', () => {
         expect(stored.payoutAccount).toBeUndefined();
         await new Promise((r) => setTimeout(r, 50));
         expect(fetchCalls.filter((c) => c.url.includes('/destroy') && String(c.opts.body).includes('verification'))).toHaveLength(3);
+    });
+});
+
+describe('after an admin deletes the business', () => {
+    it('its documents are deleted from file storage too', async () => {
+        const { owner } = await business();
+        await apply(owner);
+        const admin = await makeAdmin();
+        fetchCalls = [];
+        const del = await request(app).delete(`/api/users/${owner._id}`).set(authHeader(admin));
+        expect(del.status).toBe(200);
+        await new Promise((r) => setTimeout(r, 50));
+        expect(fetchCalls.filter((c) => c.url.includes('/destroy') && String(c.opts.body).includes('verification'))).toHaveLength(3);
+        expect(fetchCalls.some((c) => c.opts.method === 'DELETE' && c.url.includes(encodeURIComponent(`bookplus/verification/${owner._id}/`)))).toBe(true);
+    });
+});
+
+describe('a booking still waiting for payment', () => {
+    it('can not open a new card session once Bookplus switched the business off; the slot is let go', async () => {
+        const Appointment = require('../../models/Appointment');
+        const Payment = require('../../models/Payment');
+        const { owner, service } = await business();
+        await apply(owner);
+        const fin = await makeFinanceAdmin();
+        await request(app).post(`/api/admin/finance/approvals/${owner._id}/decision`).set(financeHeader(fin)).send({ decision: 'approve' });
+        await request(app).put('/api/payments/onboarding/switch').set(authHeader(owner)).send({ on: true });
+        const appt = await Appointment.create({
+            service: service._id, provider: owner._id, guestName: 'Ana Shilongo', guestEmail: 'ana@example.com',
+            appointmentDate: new Date(Date.now() + 3 * 86400000), startTime: '10:00', endTime: '10:30',
+            status: 'pending_payment', totalPrice: 200, paymentHoldExpiresAt: new Date(Date.now() + 10 * 60000),
+        });
+        const payment = await Payment.create({
+            appointment: appt._id, provider: owner._id, kind: 'full', amountCents: 20000, currency: 'NAD',
+            reference: `BP${'A'.repeat(30)}`, status: 'failed',
+        });
+        await request(app).post(`/api/admin/finance/approvals/${owner._id}/switch`).set(financeHeader(fin)).send({ off: true, reason: 'Fraud check' });
+        const r = await payments.retryCheckout(payment.reference);
+        expect(r).toMatchObject({ ok: false, status: 409, code: 'payments_off' });
+        expect((await Appointment.findById(appt._id)).status).toBe('cancelled');
     });
 });
