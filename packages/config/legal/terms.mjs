@@ -2,8 +2,12 @@
 //   customer app -> termsOfService('customer')   (clients and guests)
 //   business app -> termsOfService('business')   (business owners and their team)
 // Same text format as privacy.mjs. Statements about how bookings, wallets,
-// cancellations and currencies work must match the code; the rule each clause
-// rests on is noted beside it. Not legal advice; have it reviewed by counsel.
+// cancellations, online payments and currencies work must match the code; the
+// rule each clause rests on is noted beside it. Not legal advice; have it
+// reviewed by counsel.
+//
+// W = wallet switched on, P = online payments switched on (FEATURES). With a
+// switch off, its clauses are left out entirely.
 
 import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
 import { CURRENCY_CODES_TEXT } from './currencies.mjs';
@@ -22,7 +26,7 @@ const operatorLine = `Bookplus is operated by **${op}**${entity ? `, a ${entity.
 
 // ── Customer terms ─────────────────────────────────────────────────────────
 
-const customerSections = (W) => [
+const customerSections = (W, P) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
         'These Terms apply when you use Bookplus to find and book businesses, with an account or as a guest. You accept them by ticking the box when you create an account (by email or with Google), or by confirming a booking as a guest. Please also read our [Privacy Policy](/privacy-policy).',
@@ -47,7 +51,11 @@ const customerSections = (W) => [
         '**Bookplus does not charge you a booking fee.** If we ever introduce a fee for clients, we will show it to you before you book.',
         W
             ? 'You pay the business, either at the appointment (for example cash, card or transfer, as the business accepts) or from your prepaid wallet with that business. Some businesses require wallet payment for bookings; this is shown before you confirm. Your bank may charge you for currency conversion; that is between you and your bank.'
-            : '**You pay the business directly at your appointment**, in cash or another way the business accepts. Nothing is charged when you book. Your bank may charge you for currency conversion; that is between you and your bank.',
+            : P
+                // paymentService.planForBooking / GET /api/payments/policy: only approved
+                // businesses that switched it on ask, and only in NAD.
+                ? '**You pay the business at your appointment**, in cash or another way the business accepts, **unless the business asks you to pay online by card when you book**: a deposit or the full price. Before you confirm, the booking summary shows what you pay now, what is left to pay at the appointment, and the refund rules (see “Paying online” and “Refunds of online payments” below). Your bank may charge you for currency conversion; that is between you and your bank.'
+                : '**You pay the business directly at your appointment**, in cash or another way the business accepts. Nothing is charged when you book. Your bank may charge you for currency conversion; that is between you and your bank.',
         'The price shown is the business’s price at the time you book. If the business later changes its prices, your confirmed booking keeps the price you were shown.',
     ] },
     { id: 'bookings', title: 'Bookings and confirmations', blocks: [
@@ -57,11 +65,39 @@ const customerSections = (W) => [
     { id: 'cancellations', title: 'Cancellations, changes and no-shows', blocks: [
         { list: [
             '**Your cancellations.** Each business sets how much notice it needs, from “any time” up to several days. That notice is shown before you book. You can cancel or reschedule in the app, or from the link in your confirmation email, until the notice period starts. After that, contact the business.',
-            `**If the business cancels**, we tell you by email${W ? ' and any wallet amount held for the booking is released back to your available balance' : ''}.`,
-            `**No-shows.** Bookplus does not charge a no-show fee${W ? ', and any wallet amount held for a booking you missed is released' : ''}. A business may decide not to accept further bookings from clients who repeatedly miss appointments.`,
-            'Refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business.',
+            `**If the business cancels**, we tell you by email${W ? ' and any wallet amount held for the booking is released back to your available balance' : ''}${P ? ', and anything you paid online is refunded in full' : ''}.`,
+            `**No-shows.** Bookplus does not charge a no-show fee${W ? ', and any wallet amount held for a booking you missed is released' : ''}${P ? '. If you paid online and do not come, what you paid is not refunded unless the business agrees' : ''}. A business may decide not to accept further bookings from clients who repeatedly miss appointments.`,
+            P
+                ? 'For money you paid online, see “Refunds of online payments” below. Otherwise, refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business.'
+                : 'Refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business.',
         ] },
     ] },
+    // Online card payments (FEATURES.paymentsEnabled): the pay step, the hold,
+    // who collects the money. paymentService.startSession / releaseHold /
+    // ensurePaidEffects (a payment that arrives after the hold ran out is
+    // refunded automatically).
+    P ? { id: 'paying-online', title: 'Paying online', blocks: [
+        { list: [
+            '**Who processes your card.** Online payments are processed by **PayGate**, a card payment provider, on its own secure page. You enter your card details there; Bookplus never sees or stores your card number or security code. Online payments are in **Namibian Dollars (N$)**.',
+            '**Who receives the money.** Bookplus collects online payments on behalf of the business you book with, and pays them on to the business. Paying through Bookplus does not make Bookplus the provider of the service (see “Our role” above), and there is no booking fee for you.',
+            '**Your time is held while you pay.** When a booking asks for an online payment, your time is held for the few minutes shown on the booking summary. The booking is confirmed only when PayGate approves the payment, and we email you the confirmation.',
+            '**If a payment does not go through**, nothing is taken and you can try again while your time is held. If the time runs out before the payment is approved, the booking is not made; if money is still taken after that, we refund it to your card automatically.',
+        ] },
+    ] } : null,
+    // paymentService.onAppointmentCancelled: client within the notice → full
+    // refund; business cancels → full refund; late/no-show → none unless the
+    // business refunds. Complaints: moneyOpsController (disputes) → refund.
+    P ? { id: 'refunds', title: 'Refunds of online payments', blocks: [
+        { list: [
+            '**You cancel in time.** If you cancel before the business’s cancellation notice starts, everything you paid online is refunded.',
+            '**You cancel late, or do not come.** Once the notice has started you can only cancel through the business. What you paid online is then not refunded, because the business kept the time for you, unless the business agrees to refund it.',
+            '**The business cancels.** Everything you paid online is refunded.',
+            '**The service was not provided as booked.** Tell the business, and us at ' + mail + ', as soon as you can. We look into it with the business and, if the service was not provided, we refund you.',
+            '**How refunds are paid.** Always to the card you paid with; we never refund in cash or to another account. We send a refund to PayGate straight away; how quickly it shows on your statement depends on your bank, usually within a few working days.',
+        ] },
+        '**Before you dispute a payment with your bank,** please contact the business or us: most problems are solved faster that way. If you do dispute a payment (a chargeback), we give the card company and your bank the booking details they need to decide.',
+        'Nothing in these rules takes away a refund you are entitled to by law.',
+    ] } : null,
     // With the wallet switched off (FEATURES.walletEnabled) there is no wallet
     // section at all; the full terms stay here for when it is switched on.
     W ? { id: 'wallet', title: 'The prepaid wallet', blocks: [
@@ -116,7 +152,7 @@ const customerSections = (W) => [
 
 // ── Business terms ─────────────────────────────────────────────────────────
 
-const businessSections = (W) => [
+const businessSections = (W, P) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
         'These Terms apply when you use Bookplus for Business to take bookings, manage your calendar, team and clients, and be listed on the Bookplus marketplace. You accept them by ticking the box when you register (by email or with Google), or, for team members, by accepting an invitation. Please also read our [Privacy Policy](/privacy-policy).',
@@ -135,6 +171,7 @@ const businessSections = (W) => [
             'You are responsible for your listing, prices, availability and the quality, safety and legality of your services, and for holding any licences or qualifications you need.',
             'You choose the currency you price in from the currencies Bookplus supports (' + CURRENCY_CODES_TEXT + '). Prices are shown to clients in that currency. Show the full price; do not add charges at the appointment that were not shown when the client booked, unless the client asks for extra services.',
             'You set your cancellation notice. It is shown to clients before they book and applied by the platform. Honour confirmed bookings.',
+            ...(P ? ['If you ask clients to pay online, your cancellation notice also decides their refunds, and Bookplus applies it automatically (see “Online payments through Bookplus”).'] : []),
             'You are responsible for your own taxes, including any VAT on your services.',
         ] },
     ] },
@@ -162,9 +199,36 @@ const businessSections = (W) => [
         ] },
         'We store this information for you and only use it to run, secure and support Bookplus, or as the law requires. Our [Privacy Policy](/privacy-policy) explains what we do as the platform operator.',
     ] },
-    { id: 'fees', title: 'Fees', blocks: [
-        'We will tell you about any subscription, commission or other fee, and its amount, before it applies to you. You can close your account if you do not accept a new fee.',
-    ] },
+    // Online payments for bookings: approval (paymentsOnboardingController),
+    // collection and the ledger (paymentService), payouts (payout runs,
+    // moneyOpsController), refunds (owner up to its balance and the approval
+    // limit, else a FinanceRequest), chargebacks (Dispute, recovery keyed
+    // chargeback:<id>), and deletion blocked while money is open.
+    P ? { id: 'online-payments', title: 'Online payments through Bookplus', blocks: [
+        'You can apply to let clients pay online by card when they book: a deposit or the full price.',
+        { list: [
+            '**Approval.** You apply in Account, Online payments, with your business’s legal details, the documents we ask for (such as the owner’s ID, the company registration and a bank confirmation letter) and a bank account in your business’s name. Bookplus decides whether to approve you and may ask for more. You can switch online payments on and off once approved.',
+            '**Bookplus collects for you.** Online payments are processed by PayGate and received by Bookplus on your behalf, in Namibian Dollars (N$). What Bookplus owes you is your balance: the online payments for your bookings, less Bookplus’s fees, refunds, any chargebacks recovered, and payouts. Every line is shown in Account, Online payments, and you can download it.',
+            '**Payouts.** Bookplus pays your balance into your bank account on the schedule, and above the minimum, shown in Account, Online payments. A new or changed bank account is checked before we pay into it. A payout your bank returns goes back on your balance. Money held for refunds that are on their way, or waiting for Bookplus to approve, is not paid out.',
+            '**Refunds.** Clients are refunded automatically under the cancellation rules: in full when you cancel, and in full when they cancel before your notice starts. You can refund a client yourself in the app, up to your balance; a larger refund, or one above Bookplus’s approval limit, is approved by Bookplus first. A refund always goes back to the client’s card and comes off your balance. Bookplus gives back its commission on the refunded part (and its fixed fee when a payment is refunded in full); the card processing fee is not returned.',
+            '**Complaints.** If a client says a service they paid for online was not provided, Bookplus looks into it with you and may refund the client from your balance if the complaint is upheld.',
+            '**Chargebacks.** If a client disputes a payment with their bank, Bookplus responds to it and may ask you for proof that you provided the service; please send it promptly. If the chargeback is lost, Bookplus may take the disputed amount and the card processor’s chargeback fee from your balance. It is taken once, after a second Bookplus person approves it, and you are told.',
+            '**A balance below zero** (for example after refunds or a chargeback) is owed to Bookplus. It is taken from your next online payments; if that does not cover it within a reasonable time, we may ask you to pay it.',
+            '**Switching off.** Bookplus may switch off online payments for your business, or hold a payout, while it looks into suspected fraud, repeated complaints or chargebacks, or a breach of these Terms. Where we reasonably can, we tell you why first.',
+        ] },
+    ] } : null,
+    { id: 'fees', title: 'Fees', blocks: P
+        ? [
+            'Using Bookplus without online payments has no fee. If you take online payments, you choose a plan when you apply:',
+            { list: [
+                '**Basic**: a monthly subscription, with a free trial and a lower introductory price, and a lower commission on each online payment.',
+                '**Standard**: no monthly subscription; a commission and a small fixed fee on each online payment.',
+            ] },
+            'Where your plan shows a card processing fee, it is taken from each online payment and is not returned on refunds. The exact amounts for each plan are shown in Account, Online payments before you apply and at any time after. We tell you in advance, by email and in the app, before a fee goes up; you can switch online payments off or close your account if you do not accept it.',
+        ]
+        : [
+            'We will tell you about any subscription, commission or other fee, and its amount, before it applies to you. You can close your account if you do not accept a new fee.',
+        ] },
     { id: 'reviews', title: 'Reviews', blocks: [
         'Only clients who completed a booking with you can review you, once per booking. Do not write, buy or reward reviews, or pressure clients about their reviews. You may report a review that breaks our rules; we do not remove reviews just because they are negative.',
     ] },
@@ -186,7 +250,7 @@ const businessSections = (W) => [
         'You provide your services to your clients; Bookplus does not (see “Our role” above). Nothing in these Terms takes away any right that the law gives you.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
-        'You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling any client balances. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.',
+        `You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling any client balances${P ? ', and once your online payments balance is settled (nothing owed either way, and no refunds or payouts on their way)' : ''}. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.`,
     ] },
     { id: 'disputes', title: 'Disputes', blocks: [
         'Disputes with your clients are between you and them. If you have a complaint about Bookplus, contact us at ' + mail + '; we aim to resolve it within 30 days.',
@@ -197,10 +261,14 @@ const businessSections = (W) => [
 ];
 
 // `features` defaults to the shared switches; tests pass { walletEnabled: true }
-// to check the full wallet terms kept for re-enabling.
-export const termsOfService = (audience = 'customer', features = FEATURES) => ({
-    title: audience === 'business' ? 'Business Terms of Service' : 'Terms of Service',
-    updated: TERMS_LAST_UPDATED,
-    intro: [],
-    sections: (audience === 'business' ? businessSections(!!features.walletEnabled) : customerSections(!!features.walletEnabled)).filter(Boolean),
-});
+// or { paymentsEnabled: true } to check the terms kept for switching them on.
+export const termsOfService = (audience = 'customer', features = FEATURES) => {
+    const W = !!features.walletEnabled;
+    const P = !!features.paymentsEnabled;
+    return {
+        title: audience === 'business' ? 'Business Terms of Service' : 'Terms of Service',
+        updated: TERMS_LAST_UPDATED,
+        intro: [],
+        sections: (audience === 'business' ? businessSections(W, P) : customerSections(W, P)).filter(Boolean),
+    };
+};

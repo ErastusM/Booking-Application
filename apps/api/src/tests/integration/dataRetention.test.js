@@ -6,6 +6,7 @@ const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment } = require('../helpers/factories');
 const User = require('../../models/User');
 const Appointment = require('../../models/Appointment');
+const Payment = require('../../models/Payment');
 const Notification = require('../../models/Notification');
 const Service = require('../../models/Service');
 const Event = require('../../models/Event');
@@ -104,11 +105,21 @@ it('anonymises guest contact details 24 months after the guest’s last booking,
     const b = await makeAppointment(null, svc._id, p._id, { ...guest, guestName: 'Regular', guestEmail: 'reg@example.com', startTime: '12:00', endTime: '12:30' });
     await makeAppointment(null, svc._id, p._id, { ...guest, guestName: 'Regular', guestEmail: 'reg@example.com', appointmentDate: ago(30), startTime: '13:00', endTime: '13:30' });
 
+    // Their online payments: kept as financial records, without the name and email.
+    const pay = (appt, email, name) => Payment.create({
+        appointment: appt._id, provider: p._id, guestEmail: email, guestName: name, kind: 'full', amountCents: 5000,
+        currency: 'NAD', reference: `BP${String(appt._id).toUpperCase().padEnd(30, '0').slice(0, 30)}`, status: 'paid',
+    });
+    const pa = await pay(a, 'old@example.com', 'Old Guest');
+    const pb = await pay(b, 'reg@example.com', 'Regular');
+
     const r = await runRetentionSweep();
     expect(r.guestContactsAnonymised).toBe(1);
     const A = await Appointment.findById(a._id);
     expect(A).toMatchObject({ guestName: 'Guest', guestEmail: null, guestPhone: null, notes: '', status: 'completed', totalPrice: 50 });
     expect((await Appointment.findById(b._id)).guestEmail).toBe('reg@example.com');
+    expect(await Payment.findById(pa._id).lean()).toMatchObject({ guestName: 'Guest', guestEmail: null, amountCents: 5000, status: 'paid' });
+    expect((await Payment.findById(pb._id).lean()).guestEmail).toBe('reg@example.com');
 });
 
 it('is safe to run twice', async () => {

@@ -49,6 +49,13 @@ test.describe('Paying online for a booking', () => {
         await expect(pay).toContainText('Pay N$50.00 now by card as a deposit');
         await expect(pay).toContainText('The rest, N$150.00, is paid at your appointment');
         await expect(page.getByTestId('review-refund-rules')).toContainText('If the business cancels, you get it all back');
+        // The full rules are one tap away, in a new tab (the booking stays as it is).
+        await expect(page.getByTestId('review-terms-link')).toHaveAttribute('href', '/terms#paying-online');
+        await expect(page.getByTestId('review-refunds-link')).toHaveAttribute('href', '/terms#refunds');
+        const terms = await page.context().newPage();
+        await terms.goto('/terms#refunds');
+        await expect(terms.locator('#refunds')).toContainText('Refunds of online payments');
+        await terms.close();
         await page.getByRole('button', { name: 'Confirm and pay N$50.00' }).first().click();
 
         // Back from PayGate: paid and booked.
