@@ -48,6 +48,7 @@ const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
 const marketingRoutes = require('./src/routes/marketingRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
+const financeRoutes = require('./src/routes/financeRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const startAutoCompleteJob = require('./src/utils/autoCompleteService');
@@ -274,6 +275,8 @@ app.use('/api/events', eventRoutes);
 app.use('/api/marketing', marketingRoutes);
 // Online booking payments (PAYMENTS_ENABLED; every route 404s while off).
 app.use('/api/payments', readOrWrite, paymentRoutes);
+// Bookplus's own money controls (admin, two-step sign-in, finance roles).
+app.use('/api/admin/finance', readOrWrite, financeRoutes);
 
 
 // Health check — includes DB connectivity

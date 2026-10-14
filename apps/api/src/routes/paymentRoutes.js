@@ -14,6 +14,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { auth, authorize } = require('../middleware/auth');
 const { requirePayments } = require('../constants/features');
+const { requireFinance } = require('../utils/financeRoles');
 const c = require('../controllers/paymentController');
 
 const isTest = () => process.env.NODE_ENV === 'test';
@@ -72,7 +73,10 @@ const retryLimiter = rateLimit({
 
 const owner = authorize('provider');
 const ownerOrAdmin = authorize('provider', 'admin');
-const admin = authorize('admin');
+// Bookplus staff on money: an admin in a session confirmed with two-step
+// sign-in, holding the finance role (utils/financeRoles).
+const admin = requireFinance('finance');
+const ownerOrFinance = (req, res, next) => (req.user?.role === 'admin' ? admin(req, res, next) : owner(req, res, next));
 
 // Business setting (owner; admin may act for a business with providerId).
 router.get('/settings', auth, ownerOrAdmin, c.getSettings);
@@ -98,9 +102,10 @@ router.post('/admin/payouts', auth, admin, c.adminRecordPayout);
 router.get('/admin/payments', auth, admin, c.adminListPayments);
 router.get('/admin/providers/:providerId/ledger', auth, admin, c.adminProviderLedger);
 
-// Refunds (owner of the payment's business, or admin).
-router.post('/:id/refund', auth, ownerOrAdmin, c.refundPayment);
-router.post('/:id/refunds/:refundId/retry', auth, ownerOrAdmin, c.retryRefund);
+// Refunds: the owner of the payment's business (up to what Bookplus holds
+// for it), or Bookplus finance (approval above the limit — financeController).
+router.post('/:id/refund', auth, ownerOrFinance, c.refundPayment);
+router.post('/:id/refunds/:refundId/retry', auth, ownerOrFinance, c.retryRefund);
 
 // Public result page, by unguessable reference.
 router.get('/:reference/status', publicLimiter, c.getStatus);

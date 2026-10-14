@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock, ArrowRight, AlertTriangle } from 'lucide-react';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
@@ -14,7 +14,13 @@ import { nonAdminNotice, NOTICE_MS } from '../utils/adminPanel';
 const AdminLogin = () => {
     const { login, user, loading: authLoading } = useAuthContext();
     const navigate = useNavigate();
+    const location = useLocation();
     const [form, setForm] = useState({ email: '', password: '' });
+    // Two-step sign-in: after a correct password the API answers with a short
+    // ticket, and the code from the authenticator app finishes the sign-in.
+    // The standard login page hands an admin's ticket over here.
+    const [mfaToken, setMfaToken] = useState(() => location.state?.mfaToken || null);
+    const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState(null); // { text, to } for a non-admin
@@ -44,6 +50,7 @@ const AdminLogin = () => {
         try {
             const res = await authService.login(form);
             const data = res.data.data;
+            if (data?.mfaRequired) { setMfaToken(data.mfaToken); setCode(''); return; }
             const role = data?.user?.role;
             if (role !== 'admin') {
                 // Valid credentials, wrong door. Sign them in, say so, then send
@@ -60,6 +67,23 @@ const AdminLogin = () => {
         } catch (err) {
             // Deliberately generic — don't reveal whether the email is an admin.
             setError(err.response?.data?.message || 'Those credentials were not accepted.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCode = async (e) => {
+        e.preventDefault();
+        setLoading(true); setError('');
+        try {
+            const res = await authService.mfaLogin(mfaToken, code.trim());
+            const data = res.data.data;
+            login(data);
+            navigate('/bkplus-command', { replace: true });
+        } catch (err) {
+            const c = err.response?.data?.code;
+            if (c === 'mfa_ticket_expired') { setMfaToken(null); setForm((p) => ({ ...p, password: '' })); }
+            setError(err.response?.data?.message || 'That code was not accepted.');
         } finally {
             setLoading(false);
         }
@@ -147,6 +171,32 @@ const AdminLogin = () => {
                     </div>
                 )}
 
+                {mfaToken ? (
+                    <form onSubmit={handleCode} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', marginTop: '1.5rem' }}>
+                        <div>
+                            <label style={label} htmlFor="admin-code">Code from your authenticator app</label>
+                            <input id="admin-code" name="code" value={code} onChange={(e) => setCode(e.target.value)}
+                                required autoFocus autoComplete="one-time-code" inputMode="text" maxLength={14}
+                                placeholder="123456" style={{ ...field, letterSpacing: '0.2em', fontSize: '1.1rem' }}
+                                data-testid="admin-mfa-code" />
+                            <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: 'rgba(230,232,231,0.66)', lineHeight: 1.5 }}>
+                                Lost your phone? Enter one of your recovery codes instead.
+                            </p>
+                        </div>
+                        <button type="submit" disabled={loading || !code.trim()} style={{
+                            marginTop: '0.35rem', width: '100%', padding: '0.9rem', borderRadius: '10px', border: 'none',
+                            background: 'var(--gold)', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontWeight: 600,
+                            fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                        }}>
+                            {loading ? 'Checking…' : <>Confirm <ArrowRight size={17} strokeWidth={2.5} /></>}
+                        </button>
+                        <button type="button" onClick={() => { setMfaToken(null); setCode(''); setError(''); }} style={{
+                            background: 'none', border: 'none', color: 'rgba(230,232,231,0.7)', textDecoration: 'underline',
+                            fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-body)', alignSelf: 'center',
+                        }}>Start again</button>
+                    </form>
+                ) : (
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', marginTop: '1.5rem' }}>
                     <div>
                         <label style={label} htmlFor="admin-email">Admin email</label>
@@ -171,6 +221,7 @@ const AdminLogin = () => {
                         {loading ? 'Verifying…' : <>Enter console <ArrowRight size={17} strokeWidth={2.5} /></>}
                     </button>
                 </form>
+                )}
 
                 <p style={{ marginTop: '1.6rem', fontSize: '0.75rem', color: 'rgba(230,232,231,0.66)', lineHeight: 1.6 }}>
                     Not an administrator? Business owners and staff sign in at{' '}

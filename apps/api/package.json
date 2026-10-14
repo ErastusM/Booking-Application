@@ -51,6 +51,7 @@
         "passport-google-oauth20": "^2.0.0",
         "pino": "^10.4.0",
         "pino-http": "^11.0.0",
+        "qrcode": "^1.5.4",
         "web-push": "^3.6.7"
     },
     "devDependencies": {

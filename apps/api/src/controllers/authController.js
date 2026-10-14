@@ -14,6 +14,7 @@ const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origi
 const staffInvites = require('../utils/staffInvites');
 const { teamBusinessSuspended, TEAM_SUSPENDED_MESSAGE } = require('../utils/publicProvider');
 const { bindHandoff, clearHandoff, handoffAllowed } = require('../utils/handoffBinding');
+const mfa = require('../utils/mfa');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
@@ -47,10 +48,10 @@ const hashJti = (jti) => crypto.createHash('sha256').update(jti).digest('hex');
  *
  * `user` must have been loaded with `.select('+refreshTokenJtis')`.
  */
-const issueAuthTokens = async (user) => {
+const issueAuthTokens = async (user, claims = {}) => {
     const jti = crypto.randomBytes(16).toString('hex');
-    const token = generateToken(user._id, user.tokenVersion);
-    const refreshToken = generateRefreshToken(user._id, user.tokenVersion, jti);
+    const token = generateToken(user._id, user.tokenVersion, claims);
+    const refreshToken = generateRefreshToken(user._id, user.tokenVersion, jti, claims);
     // Atomic append-with-cap: concurrent refreshes (two tabs, or two apps
     // sharing the SSO cookie) must not collide on a document save — the old
     // load-modify-save pattern threw a VersionError on the loser.
@@ -306,6 +307,69 @@ exports.resendVerification = async (req, res) => {
  * LOGIN (LOCAL ONLY)
  * =========================
  */
+// After a correct password: clear the wrong-password count, and move a hash
+// made at an older, cheaper cost to today's.
+const passwordAccepted = async (user, password) => {
+    await User.updateOne({ _id: user._id }, { $set: { loginFailures: 0, loginLockedUntil: null } }).catch(() => {});
+    try {
+        if (bcrypt.getRounds(user.password) < User.BCRYPT_ROUNDS) {
+            // Twin accounts (customer + business on one email) made by this
+            // person share the byte-identical hash, which is how sameIdentity
+            // recognises them, so they move to the new hash together.
+            const newHash = await User.hashPassword(password);
+            await User.updateMany({ email: user.email, password: user.password }, { $set: { password: newHash } });
+        }
+    } catch { /* a failed upgrade never blocks the sign-in */ }
+};
+
+/* ── Two-step sign-in for admin accounts (utils/mfa.js) ── */
+
+const needsMfaCode = (user) => user.role === 'admin' && user.mfa?.enabled === true;
+// The ticket between the password and the code. Signed with its own key, so it
+// can never be used as a session token.
+const MFA_TICKET_SECRET = () => `${process.env.JWT_SECRET}:mfa-login`;
+const mfaTicket = (user) => jwt.sign(
+    { id: String(user._id), tokenVersion: user.tokenVersion, purpose: 'mfa_login' },
+    MFA_TICKET_SECRET(),
+    { expiresIn: '5m' },
+);
+const MFA_LOCK_AFTER = 5;
+const MFA_LOCK_MINUTES = 15;
+const MFA_SELECT = '+mfa.secretEnc +mfa.pendingSecretEnc +mfa.lastStep +mfa.recoveryHashes +mfa.failures +mfa.lockedUntil';
+const mfaClaims = () => ({ mfa: true, mfaAt: Math.floor(Date.now() / 1000) });
+
+/**
+ * Check a code (or a recovery code) for an account with two-step sign-in on,
+ * counting misses: five wrong codes pause it for 15 minutes. Returns
+ * { ok: true, recoveryCodesLeft } or { ok: false, status, body }.
+ */
+const checkMfaCode = async (user, code) => {
+    const m = user.mfa || {};
+    if (m.lockedUntil && m.lockedUntil > new Date()) {
+        return { ok: false, status: 429, body: { success: false, code: 'mfa_locked', message: 'Too many wrong codes. Please wait 15 minutes and try again.' } };
+    }
+    const raw = String(code || '').trim();
+    const step = mfa.checkCode(m.secretEnc, raw, Number.isFinite(m.lastStep) ? m.lastStep : null);
+    if (step !== null) {
+        await User.updateOne({ _id: user._id }, { $set: { 'mfa.lastStep': step, 'mfa.failures': 0, 'mfa.lockedUntil': null } });
+        return { ok: true, recoveryCodesLeft: (m.recoveryHashes || []).length };
+    }
+    const left = /^\d{6}$/.test(raw.replace(/\s/g, '')) ? null : mfa.useRecoveryCode(m.recoveryHashes, raw);
+    if (left) {
+        // Atomic: the same recovery code can't be spent twice by two requests.
+        const r = await User.updateOne(
+            { _id: user._id, 'mfa.recoveryHashes': mfa.hashCode(raw) },
+            { $set: { 'mfa.recoveryHashes': left, 'mfa.failures': 0, 'mfa.lockedUntil': null } },
+        );
+        if (r.modifiedCount === 1) return { ok: true, recoveryCodesLeft: left.length, usedRecoveryCode: true };
+    }
+    const failures = (m.failures || 0) + 1;
+    const set = { 'mfa.failures': failures };
+    if (failures >= MFA_LOCK_AFTER) set['mfa.lockedUntil'] = new Date(Date.now() + MFA_LOCK_MINUTES * 60000);
+    await User.updateOne({ _id: user._id }, { $set: set });
+    return { ok: false, status: 401, body: { success: false, code: 'mfa_invalid', message: 'That code was not accepted. Check your authenticator app and try again.' } };
+};
+
 exports.login = async (req, res) => {
     try {
         const { email: rawEmail, password, accountType } = req.body;
@@ -425,6 +489,20 @@ exports.login = async (req, res) => {
             return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
         }
 
+        // A correct password clears the wrong-password count, and a password
+        // hashed at an older, cheaper cost is re-hashed at today's.
+        await passwordAccepted(user, password);
+
+        // An admin with two-step sign-in: the password alone opens nothing.
+        // They get a five-minute ticket for the code step (/auth/mfa/login).
+        if (needsMfaCode(user)) {
+            return res.status(200).json({
+                success: true,
+                message: 'Enter the code from your authenticator app',
+                data: { mfaRequired: true, mfaToken: mfaTicket(user) },
+            });
+        }
+
         const { token, refreshToken } = await issueAuthTokens(user);
         setRefreshCookie(res, refreshToken, user);
 
@@ -432,18 +510,7 @@ exports.login = async (req, res) => {
         // validation on a partially-selected doc and never races the jti update.
         // First login for an invited staff member flips their Team status from
         // "Invited · awaiting login" to active.
-        // A correct password clears the wrong-password count, and a password
-        // hashed at an older, cheaper cost is re-hashed at today's.
-        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date(), loginFailures: 0, loginLockedUntil: null } }).catch(() => {});
-        try {
-            if (bcrypt.getRounds(user.password) < User.BCRYPT_ROUNDS) {
-                // Twin accounts (customer + business on one email) made by this
-                // person share the byte-identical hash, which is how sameIdentity
-                // recognises them, so they move to the new hash together.
-                const newHash = await User.hashPassword(password);
-                await User.updateMany({ email: user.email, password: user.password }, { $set: { password: newHash } });
-            }
-        } catch { /* a failed upgrade never blocks the sign-in */ }
+        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
 
         // Does this email hold an account on the OTHER side too? Two different
         // questions, deliberately kept apart:
@@ -593,6 +660,16 @@ exports.exchangeOAuthCode = async (req, res) => {
                 success: false,
                 code: 'handoff_other_browser',
                 message: 'This sign-in link only works in the browser that opened it. Please sign in here instead.',
+            });
+        }
+
+        // Two-step sign-in can't be skipped through Google or the account
+        // switcher: those accounts sign in with password and code.
+        if (needsMfaCode(user)) {
+            return res.status(403).json({
+                success: false,
+                code: 'mfa_password_login',
+                message: 'This account uses two-step sign-in. Please sign in with your email, password and code.',
             });
         }
 
@@ -779,7 +856,10 @@ exports.refresh = async (req, res) => {
                 }
             }
 
-            const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user);
+            // A session that passed two-step sign-in keeps that (and when it
+            // happened) across renewals, while the account still has it on.
+            const claims = user.mfa?.enabled && decoded.mfa === true ? { mfa: true, mfaAt: decoded.mfaAt } : {};
+            const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user, claims);
             setRefreshCookie(res, newRefreshToken, user);
             // Never in the body: the cookie carries it.
             return res.status(200).json({ success: true, data: { token } });
@@ -1934,5 +2014,163 @@ exports.acceptStaffInvite = async (req, res) => {
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+/**
+ * =========================
+ * TWO-STEP SIGN-IN (admin accounts)
+ * =========================
+ * Money controls (/api/admin/finance) need a session that passed it within
+ * the last MFA_SESSION_HOURS (utils/financeRoles.requireFinance).
+ *
+ *   POST /auth/mfa/login    { mfaToken, code }  second step of a password sign-in
+ *   GET  /auth/mfa                               on/off, codes left, this session confirmed?
+ *   POST /auth/mfa/setup                         new secret + QR code (not on yet)
+ *   POST /auth/mfa/enable   { code }             turn it on; returns recovery codes
+ *   POST /auth/mfa/confirm  { code }             re-confirm this session
+ */
+const QRCode = require('qrcode');
+const { recordFinance } = require('../utils/financeAudit');
+
+const adminOnly = (req, res) => {
+    if (req.user?.role !== 'admin') {
+        res.status(403).json({ success: false, message: 'Not authorised' });
+        return false;
+    }
+    return true;
+};
+
+exports.mfaLogin = async (req, res) => {
+    try {
+        const { mfaToken, code } = req.body || {};
+        let ticket;
+        try {
+            ticket = jwt.verify(String(mfaToken || ''), MFA_TICKET_SECRET());
+        } catch {
+            return res.status(401).json({ success: false, code: 'mfa_ticket_expired', message: 'That sign-in took too long. Please enter your email and password again.' });
+        }
+        if (ticket.purpose !== 'mfa_login') return res.status(401).json({ success: false, message: 'Invalid sign-in' });
+
+        const user = await User.findById(ticket.id).select(`+refreshTokenJtis ${MFA_SELECT}`);
+        if (!user || user.tokenVersion !== ticket.tokenVersion || !needsMfaCode(user)) {
+            return res.status(401).json({ success: false, code: 'mfa_ticket_expired', message: 'Please enter your email and password again.' });
+        }
+        if (user.isActive === false) {
+            return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+        }
+
+        const check = await checkMfaCode(user, code);
+        if (!check.ok) return res.status(check.status).json(check.body);
+
+        const { token, refreshToken } = await issueAuthTokens(user, mfaClaims());
+        setRefreshCookie(res, refreshToken, user);
+        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
+        return res.status(200).json({
+            success: true,
+            message: 'Login successful',
+            data: {
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    accountType: User.accountTypeForRole(user.role),
+                    avatar: user.avatar,
+                    phone: user.phone,
+                },
+                token,
+                alsoAccountType: null,
+                otherSide: null,
+                recoveryCodesLeft: check.recoveryCodesLeft,
+                usedRecoveryCode: !!check.usedRecoveryCode,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.mfaStatus = async (req, res) => {
+    try {
+        if (!adminOnly(req, res)) return;
+        const user = await User.findById(req.user._id).select('+mfa.recoveryHashes');
+        const enabled = user?.mfa?.enabled === true;
+        res.status(200).json({
+            success: true,
+            data: {
+                enabled,
+                enabledAt: user?.mfa?.enabledAt || null,
+                recoveryCodesLeft: enabled ? (user.mfa.recoveryHashes || []).length : 0,
+                sessionConfirmed: enabled && mfa.sessionFresh(req.authClaims),
+                sessionHours: mfa.SESSION_HOURS(),
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.mfaSetup = async (req, res) => {
+    try {
+        if (!adminOnly(req, res)) return;
+        if (req.user.mfa?.enabled) {
+            return res.status(409).json({ success: false, message: 'Two-step sign-in is already on for this account.' });
+        }
+        const { secret, secretEnc, otpauthUrl } = mfa.newSecret(req.user.email);
+        await User.updateOne({ _id: req.user._id }, { $set: { 'mfa.enabled': false, 'mfa.pendingSecretEnc': secretEnc } });
+        const qrDataUrl = await QRCode.toDataURL(otpauthUrl, { margin: 1, width: 220 });
+        res.status(200).json({ success: true, data: { otpauthUrl, qrDataUrl, secret } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.mfaEnable = async (req, res) => {
+    try {
+        if (!adminOnly(req, res)) return;
+        const user = await User.findById(req.user._id).select(`+refreshTokenJtis ${MFA_SELECT}`);
+        if (user.mfa?.enabled) {
+            return res.status(409).json({ success: false, message: 'Two-step sign-in is already on for this account.' });
+        }
+        const pending = user.mfa?.pendingSecretEnc;
+        if (!pending) return res.status(400).json({ success: false, message: 'Start the set-up first.' });
+        const step = mfa.checkCode(pending, req.body?.code);
+        if (step === null) {
+            return res.status(400).json({ success: false, code: 'mfa_invalid', message: 'That code was not accepted. Check the time on your phone and try the newest code.' });
+        }
+        const { codes, hashes } = mfa.newRecoveryCodes();
+        const r = await User.updateOne(
+            { _id: user._id, 'mfa.pendingSecretEnc': pending },
+            { $set: {
+                'mfa.enabled': true, 'mfa.enabledAt': new Date(), 'mfa.secretEnc': pending, 'mfa.pendingSecretEnc': null,
+                'mfa.lastStep': step, 'mfa.recoveryHashes': hashes, 'mfa.failures': 0, 'mfa.lockedUntil': null,
+            } },
+        );
+        if (r.modifiedCount !== 1) return res.status(409).json({ success: false, message: 'Start the set-up again.' });
+        await recordFinance({ actor: user, action: 'security.mfa_enabled', reason: 'Two-step sign-in turned on' }).catch(() => {});
+
+        user.mfa.enabled = true;
+        const { token, refreshToken } = await issueAuthTokens(user, mfaClaims());
+        setRefreshCookie(res, refreshToken, user);
+        res.status(200).json({ success: true, data: { token, recoveryCodes: codes } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.mfaConfirm = async (req, res) => {
+    try {
+        if (!adminOnly(req, res)) return;
+        const user = await User.findById(req.user._id).select(`+refreshTokenJtis ${MFA_SELECT}`);
+        if (!needsMfaCode(user)) {
+            return res.status(409).json({ success: false, code: 'mfa_not_enabled', message: 'Set up two-step sign-in first.' });
+        }
+        const check = await checkMfaCode(user, req.body?.code);
+        if (!check.ok) return res.status(check.status).json(check.body);
+        const { token, refreshToken } = await issueAuthTokens(user, mfaClaims());
+        setRefreshCookie(res, refreshToken, user);
+        res.status(200).json({ success: true, data: { token, recoveryCodesLeft: check.recoveryCodesLeft, usedRecoveryCode: !!check.usedRecoveryCode } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

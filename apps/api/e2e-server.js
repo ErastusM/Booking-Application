@@ -382,6 +382,17 @@ const outbox = [];
     // no-show booking, NO platform wallet row, and a client account the spec
     // makes an admin and back.
     let adminSeq = 0;
+    // A fresh admin of its own (two-step sign-in specs turn it on for it).
+    outer.post('/__e2e/fresh-admin', async (req, res) => {
+        adminSeq += 1;
+        const email = `e2e-admin-${adminSeq}-${Date.now()}@bookplus.dev`;
+        await User.create({
+            name: `Fresh Admin ${adminSeq}`, email, password: 'Password1!', phone: '+264810000012',
+            role: 'admin', isVerified: true, provider: 'local',
+        });
+        res.json({ email, password: 'Password1!' });
+    });
+
     outer.post('/__e2e/admin-fixture', async (req, res) => {
         adminSeq += 1;
         const tag = `${adminSeq}-${Date.now()}`;

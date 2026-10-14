@@ -1,6 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-exports.generateToken = (id, tokenVersion = 0) => {
+// `extra` carries the two-step sign-in claims (mfa, mfaAt — see utils/mfa.js);
+// nothing else is put in a token.
+const sessionClaims = (extra = {}) => (extra && extra.mfa === true && Number.isFinite(extra.mfaAt)
+    ? { mfa: true, mfaAt: extra.mfaAt }
+    : {});
+
+exports.generateToken = (id, tokenVersion = 0, extra = {}) => {
     // 15 minutes by default: access tokens are role-blind (the middleware never
     // checks accountType), so a long-lived one held by the wrong app stays
     // usable for its whole life. Sessions still feel week-long — the refresh
@@ -8,13 +14,13 @@ exports.generateToken = (id, tokenVersion = 0) => {
     // days. Never issue a token with no expiry (jwt.sign treats expiresIn:
     // undefined as forever); tokenVersion still revokes instantly on
     // logout/password change. Deployments can widen via JWT_EXPIRE.
-    return jwt.sign({ id, tokenVersion }, process.env.JWT_SECRET, {
+    return jwt.sign({ id, tokenVersion, ...sessionClaims(extra) }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRE || '15m'
     });
 };
 
-exports.generateRefreshToken = (id, tokenVersion = 0, jti) => {
-    const payload = { id, tokenVersion };
+exports.generateRefreshToken = (id, tokenVersion = 0, jti, extra = {}) => {
+    const payload = { id, tokenVersion, ...sessionClaims(extra) };
     if (jti) payload.jti = jti; // token id, tracked per-user for rotation / reuse rejection
     return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
         expiresIn: process.env.REFRESH_TOKEN_EXPIRE || '30d'
