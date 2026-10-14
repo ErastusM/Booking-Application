@@ -148,6 +148,20 @@ const OnlinePaymentsSection = () => {
     const [statusTitle, statusText] = STATUS_TEXT[d.status] || STATUS_TEXT.draft;
     const docs = DOCS.filter(([kind]) => kind !== 'registration' || legal.businessType !== 'sole_trader');
 
+    const flipSwitch = async (on) => {
+        setD((x) => ({ ...x, switchOn: on }));
+        const res = await run('switch', () => onlinePaymentsService.setSwitch(on), on ? 'Online payments are on' : 'Online payments are off');
+        if (!res) setD((x) => ({ ...x, switchOn: !on }));
+    };
+
+    // Shown as chosen at once; put back if saving fails.
+    const choosePlan = async (key) => {
+        const before = d.plan;
+        setD((x) => ({ ...x, plan: key }));
+        const res = await run('plan', () => onlinePaymentsService.updateApplication({ plan: key }));
+        if (!res) setD((x) => ({ ...x, plan: before }));
+    };
+
     const saveDetails = (e) => {
         e.preventDefault();
         const payload = { ...legal };
@@ -210,8 +224,7 @@ const OnlinePaymentsSection = () => {
                         <p style={{ ...muted, color: '#991b1b' }}>Bookplus has switched online payments off for your business{d.adminOffReason ? `: ${d.adminOffReason}` : ''}. Contact Bookplus.</p>
                     ) : (
                         <label style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', fontSize: '0.92rem' }}>
-                            <input type="checkbox" checked={d.switchOn} disabled={busy === 'switch'}
-                                onChange={(e) => run('switch', () => onlinePaymentsService.setSwitch(e.target.checked), e.target.checked ? 'Online payments are on' : 'Online payments are off')} />
+                            <input type="checkbox" checked={d.switchOn} disabled={busy === 'switch'} onChange={(e) => flipSwitch(e.target.checked)} />
                             {d.switchOn ? 'On: clients pay online as you have chosen' : 'Off: clients pay at the appointment'}
                         </label>
                     )}
@@ -224,7 +237,7 @@ const OnlinePaymentsSection = () => {
                 <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 15rem), 1fr))' }}>
                     {d.plans.map((p) => (
                         <PlanCard key={p.key} plan={p} processingFee={d.processingFee} selected={d.plan === p.key} disabled={!editable || busy === 'plan'}
-                            onChoose={(key) => run('plan', () => onlinePaymentsService.updateApplication({ plan: key }))} />
+                            onChoose={choosePlan} />
                     ))}
                 </div>
                 <p style={{ ...muted, marginTop: '0.75rem', fontSize: '0.8rem' }}>

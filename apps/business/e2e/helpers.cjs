@@ -1,5 +1,6 @@
 // Shared helpers + seeded credentials for the business-app E2E specs.
 // Accounts are created by apps/api/e2e-server.js on boot.
+const crypto = require('crypto');
 const { expect } = require('@playwright/test');
 
 const SEED = {
@@ -131,4 +132,44 @@ async function settle(page) {
     await page.evaluate(() => window.scrollTo(0, 0));
 }
 
-module.exports = { SEED, login, CUSTOMER_URL, expectProviderDashboard, openCalendarView, measureTopGap, settle };
+const E2E_API = `http://localhost:${process.env.E2E_API_PORT || 5053}`;
+
+// What an authenticator app shows (RFC 6238: HMAC-SHA1, 30-second steps).
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const totp = (secret, offset = 0) => {
+    let bits = 0; let value = 0; const bytes = [];
+    for (const ch of secret.replace(/\s/g, '')) {
+        value = (value << 5) | B32.indexOf(ch); bits += 5;
+        if (bits >= 8) { bytes.push((value >>> (bits - 8)) & 255); bits -= 8; }
+    }
+    const counter = Buffer.alloc(8);
+    counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000) + offset));
+    const h = crypto.createHmac('sha1', Buffer.from(bytes)).update(counter).digest();
+    const o = h[h.length - 1] & 0xf;
+    const n = ((h[o] & 0x7f) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3];
+    return String(n % 1e6).padStart(6, '0');
+};
+
+// A fresh admin with two-step sign-in turned on through the API.
+async function adminWithTwoStep(request) {
+    const admin = await (await request.post(`${E2E_API}/__e2e/fresh-admin`)).json();
+    const login = await (await request.post(`${E2E_API}/api/auth/login`, { data: { ...admin, accountType: 'business' } })).json();
+    const headers = { Authorization: `Bearer ${login.data.token}` };
+    const setup = await (await request.post(`${E2E_API}/api/auth/mfa/setup`, { headers })).json();
+    const on = await request.post(`${E2E_API}/api/auth/mfa/enable`, { headers, data: { code: totp(setup.data.secret) } });
+    expect(on.status()).toBe(200);
+    return { ...admin, secret: setup.data.secret };
+}
+
+// Sign in at the admin door with password and code, landing on the console.
+async function adminConsoleLogin(page, admin) {
+    await page.goto('/bkplus-command/login');
+    await page.getByLabel('Admin email').fill(admin.email);
+    await page.getByLabel('Password').fill(admin.password);
+    await page.getByRole('button', { name: /enter console/i }).click();
+    await page.getByTestId('admin-mfa-code').fill(totp(admin.secret, 1));
+    await page.getByRole('button', { name: /confirm/i }).click();
+    await page.waitForURL(/\/bkplus-command$/, { timeout: 15_000 });
+}
+
+module.exports = { SEED, login, CUSTOMER_URL, expectProviderDashboard, openCalendarView, measureTopGap, settle, totp, adminWithTwoStep, adminConsoleLogin };
