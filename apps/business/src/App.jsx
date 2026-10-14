@@ -20,9 +20,8 @@ import Login from './pages/Login';
 const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'));
 const Team = lazy(() => import('./pages/Team'));
 const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminConsole = lazy(() => import('./pages/admin/AdminConsole'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
-const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
 // Every admin request needs two-step sign-in, so the console waits behind it.
 const AdminTwoStepGate = lazy(() => import('./components/AdminTwoStep'));
 const Register = lazy(() => import('./pages/Register'));
@@ -43,6 +42,11 @@ const RouteFallback = () => (
     </div>
 );
 
+// The admin console keeps its sidebar while moving between its sections, so
+// all of /bkplus-command/* is one view; every other page gets its own.
+const isConsole = (pathname) => pathname.startsWith('/bkplus-command') && pathname !== '/bkplus-command/login';
+const routeKey = (pathname) => (isConsole(pathname) ? '/bkplus-command' : pathname);
+
 function AppRoutes() {
     const location = useLocation();
 
@@ -58,7 +62,7 @@ function AppRoutes() {
 
     return (
         <Suspense fallback={<RouteFallback />}>
-            <main id="main-content" tabIndex={-1} key={location.pathname} className="route-view" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+            <main id="main-content" tabIndex={-1} key={routeKey(location.pathname)} className="route-view" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
                 <Routes location={location}>
                     {/* Auth */}
                     <Route path="/login" element={<Login />} />
@@ -102,14 +106,9 @@ function AppRoutes() {
                     {/* Admin — role-gated area of the business app, with its own
                         branded sign-in so it's unmistakably the admin console. */}
                     <Route path="/bkplus-command/login" element={<AdminLogin />} />
-                    <Route path="/bkplus-command" element={
+                    <Route path="/bkplus-command/*" element={
                         <ProtectedRoute allowedRoles={['admin']} loginPath="/bkplus-command/login">
-                            <AdminTwoStepGate><AdminDashboard /></AdminTwoStepGate>
-                        </ProtectedRoute>
-                    } />
-                    <Route path="/bkplus-command/insights" element={
-                        <ProtectedRoute allowedRoles={['admin']} loginPath="/bkplus-command/login">
-                            <AdminTwoStepGate><AnalyticsDashboard /></AdminTwoStepGate>
+                            <AdminTwoStepGate><AdminConsole /></AdminTwoStepGate>
                         </ProtectedRoute>
                     } />
 
@@ -137,7 +136,9 @@ function AppRoutes() {
 function AppChrome() {
     const { pathname } = useLocation();
     const { darkMode } = useTheme();
-    if (client.isPublicTokenPath(pathname)) {
+    // The admin console has its own sidebar; the business app's navigation
+    // (calendar, clients, account) isn't for admins.
+    if (client.isPublicTokenPath(pathname) || pathname.startsWith('/bkplus-command')) {
         return <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />;
     }
     return <Navbar />;

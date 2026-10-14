@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { login, adminWithTwoStep, adminConsoleLogin } = require('./helpers.cjs');
+const { login, adminWithTwoStep, adminConsoleLogin, adminSection } = require('./helpers.cjs');
 
 const API = `http://localhost:${process.env.E2E_API_PORT || 5053}`;
 
@@ -82,8 +82,7 @@ test.describe('Online payments: apply and approve', () => {
         const adminContext = await browser.newContext();
         const adminPage = await adminContext.newPage();
         await adminConsoleLogin(adminPage, admin);
-        await adminPage.getByRole('tab', { name: 'Money' }).click();
-        await adminPage.getByTestId('money-panel').getByRole('tab', { name: 'Approvals' }).click();
+        await adminSection(adminPage, 'Approvals');
         const row = adminPage.getByTestId('approval-row').filter({ hasText: fx.businessName });
         await expect(row).toContainText('Waiting for review');
         await row.getByRole('button', { name: 'Review' }).click();

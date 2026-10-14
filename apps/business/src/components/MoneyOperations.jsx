@@ -3,28 +3,22 @@ import { financeService } from '../services';
 import { useToast } from './Toast';
 import { uploadDisputeEvidence, VERIFICATION_ACCEPT } from '../utils/uploadImage';
 import { nad, parseCents } from '../utils/onlinePayment';
+import { panel as card, muted, input, label, small, list, bad } from './admin/ui';
 
 // The admin console's Money → Payments, Payouts and Disputes: payments that
 // need a look ("ask PayGate", refunds), the payout run (prepare, bank file,
 // paid or returned), and card chargebacks and complaints. Same gate as the rest
 // of the Money tab; an expired two-step session calls onLocked.
 
-const card = { background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.1rem', boxShadow: 'var(--shadow-sm)', minWidth: 0 };
-const h3 = { fontFamily: 'var(--font-display)', fontSize: '0.98rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 };
-const muted = { color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5, margin: 0 };
-const input = {
-    width: '100%', padding: '0.55rem 0.7rem', border: '1.5px solid var(--border-input)', borderRadius: 'var(--radius-sm)',
-    fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'white', boxSizing: 'border-box',
-};
-const label = { display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' };
+
+const h3 = { fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 };
 const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem' };
-const small = { padding: '0.3rem 0.75rem', fontSize: '0.78rem' };
-const list = { display: 'grid', gap: '0.75rem', gridTemplateColumns: 'minmax(0, 1fr)' };
 const apiError = (err, fallback) => err?.response?.data?.message || err?.message || fallback;
 const day = (d) => (d ? new Date(d).toLocaleDateString('en-NA', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const isLocked = (err) => err?.response?.data?.code === 'mfa_required';
+// One choice in a row of choices (wrapped in .adm-seg).
 const Chip = ({ on, onClick, children }) => (
-    <button type="button" onClick={onClick} aria-pressed={on} className={on ? 'btn-primary' : 'btn-outline'} style={small}>{children}</button>
+    <button type="button" onClick={onClick} aria-pressed={on}>{children}</button>
 );
 
 const STATUS_TEXT = {
@@ -97,8 +91,8 @@ const PaymentCard = ({ p, onChanged, onLocked, onCaseOpened }) => {
                 </span>
             </div>
             <p style={{ ...muted, fontSize: '0.74rem', marginTop: '0.3rem', fontFamily: 'ui-monospace, monospace', overflowWrap: 'anywhere' }}>{p.reference}{p.refundedCents ? ` · refunded ${nad(p.refundedCents)}` : ''}</p>
-            {p.flagged && <p style={{ ...muted, color: '#991b1b', marginTop: '0.3rem' }}>Flagged: {p.flagReason || 'check it'}</p>}
-            {stuck && <p style={{ ...muted, color: '#92400e', marginTop: '0.3rem' }}>A {nad(stuck.amountCents)} refund did not go through: {stuck.error || 'PayGate refused it'}</p>}
+            {p.flagged && <p style={{ ...muted, color: bad, marginTop: '0.3rem' }}>Flagged: {p.flagReason || 'check it'}</p>}
+            {stuck && <p style={{ ...muted, color: 'var(--warning-fg)', marginTop: '0.3rem' }}>A {nad(stuck.amountCents)} refund did not go through: {stuck.error || 'PayGate refused it'}</p>}
             {p.refundRequest && <p style={{ ...muted, marginTop: '0.3rem' }}>A {nad(p.refundRequest.amountCents)} refund waits for a director.</p>}
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
                 <button type="button" className="btn-outline" style={small} disabled={busy} onClick={() => run(() => financeService.syncPayment(p._id), 'Checked')}>Ask PayGate</button>
@@ -185,15 +179,17 @@ export const PaymentsView = ({ onLocked, onCaseOpened }) => {
 
     return (
         <div style={list} data-testid="ops-payments">
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {PAYMENT_VIEWS.map(([k, t]) => <Chip key={k} on={view === k} onClick={() => setView(k)}>{t}</Chip>)}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="adm-seg" role="group" aria-label="Show">
+                    {PAYMENT_VIEWS.map(([k, t]) => <Chip key={k} on={view === k} onClick={() => setView(k)}>{t}</Chip>)}
+                </div>
                 <form onSubmit={(e) => { e.preventDefault(); load(1); }} style={{ flex: '1 1 12rem', display: 'flex', gap: '0.4rem' }}>
                     <input aria-label="Payment reference" placeholder="Reference (BP…)" style={{ ...input, flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} />
                     <button type="submit" className="btn-outline" style={small}>Find</button>
                 </form>
             </div>
             {view === 'attention' && <p style={muted}>Payments still open after 15 minutes, flagged ones, and refunds that did not go through.</p>}
-            {error && <p role="alert" style={{ ...muted, color: '#991b1b' }}>{error}</p>}
+            {error && <p role="alert" style={{ ...muted, color: bad }}>{error}</p>}
             {rows && rows.length === 0 && <div style={card}><p style={muted}>{view === 'attention' ? 'Nothing needs a look.' : 'No payments.'}</p></div>}
             {(rows || []).map((p) => (
                 <PaymentCard key={p._id} p={p} onLocked={onLocked} onCaseOpened={onCaseOpened}
@@ -316,7 +312,7 @@ export const PayoutsView = ({ onLocked }) => {
         setBusy('');
     };
 
-    if (error) return <p role="alert" style={{ ...muted, color: '#991b1b' }}>{error}</p>;
+    if (error) return <p role="alert" style={{ ...muted, color: bad }}>{error}</p>;
     if (!due) return <p style={muted}>Loading…</p>;
     const s = due.schedule;
     return (
@@ -337,7 +333,7 @@ export const PayoutsView = ({ onLocked }) => {
                                         onChange={(e) => setChosen({ ...chosen, [x.providerId]: e.target.checked })} aria-label={`Pay ${x.businessName}`} />
                                     <span style={{ minWidth: 0 }}>
                                         <span style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', overflowWrap: 'anywhere' }}>{x.businessName}</span>
-                                        <span style={{ display: 'block', ...muted, color: x.payable ? 'var(--text-muted)' : '#92400e' }}>
+                                        <span style={{ display: 'block', ...muted, color: x.payable ? 'var(--text-muted)' : 'var(--warning-fg)' }}>
                                             {x.payable ? `${x.bankName} ${x.accountNumberMasked}` : BLOCKED[x.blockedBy] || x.blockedBy}
                                             {x.paymentsSwitchedOffByBookplus ? ' · online payments switched off by Bookplus' : ''}
                                         </span>
@@ -373,7 +369,7 @@ export const PayoutsView = ({ onLocked }) => {
                                     {p.status === 'failed' ? `Returned: ${p.failureReason}` : `Paid ${day(p.paidAt)}${p.reference ? `, ${p.reference}` : ''}`}
                                 </span>
                             </span>
-                            <span style={{ flexShrink: 0, color: p.status === 'failed' ? '#991b1b' : 'var(--charcoal)' }}>{nad(p.amountCents)}</span>
+                            <span style={{ flexShrink: 0, color: p.status === 'failed' ? bad : 'var(--charcoal)' }}>{nad(p.amountCents)}</span>
                         </div>
                     ))}
                 </div>
@@ -462,7 +458,7 @@ const DisputeDetail = ({ id, onBack, onLocked }) => {
                     <div style={row}><span>Disputed</span><span>{nad(d.amountCents)}</span></div>
                     {d.feeCents > 0 && <div style={row}><span>Card processor's fee</span><span>{nad(d.feeCents)}</span></div>}
                     {d.caseReference && <div style={row}><span>Case number</span><span>{d.caseReference}</span></div>}
-                    {d.deadlineAt && <div style={row}><span>Evidence due</span><span style={{ color: open && left !== null && left <= 3 ? '#991b1b' : undefined }}>{day(d.deadlineAt)}{open && left !== null ? ` (${left < 0 ? 'passed' : `${left} day${left === 1 ? '' : 's'} left`})` : ''}</span></div>}
+                    {d.deadlineAt && <div style={row}><span>Evidence due</span><span style={{ color: open && left !== null && left <= 3 ? bad : undefined }}>{day(d.deadlineAt)}{open && left !== null ? ` (${left < 0 ? 'passed' : `${left} day${left === 1 ? '' : 's'} left`})` : ''}</span></div>}
                     {d.payment && <div style={row}><span>Payment</span><span>{STATUS_TEXT[d.payment.status]}{d.payment.refundedCents ? `, ${nad(d.payment.refundedCents)} refunded` : ''}</span></div>}
                     {d.payment?.appointment && <div style={row}><span>Booking</span><span style={{ textAlign: 'right' }}>{[d.payment.appointment.clientName, d.payment.appointment.service].filter(Boolean).join(' · ')}, {day(d.payment.appointment.appointmentDate)}</span></div>}
                 </div>
@@ -478,7 +474,7 @@ const DisputeDetail = ({ id, onBack, onLocked }) => {
             {open && (
                 <div style={card}>
                     <h3 style={{ ...h3, marginBottom: '0.5rem' }}>What next</h3>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <div className="adm-seg" role="group" aria-label="What next">
                         {d.kind === 'chargeback' ? (
                             <>
                                 <Chip on={action === 'won'} onClick={() => setAction('won')}>Won</Chip>
@@ -580,12 +576,12 @@ export const DisputesView = ({ onLocked, openId = null }) => {
     if (selected) return <DisputeDetail id={selected} onBack={() => setSelected(null)} onLocked={onLocked} />;
     return (
         <div style={list} data-testid="ops-disputes">
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <div className="adm-seg" role="group" aria-label="Cases" style={{ justifySelf: 'start' }}>
                 <Chip on={status === 'open'} onClick={() => setStatus('open')}>Open</Chip>
                 <Chip on={status === 'closed'} onClick={() => setStatus('closed')}>Closed</Chip>
             </div>
             <p style={muted}>Card chargebacks and complaints that a paid service was not provided. Open a case from a payment (Payments).</p>
-            {error && <p role="alert" style={{ ...muted, color: '#991b1b' }}>{error}</p>}
+            {error && <p role="alert" style={{ ...muted, color: bad }}>{error}</p>}
             {rows && rows.length === 0 && <div style={card}><p style={muted}>{status === 'open' ? 'No open cases.' : 'No closed cases yet.'}</p></div>}
             {(rows || []).map((d) => {
                 const left = daysLeft(d.deadlineAt);
@@ -598,7 +594,7 @@ export const DisputesView = ({ onLocked, openId = null }) => {
                             </span>
                             <span style={{ textAlign: 'right', flexShrink: 0 }}>
                                 <span style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', color: 'var(--charcoal)' }}>{nad(d.amountCents)}</span>
-                                {d.status === 'open' && left !== null && <span style={{ display: 'block', fontSize: '0.74rem', color: left <= 3 ? '#991b1b' : 'var(--text-muted)' }}>{left < 0 ? 'Deadline passed' : `Due in ${left} day${left === 1 ? '' : 's'}`}</span>}
+                                {d.status === 'open' && left !== null && <span style={{ display: 'block', fontSize: '0.74rem', color: left <= 3 ? bad : 'var(--text-muted)' }}>{left < 0 ? 'Deadline passed' : `Due in ${left} day${left === 1 ? '' : 's'}`}</span>}
                             </span>
                         </span>
                     </button>

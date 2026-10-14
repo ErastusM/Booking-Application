@@ -64,14 +64,14 @@ const WalletAdjustDialog = ({ searchProviders, walletFor, submit, onClose, initi
 
     const toggle = (on) => ({
         flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
-        border: `1.5px solid ${on ? 'var(--gold)' : 'var(--border)'}`,
-        background: on ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: on ? 'var(--gold-dark)' : 'var(--text-secondary)',
+        border: `1px solid ${on ? 'var(--ink)' : 'var(--border)'}`,
+        background: on ? 'var(--ink)' : 'var(--card-bg)', color: on ? 'var(--on-ink)' : 'var(--text-secondary)',
     });
 
     return (
-        <div onClick={busy ? undefined : onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+        <div onClick={busy ? undefined : onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div role="dialog" aria-modal="true" aria-labelledby="wallet-adjust-title" data-testid="wallet-adjust-dialog" onClick={(e) => e.stopPropagation()}
-                style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', overflow: 'hidden' }}>
+                style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', width: '100%', maxWidth: '440px', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                     <h2 id="wallet-adjust-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Credit or debit a business</h2>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Applies immediately and is recorded on the business’s account.</p>
@@ -119,7 +119,7 @@ const WalletAdjustDialog = ({ searchProviders, walletFor, submit, onClose, initi
                                 <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{walletLine(wallet)}</span>
                             </span>
                             {!initial && (
-                                <button type="button" onClick={() => setPicked(null)} disabled={busy} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>Change</button>
+                                <button type="button" onClick={() => setPicked(null)} disabled={busy} style={{ background: 'none', border: 'none', color: 'var(--charcoal)', textDecoration: 'underline', textUnderlineOffset: '3px', fontWeight: 500, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>Change</button>
                             )}
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }} role="group" aria-label="Credit or debit">

@@ -4,9 +4,10 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 /**
- * The admin console's Money tab: two-step sign-in first (set up, or confirm
- * this session), then prices and fees with the simulator and launch checklist.
- * Only a director edits; a change needs a reason and is sent as nested values.
+ * The admin console's Money and Settings sections (two-step sign-in is the
+ * console's gate, AdminTwoStep.test.jsx): prices and fees with the simulator,
+ * the launch checklist, and business applications. Only a director edits; a
+ * change needs a reason and is sent as nested values.
  */
 const auth = vi.hoisted(() => ({ authService: {}, financeService: {} }));
 const ctx = vi.hoisted(() => ({ user: { _id: 'me', role: 'admin', email: 'boss@bookplus.pro' }, login: vi.fn() }));
@@ -67,10 +68,10 @@ beforeEach(() => {
     };
 });
 
-// Prices and fees, the launch checklist and the simulator are under Settings.
-const openSettings = async () => {
+// Settings → Prices and fees (with the simulator).
+const openSettings = async (view = 'prices') => {
+    render(<MoneyPanel view={view} />);
     await screen.findByTestId('money-panel');
-    await userEvent.click(screen.getByRole('tab', { name: 'Settings' }));
 };
 
 const APPLICATION = (over = {}) => ({
@@ -86,56 +87,45 @@ const APPLICATION = (over = {}) => ({
     ...over,
 });
 
-describe('MoneyPanel — two-step sign-in comes first', () => {
-    it('sets it up: QR code and key, a code turns it on, recovery codes are shown once', async () => {
-        auth.authService.mfaStatus.mockResolvedValueOnce({ data: { data: { enabled: false, sessionConfirmed: false } } });
+describe('MoneyPanel — sections', () => {
+    it('opens on the dashboard, with no tab row of its own (the sidebar moves between sections)', async () => {
         render(<MoneyPanel />);
-        await userEvent.click(await screen.findByRole('button', { name: 'Start set-up' }));
-        expect(await screen.findByAltText(/QR code/)).toHaveAttribute('src', 'data:image/png;base64,AAA');
-        // The key in groups of four, each kept whole when the line wraps.
-        const key = screen.getByTestId('mfa-secret');
-        expect(key).toHaveTextContent('JBSWY3DPEHPK3PXP');
-        expect(key.querySelectorAll('span')).toHaveLength(8);
-        await userEvent.type(screen.getByLabelText(/Enter the 6-digit code/), '123456');
-        await userEvent.click(screen.getByRole('button', { name: 'Turn on' }));
-        expect(auth.authService.mfaEnable).toHaveBeenCalledWith('123456');
-        expect(ctx.login).toHaveBeenCalledWith({ token: 'tok2', user: ctx.user });
-        const codes = await screen.findByTestId('mfa-recovery-codes');
-        expect(within(codes).getByText('AAAAA-11111')).toBeInTheDocument();
-        expect(auth.financeService.getSettings).not.toHaveBeenCalled();
+        await screen.findByTestId('money-panel');
+        expect(auth.financeService.dashboard).toHaveBeenCalled();
+        expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     });
 
-    it('asks for a code when this session is not confirmed, then shows the controls', async () => {
-        auth.authService.mfaStatus.mockResolvedValueOnce({ data: { data: { enabled: true, sessionConfirmed: false } } });
-        render(<MoneyPanel />);
-        await userEvent.type(await screen.findByLabelText('Code'), '654321');
-        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
-        expect(auth.authService.mfaConfirm).toHaveBeenCalledWith('654321');
-        expect(ctx.login).toHaveBeenCalledWith({ token: 'tok3', user: ctx.user });
-        expect(await screen.findByTestId('money-panel')).toBeInTheDocument();
+    it('an expired two-step session asks the console for the code again', async () => {
+        const heard = vi.fn();
+        window.addEventListener('admin-two-step-required', heard);
+        auth.financeService.getSettings.mockRejectedValueOnce({ response: { data: { code: 'mfa_required' } } });
+        render(<MoneyPanel view="prices" />);
+        await vi.waitFor(() => expect(heard).toHaveBeenCalled());
+        window.removeEventListener('admin-two-step-required', heard);
+    });
+
+    it('an admin without a money role is told so', async () => {
+        auth.financeService.getSettings.mockRejectedValueOnce({ response: { data: { code: 'finance_role_required' } } });
+        render(<MoneyPanel view="prices" />);
+        expect(await screen.findByRole('alert')).toHaveTextContent(/needs a money role/);
     });
 });
 
 describe('MoneyPanel — prices and fees', () => {
-    it('opens on the dashboard, with the way to the launch checklist', async () => {
-        render(<MoneyPanel />);
-        await screen.findByTestId('money-panel');
-        expect(screen.getByRole('tab', { name: 'Dashboard' })).toHaveAttribute('aria-selected', 'true');
-        expect(screen.getAllByRole('tab')).toHaveLength(8);
-        expect(auth.financeService.dashboard).toHaveBeenCalled();
-    });
-
-    it('shows the simulator, flags a booking that loses money, and the launch checklist', async () => {
-        render(<MoneyPanel />);
+    it('shows the simulator and flags a booking that loses money', async () => {
         await openSettings();
         expect(screen.getByText('-N$0.25')).toBeInTheDocument();
         expect(screen.getAllByText('not entered').length).toBeGreaterThan(0);
         expect(screen.getByRole('alert')).toHaveTextContent(/loses money/);
+    });
+
+    it('the go-live checklist shows what is left, with the PayGate check', async () => {
+        await openSettings('go-live');
         expect(within(screen.getByTestId('launch-providerApproved')).getByText('To do')).toBeInTheDocument();
+        expect(screen.getByTestId('paygate-check')).toBeInTheDocument();
     });
 
     it('a director saves a change with a reason, sent as nested values in cents and basis points', async () => {
-        render(<MoneyPanel />);
         await openSettings();
         const fee = screen.getByLabelText('Processing fee, percentage (%)');
         await userEvent.type(fee, '3.5');
@@ -149,7 +139,6 @@ describe('MoneyPanel — prices and fees', () => {
 
     it('finance (not a director) can read but not change them', async () => {
         auth.financeService.getSettings.mockResolvedValueOnce({ data: { data: PAYLOAD(['finance']) } });
-        render(<MoneyPanel />);
         await openSettings();
         expect(screen.getByText(/Only a director can change these/)).toBeInTheDocument();
         expect(screen.getByLabelText('Commission per online booking (%)', { selector: '#fin-plans\\.basic\\.commissionBps' })).toBeDisabled();
@@ -159,9 +148,8 @@ describe('MoneyPanel — prices and fees', () => {
 
 describe('MoneyPanel — businesses applying for online payments', () => {
     const openReview = async () => {
-        render(<MoneyPanel />);
+        render(<MoneyPanel view="approvals" />);
         await screen.findByTestId('money-panel');
-        await userEvent.click(screen.getByRole('tab', { name: 'Approvals' }));
         const row = await screen.findByTestId('approval-row');
         expect(row).toHaveTextContent('Vibe Cuts');
         expect(row).toHaveTextContent('Waiting for review, standard');

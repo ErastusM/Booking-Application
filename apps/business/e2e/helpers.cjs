@@ -166,10 +166,21 @@ async function adminConsoleLogin(page, admin) {
     await page.goto('/bkplus-command/login');
     await page.getByLabel('Admin email').fill(admin.email);
     await page.getByLabel('Password').fill(admin.password);
-    await page.getByRole('button', { name: /enter console/i }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByTestId('admin-mfa-code').fill(totp(admin.secret, 1));
     await page.getByRole('button', { name: /confirm/i }).click();
     await page.waitForURL(/\/bkplus-command$/, { timeout: 15_000 });
 }
 
-module.exports = { SEED, login, CUSTOMER_URL, expectProviderDashboard, openCalendarView, measureTopGap, settle, totp, adminWithTwoStep, adminConsoleLogin };
+// Open a section of the admin console from its sidebar (on a phone, the
+// sidebar is a drawer behind the menu button). Counts ("Payments 2 waiting")
+// are allowed after the name.
+async function adminSection(page, name) {
+    await page.getByTestId('admin-console').waitFor();
+    const menu = page.getByRole('button', { name: 'Open menu' });
+    if (await menu.isVisible()) await menu.click();
+    await page.getByRole('navigation', { name: 'Admin' })
+        .getByRole('link', { name: new RegExp(`^${name}( \\d+ waiting)?$`) }).click();
+}
+
+module.exports = { SEED, login, CUSTOMER_URL, expectProviderDashboard, openCalendarView, measureTopGap, settle, totp, adminWithTwoStep, adminConsoleLogin, adminSection };

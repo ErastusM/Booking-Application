@@ -1,17 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { authService, financeService } from '../services';
+import { financeService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { PaymentsView, PayoutsView, DisputesView } from './MoneyOperations';
 import { DashboardView, CostsView } from './FinanceDashboard';
 import PaygateCheck from './PaygateCheck';
-import { MfaSetup, MfaConfirm } from './AdminTwoStep';
+import { TWO_STEP_EVENT } from './AdminTwoStep';
+import { panel as card, h3, muted, input, label, errBox, th, td, Status } from './admin/ui';
 
-// The admin console's "Money" tab: Bookplus's own prices and fees, the pricing
-// simulator, the launch checklist, second-person approvals, the financial
-// audit log and who holds the money roles. Everything here needs two-step
-// sign-in (an authenticator app), confirmed in this session within the last
-// 12 hours; the API refuses otherwise (utils/financeRoles.requireFinance).
+// The admin console's Money and Settings sections: Bookplus's own prices and
+// fees, the pricing simulator, the launch checklist, second-person approvals,
+// the financial audit log and who holds the money roles. The console sits
+// behind two-step sign-in; when the 12 hours run out mid-session the API
+// refuses and the console asks for the code again (onLocked).
 
 const nad = (cents) => {
     if (cents === null || cents === undefined) return '—';
@@ -22,22 +23,7 @@ const nad = (cents) => {
 const pct = (bps) => `${(bps / 100).toLocaleString('en-NA', { maximumFractionDigits: 2 })}%`;
 const when = (d) => (d ? new Date(d).toLocaleString('en-NA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
-const card = { background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', boxShadow: 'var(--shadow-sm)', minWidth: 0 };
-const h2 = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' };
-const h3 = { fontFamily: 'var(--font-display)', fontSize: '0.98rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.75rem' };
-const muted = { color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 };
-const input = {
-    width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid var(--border-input)', borderRadius: 'var(--radius-sm)',
-    fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'white', boxSizing: 'border-box',
-};
-const label = { display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' };
-const errBox = { background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' };
-const th = { padding: '0.55rem 0.7rem', textAlign: 'left', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' };
-const td = { padding: '0.55rem 0.7rem', fontSize: '0.85rem', borderTop: '1px solid var(--border)', whiteSpace: 'nowrap' };
-
 const apiError = (err, fallback) => err?.response?.data?.message || fallback;
-
-const fullButton = { width: '100%', justifyContent: 'center', textAlign: 'center' };
 
 /* ───────────────────────── prices and fees ───────────────────────── */
 
@@ -177,7 +163,7 @@ const Settings = ({ data, isDirector, onSaved, onLocked }) => {
                                 <div key={p}>
                                     {k === 'bool' ? (
                                         <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.88rem' }}>
-                                            <input type="checkbox" checked={!!form[p]} onChange={(e) => setForm((f) => ({ ...f, [p]: e.target.checked }))} style={{ accentColor: 'var(--gold)' }} /> {l}
+                                            <input type="checkbox" checked={!!form[p]} onChange={(e) => setForm((f) => ({ ...f, [p]: e.target.checked }))} style={{ accentColor: 'var(--charcoal)' }} /> {l}
                                         </label>
                                     ) : (
                                         <>
@@ -241,7 +227,7 @@ const Simulator = ({ sim }) => {
                                 {sim.rows.filter((r) => r.plan === plan).map((r) => (
                                     <tr key={r.bookingCents} style={{ opacity: r.belowMinimumBooking ? 0.55 : 1 }}>
                                         <td style={td}>{nad(r.customerPaysCents)}{r.belowMinimumBooking ? ' (not online)' : ''}</td>
-                                        <td style={{ ...td, fontWeight: 600, color: r.negativeMargin ? '#991b1b' : 'var(--charcoal)' }}>{nad(r.bookplusNetCents)}</td>
+                                        <td style={{ ...td, fontWeight: 600, color: r.negativeMargin ? 'var(--danger-fg)' : 'var(--charcoal)' }}>{nad(r.bookplusNetCents)}</td>
                                         <td style={td}>{nad(r.businessPayoutCents)}</td>
                                         <td style={td}>{nad(r.percentCommissionCents)}{r.minCommissionApplied ? ' (min.)' : ''}</td>
                                         <td style={td}>{nad(r.fixedFeeCents)}</td>
@@ -287,7 +273,7 @@ const Launch = ({ launch, isDirector, onChanged, onLocked }) => {
                     <li key={i.key} style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }} data-testid={`launch-${i.key}`}>
                         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                             <div style={{ minWidth: 0, flex: '1 1 14rem' }}>
-                                <span style={{ fontWeight: 600, fontSize: '0.8rem', color: i.done ? '#166534' : 'var(--text-muted)', marginRight: '0.5rem' }}>{i.done ? 'Done' : 'To do'}</span>
+                                <span style={{ marginRight: '0.6rem' }}><Status tone={i.done ? 'ok' : 'warn'}>{i.done ? 'Done' : 'To do'}</Status></span>
                                 <span style={{ fontSize: '0.88rem' }}>{LAUNCH_LABELS[i.key] || i.key}</span>
                                 {i.note && <p style={{ ...muted, fontSize: '0.78rem' }}>{i.note}{i.at ? `, ${when(i.at)}` : ''}</p>}
                             </div>
@@ -412,7 +398,7 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
                 <Row k="Bank" v={acct.bankName} />
                 <Row k="Branch code" v={acct.branchCode} />
                 <Row k="Account number" v={acct.accountNumber} />
-                {a.payoutAccountReviewNeeded && <p style={{ ...muted, color: '#991b1b', marginTop: '0.35rem' }}>Changed after approval: payouts are held until it is checked.</p>}
+                {a.payoutAccountReviewNeeded && <p style={{ ...muted, color: 'var(--danger-fg)', marginTop: '0.35rem' }}>Changed after approval: payouts are held until it is checked.</p>}
             </div>
             <div>
                 <p style={{ ...h3, marginBottom: '0.4rem' }}>Documents</p>
@@ -428,7 +414,7 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
                     </div>
                 ) : <p style={muted}>None (deleted when an application is rejected).</p>}
             </div>
-            {a.missing?.length > 0 && <p style={{ ...muted, color: '#991b1b' }}>Missing: {a.missing.map((m) => MISSING_LABEL[m] || m).join(', ')}</p>}
+            {a.missing?.length > 0 && <p style={{ ...muted, color: 'var(--danger-fg)' }}>Missing: {a.missing.map((m) => MISSING_LABEL[m] || m).join(', ')}</p>}
 
             {a.status === 'submitted' && (
                 <div style={{ display: 'grid', gap: '0.5rem' }}>
@@ -443,7 +429,7 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
                     {acting === 'request_info' && noteBox('What else is needed (the business sees this)', 'Send', () => act(() => financeService.decideApproval(id, 'request_info', note.trim()), 'Sent to the business'))}
                     {acting === 'reject' && (
                         <>
-                            <p style={{ ...muted, color: '#991b1b' }}>Rejecting deletes the documents the business sent.</p>
+                            <p style={{ ...muted, color: 'var(--danger-fg)' }}>Rejecting deletes the documents the business sent.</p>
                             {noteBox('Why it is rejected (the business sees this)', 'Reject', () => act(() => financeService.decideApproval(id, 'reject', note.trim()), 'Rejected'))}
                         </>
                     )}
@@ -547,14 +533,15 @@ const Approvals = ({ me, isDirector, onLocked }) => {
         } catch (err) { toast(apiError(err, 'Could not save.'), 'error'); }
     };
     if (!rows) return <p style={muted}>Loading…</p>;
-    if (!rows.length) return <div style={card}><p style={muted}>Nothing waiting. Refunds above the approval limit, refunds a business asks Bookplus for, and balance adjustments show up here.</p></div>;
     return (
-        <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'minmax(0, 1fr)' }}>
+        <div style={card}>
+            <h3 style={h3}>Refunds and adjustments</h3>
+            {!rows.length && <p style={muted}>Nothing waiting. Refunds above the approval limit, refunds a business asks Bookplus for, and balance adjustments show up here.</p>}
             {rows.map((r) => {
                 const mine = String(r.preparedBy?._id || r.preparedBy) === String(me);
                 const business = r.provider?.businessProfile?.businessName || r.provider?.name || '';
                 return (
-                    <div key={r._id} style={card} data-testid="finance-request">
+                    <div key={r._id} style={{ borderTop: '1px solid var(--border)', padding: '12px 0' }} data-testid="finance-request">
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
                             <div style={{ minWidth: 0 }}>
                                 <p style={{ fontWeight: 600, margin: 0 }}>{r.type === 'refund' ? 'Refund' : r.type === 'recovery' ? 'Recover a lost chargeback' : 'Balance adjustment'} of {nad(r.amountCents)}{business ? `, ${business}` : ''}</p>
@@ -563,7 +550,7 @@ const Approvals = ({ me, isDirector, onLocked }) => {
                                     {r.requestedByBusiness ? `Asked by the business (${r.preparedBy?.name || 'the owner'}), more than it may refund on its own` : `Prepared by ${r.preparedBy?.name || 'someone'}`}, {when(r.createdAt)}
                                 </p>
                                 {r.requestedByBusiness && r.balanceNowCents !== null && r.balanceNowCents !== undefined && (
-                                    <p style={{ ...muted, fontSize: '0.78rem', color: r.amountCents > r.balanceNowCents ? '#92400e' : undefined }} data-testid="request-balance">
+                                    <p style={{ ...muted, fontSize: '0.78rem', color: r.amountCents > r.balanceNowCents ? 'var(--warning-fg)' : undefined }} data-testid="request-balance">
                                         The business holds {nad(Math.max(0, r.balanceNowCents))} now.
                                         {r.amountCents > r.balanceNowCents && ` Approving means Bookplus pays ${nad(r.amountCents - Math.max(0, r.balanceNowCents))} of it until the business earns it back.`}
                                     </p>
@@ -698,7 +685,7 @@ const Admins = ({ me, isDirector, onLocked }) => {
                             <div style={{ display: 'flex', gap: '0.9rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                 {['finance', 'director'].map((role) => (
                                     <label key={role} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.85rem', textTransform: 'capitalize' }}>
-                                        <input type="checkbox" checked={a.roles.includes(role)} disabled={!isDirector} onChange={() => toggle(a, role)} style={{ accentColor: 'var(--gold)' }} /> {role}
+                                        <input type="checkbox" checked={a.roles.includes(role)} disabled={!isDirector} onChange={() => toggle(a, role)} style={{ accentColor: 'var(--charcoal)' }} /> {role}
                                     </label>
                                 ))}
                                 {isDirector && a.mfaEnabled && String(a._id) !== String(me) && resetting !== a._id && (
@@ -720,85 +707,62 @@ const Admins = ({ me, isDirector, onLocked }) => {
     );
 };
 
-/* ───────────────────────── the panel ───────────────────────── */
+/* ───────────────────────── the sections ───────────────────────── */
 
-// Eight, so they sit in an even grid: 2 × 4 on a phone, 4 × 2 wider.
-const VIEWS = [
-    ['dashboard', 'Dashboard'], ['payments', 'Payments'], ['payouts', 'Payouts'], ['disputes', 'Disputes'],
-    ['approvals', 'Approvals'], ['costs', 'Costs'], ['audit', 'Audit log'], ['prices', 'Settings'],
-];
-
-const MoneyPanel = () => {
+/**
+ * One Money or Settings section of the console (`view`). `onOpen(view, caseId)`
+ * moves to another section (the dashboard's checklist link, a payment's case).
+ */
+const MoneyPanel = ({ view = 'dashboard', onOpen = () => {}, openCase = null }) => {
     const { user } = useAuthContext();
-    const [status, setStatus] = useState(null);
     const [data, setData] = useState(null);
-    const [view, setView] = useState('dashboard');
-    const [caseId, setCaseId] = useState(null);
     const [error, setError] = useState('');
+    // An expired two-step session: the console's gate asks for the code again.
+    const onLocked = useCallback(() => window.dispatchEvent(new CustomEvent(TWO_STEP_EVENT)), []);
 
-    const loadStatus = useCallback(async () => {
-        try { setStatus((await authService.mfaStatus()).data.data); } catch (err) { setError(apiError(err, 'Could not load.')); }
-    }, []);
-    const onLocked = useCallback(() => setStatus((s) => (s ? { ...s, sessionConfirmed: false } : s)), []);
-    useEffect(() => { loadStatus(); }, [loadStatus]);
-
-    const confirmed = status?.enabled && status?.sessionConfirmed;
     useEffect(() => {
-        if (!confirmed) return;
         financeService.getSettings().then((r) => setData(r.data.data)).catch((err) => {
-            if (err?.response?.data?.code === 'mfa_required') onLocked();
+            const code = err?.response?.data?.code;
+            if (code === 'mfa_required') onLocked();
+            else if (code === 'finance_role_required') setError('This needs a money role (finance or director). A director can give you one under Admins and roles.');
             else setError(apiError(err, 'Could not load the settings.'));
         });
-    }, [confirmed, onLocked]);
+    }, [onLocked]);
 
     if (error) return <div role="alert" style={errBox}>{error}</div>;
-    if (!status) return <p style={muted}>Loading…</p>;
-    if (!status.enabled) return <MfaSetup onDone={loadStatus} />;
-    if (!status.sessionConfirmed) return <MfaConfirm onDone={loadStatus} />;
     if (!data) return <p style={muted}>Loading…</p>;
 
     const isDirector = data.me?.roles?.includes('director');
     const me = user?._id || user?.id;
     return (
-        // minmax(0, 1fr): a wide table scrolls inside its card instead of
+        // minmax(0, 1fr): a wide table scrolls inside its panel instead of
         // stretching the column past the phone's edge.
-        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0, 1fr)' }} data-testid="money-panel">
-            <style>{'.money-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } @media (min-width: 640px) { .money-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }'}</style>
-            <div className="money-tabs" style={{ display: 'grid', gap: '0.5rem' }} role="tablist" aria-label="Money sections">
-                {VIEWS.map(([key, text]) => (
-                    <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
-                        className={view === key ? 'btn-primary' : 'btn-outline'} style={{ ...fullButton, fontSize: '0.85rem', padding: '0.55rem 0.5rem' }}>
-                        {text}
-                    </button>
-                ))}
-            </div>
-            <p style={{ ...muted, fontSize: '0.8rem' }}>
-                Your roles: {(data.me?.roles || []).join(' and ') || 'none'}. Online payments are off until everything in "Before payments go live" is done.
-                {status.recoveryCodesLeft <= 2 && ` You have ${status.recoveryCodesLeft} recovery code${status.recoveryCodesLeft === 1 ? '' : 's'} left.`}
-            </p>
+        <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'minmax(0, 1fr)' }} data-testid="money-panel">
             {view === 'prices' && (
+                <>
+                    <Settings data={data} isDirector={isDirector} onSaved={setData} onLocked={onLocked} />
+                    <Simulator sim={data.simulator} />
+                </>
+            )}
+            {view === 'go-live' && (
                 <>
                     <Launch launch={data.launch} isDirector={isDirector} onChanged={setData} onLocked={onLocked} />
                     <PaygateCheck onLocked={onLocked} />
-                    <Simulator sim={data.simulator} />
-                    <Settings data={data} isDirector={isDirector} onSaved={setData} onLocked={onLocked} />
-                    <h3 style={{ ...h3, margin: '0.25rem 0 0' }}>Admins and money roles</h3>
-                    <Admins me={me} isDirector={isDirector} onLocked={onLocked} />
                 </>
             )}
+            {view === 'admins' && <Admins me={me} isDirector={isDirector} onLocked={onLocked} />}
+            {view === 'audit' && <Audit onLocked={onLocked} />}
             {view === 'approvals' && (
                 <>
                     <BusinessApprovals onLocked={onLocked} />
-                    <h3 style={{ ...h3, margin: '0.25rem 0 0' }}>Refunds and adjustments</h3>
                     <Approvals me={me} isDirector={isDirector} onLocked={onLocked} />
                 </>
             )}
-            {view === 'dashboard' && <DashboardView launch={data.launch} onLocked={onLocked} onOpenSettings={() => setView('prices')} />}
+            {view === 'dashboard' && <DashboardView launch={data.launch} onLocked={onLocked} onOpenSettings={() => onOpen('go-live')} />}
             {view === 'costs' && <CostsView isDirector={isDirector} onLocked={onLocked} />}
-            {view === 'payments' && <PaymentsView onLocked={onLocked} onCaseOpened={(id) => { setCaseId(id); setView('disputes'); }} />}
+            {view === 'payments' && <PaymentsView onLocked={onLocked} onCaseOpened={(id) => onOpen('disputes', id)} />}
             {view === 'payouts' && <PayoutsView onLocked={onLocked} />}
-            {view === 'disputes' && <DisputesView onLocked={onLocked} openId={caseId} />}
-            {view === 'audit' && <Audit onLocked={onLocked} />}
+            {view === 'disputes' && <DisputesView onLocked={onLocked} openId={openCase} />}
         </div>
     );
 };
