@@ -307,7 +307,7 @@ const Settings = ({ data, isDirector, onSaved, onLocked }) => {
                                 <div key={p}>
                                     {k === 'bool' ? (
                                         <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.88rem' }}>
-                                            <input type="checkbox" checked={!!form[p]} onChange={(e) => setForm((f) => ({ ...f, [p]: e.target.checked }))} /> {l}
+                                            <input type="checkbox" checked={!!form[p]} onChange={(e) => setForm((f) => ({ ...f, [p]: e.target.checked }))} style={{ accentColor: 'var(--gold)' }} /> {l}
                                         </label>
                                     ) : (
                                         <>
@@ -814,7 +814,7 @@ const Admins = ({ me, isDirector, onLocked }) => {
                             <div style={{ display: 'flex', gap: '0.9rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                 {['finance', 'director'].map((role) => (
                                     <label key={role} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.85rem', textTransform: 'capitalize' }}>
-                                        <input type="checkbox" checked={a.roles.includes(role)} disabled={!isDirector} onChange={() => toggle(a, role)} /> {role}
+                                        <input type="checkbox" checked={a.roles.includes(role)} disabled={!isDirector} onChange={() => toggle(a, role)} style={{ accentColor: 'var(--gold)' }} /> {role}
                                     </label>
                                 ))}
                                 {isDirector && a.mfaEnabled && String(a._id) !== String(me) && resetting !== a._id && (

@@ -84,7 +84,7 @@ const PlanCard = ({ plan, processingFee, selected, disabled, onChoose }) => {
             borderColor: selected ? 'var(--gold)' : 'var(--border)', boxShadow: selected ? '0 0 0 1px var(--gold)' : card.boxShadow,
         }}>
             <span style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                <input type="radio" name="plan" checked={selected} disabled={disabled} onChange={() => onChoose(plan.key)} />
+                <input type="radio" name="plan" checked={selected} disabled={disabled} onChange={() => onChoose(plan.key)} style={{ accentColor: 'var(--gold)' }} />
                 <span style={h3}>{plan.label}</span>
             </span>
             <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)' }}>{monthly}</span>
@@ -224,7 +224,7 @@ const OnlinePaymentsSection = () => {
                         <p style={{ ...muted, color: '#991b1b' }}>Bookplus has switched online payments off for your business{d.adminOffReason ? `: ${d.adminOffReason}` : ''}. Contact Bookplus.</p>
                     ) : (
                         <label style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', fontSize: '0.92rem' }}>
-                            <input type="checkbox" checked={d.switchOn} disabled={busy === 'switch'} onChange={(e) => flipSwitch(e.target.checked)} />
+                            <input type="checkbox" checked={d.switchOn} disabled={busy === 'switch'} onChange={(e) => flipSwitch(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
                             {d.switchOn ? 'On: clients pay online as you have chosen' : 'Off: clients pay at the appointment'}
                         </label>
                     )}
@@ -356,7 +356,7 @@ const OnlinePaymentsSection = () => {
                         </div>
                     ) : <p style={muted}>Everything is in. Bookplus usually decides within a few working days.</p>}
                     <label style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', fontSize: '0.88rem' }}>
-                        <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                        <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} style={{ accentColor: 'var(--gold)', marginTop: '0.2rem' }} />
                         <span>I accept the <a href="/terms" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>Terms of Service</a> for online payments, including the fees above, refunds and chargebacks.</span>
                     </label>
                     <button type="button" className="btn-primary" style={full} disabled={!d.canSubmit || !terms || busy === 'submit'}
