@@ -55,11 +55,23 @@ test.describe('Paying online for a booking', () => {
         await page.waitForURL(/\/booking\/payment\?ref=BP[0-9A-F]{30}/, { timeout: 20_000 });
         const result = page.getByTestId('payment-result');
         await expect(result).toHaveAttribute('data-view', 'paid', { timeout: 15_000 });
+        const paidUrl = page.url();
         await expect(result).toContainText('Paid and booked');
         await expect(page.getByTestId('payment-booking')).toContainText(fx.businessName);
         await expect(page.getByTestId('payment-booking')).toContainText('Deposit paid: N$50.00');
         await result.getByRole('link', { name: 'See my appointments' }).click();
         await expect(page).toHaveURL(/\/appointments/);
+
+        // My appointments says what was paid and what is left.
+        const line = page.getByTestId('appt-online-payment').filter({ hasText: 'N$50.00' }).first();
+        await expect(line).toContainText('Deposit paid online: N$50.00');
+        await expect(line).toContainText('N$150.00 at the appointment');
+
+        // So does the emailed "manage my booking" page.
+        const reference = new URL(paidUrl).searchParams.get('ref');
+        const { token } = await (await request.post(`${API}/__e2e/paygate/manage-token`, { data: { reference } })).json();
+        await page.goto(`/manage/${token}`);
+        await expect(page.getByTestId('manage-online-payment')).toHaveText('Deposit paid online: N$50.00, N$150.00 at the appointment');
     });
 
     test('declined first: the time stays held, "Try again" pays it', async ({ page, request }) => {

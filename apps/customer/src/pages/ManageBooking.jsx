@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { appointmentService } from '../services';
 import { buildTimeSlots, bookingParts, partsOpenStarts } from '../utils/bookingSlots';
 import { currencySymbol } from '../utils/currency';
+import { onlinePaymentLine } from '../utils/payOnline';
 import { apptLocalDate } from '../utils/date';
 import { Calendar, Clock, MapPin, ConciergeBell, User, CheckCircle2, XCircle } from 'lucide-react';
 import { DatePicker, useConfirm } from '@bookplus/ui';
@@ -173,6 +174,7 @@ const ManageBooking = () => {
 
                             {appt.provider?.name && <Row icon={MapPin}>{appt.provider.name}{appt.provider.address ? ` · ${appt.provider.address}` : ''}</Row>}
                             {appt.service?.name && <Row icon={ConciergeBell}>{appt.service.name}{appt.service.price ? ` · ${currencySymbol(appt.provider?.currency || appt.provider?.businessProfile?.currency)} ${appt.service.price}` : ''}</Row>}
+                            {onlinePaymentLine(appt) && <p data-testid="manage-online-payment" style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{onlinePaymentLine(appt)}</p>}
                             <Row icon={Calendar}>{apptLocalDate(appt.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Row>
                             <Row icon={Clock}>{appt.startTime} – {appt.endTime}</Row>
                             {appt.staff && <Row icon={User}>with {appt.staff}</Row>}

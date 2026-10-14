@@ -452,6 +452,14 @@ const outbox = [];
                 res.status(404).json({ ok: false, message: err.message });
             }
         });
+        // The emailed "manage my booking" link for the booking a payment is for.
+        outer.post('/__e2e/paygate/manage-token', async (req, res) => {
+            const Payment = require('./src/models/Payment');
+            const pay = await Payment.findOne({ reference: String(req.body?.reference || '') }).select('appointment').lean();
+            const appt = pay && await Appointment.findById(pay.appointment).select('manageToken').lean();
+            if (!appt?.manageToken) return res.status(404).json({ ok: false });
+            res.json({ ok: true, token: appt.manageToken });
+        });
     }
 
     // A business that takes online payments: approved, switched on, asking a

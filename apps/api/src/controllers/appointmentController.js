@@ -3536,6 +3536,7 @@ exports.getAppointmentByToken = async (req, res) => {
                         amountDueOnlineCents: appt.amountDueOnlineCents || 0,
                         amountPaidOnlineCents: appt.amountPaidOnlineCents || 0,
                         amountRefundedOnlineCents: appt.amountRefundedOnlineCents || 0,
+                        totalCents: Math.round((appt.totalPrice || 0) * 100),
                         holdExpiresAt: appt.status === 'pending_payment' ? appt.paymentHoldExpiresAt || null : null,
                     },
                 } : {}),

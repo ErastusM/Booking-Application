@@ -42,3 +42,27 @@ export const goToPayGate = (payment) => {
 };
 
 export const nad = (cents) => `N$${((cents || 0) / 100).toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * One line about what was paid online for a booking, or '' when it wasn't
+ * paid online. Takes the booking itself (My appointments, where
+ * `onlinePayment` is just the Payment's id) or the manage page's booking,
+ * whose `onlinePayment` is a summary of the same fields.
+ */
+export const onlinePaymentLine = (appt) => {
+    if (!appt) return '';
+    const summary = appt.onlinePayment && typeof appt.onlinePayment === 'object' ? appt.onlinePayment : null;
+    const kind = appt.paymentKind || summary?.kind;
+    if (!kind) return '';
+    if (appt.status === 'pending_payment') return 'Waiting for your online payment';
+    const src = appt.paymentKind ? appt : summary;
+    const paid = src.amountPaidOnlineCents || 0;
+    const refunded = src.amountRefundedOnlineCents || 0;
+    const total = appt.paymentKind ? Math.round((appt.totalPrice || 0) * 100) : (summary.totalCents || 0);
+    if (!paid) return '';
+    const parts = [`${kind === 'deposit' ? 'Deposit paid online' : 'Paid online'}: ${nad(paid)}`];
+    if (refunded) parts.push(`refunded ${nad(refunded)}`);
+    const rest = total - paid;
+    if (kind === 'deposit' && rest > 0 && !refunded && !['cancelled', 'no-show'].includes(appt.status)) parts.push(`${nad(rest)} at the appointment`);
+    return parts.join(', ');
+};
