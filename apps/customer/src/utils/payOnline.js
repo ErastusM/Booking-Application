@@ -9,6 +9,8 @@
 import { FEATURES } from '@bookplus/config/features.mjs';
 
 export const PAYMENTS_VISIBLE = FEATURES.paymentsEnabled || import.meta.env.VITE_PAYMENTS_PREVIEW === 'true';
+/** The feature switches the legal pages are written for (they follow the preview too). */
+export const LEGAL_FEATURES = { ...FEATURES, paymentsEnabled: PAYMENTS_VISIBLE };
 
 const LAST_REF = 'bp_last_payment';
 

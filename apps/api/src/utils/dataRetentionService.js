@@ -26,6 +26,7 @@ const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 async function runRetentionSweep(now = new Date()) {
     const User = require('../models/User');
     const Appointment = require('../models/Appointment');
+    const Payment = require('../models/Payment');
     const Notification = require('../models/Notification');
     const out = {};
     const step = async (name, fn) => {
@@ -83,8 +84,9 @@ async function runRetentionSweep(now = new Date()) {
             { $match: { last: { $lt: cutoff } } },
         ]);
         if (!stale.length) return 0;
+        const emails = stale.map((g) => g._id);
         const r = await Appointment.updateMany(
-            { customer: null, guestEmail: { $in: stale.map((g) => g._id) } },
+            { customer: null, guestEmail: { $in: emails } },
             {
                 $set: {
                     guestName: 'Guest', guestEmail: null, guestPhone: null, notes: '', manageToken: null,
@@ -92,6 +94,8 @@ async function runRetentionSweep(now = new Date()) {
                 },
             },
         );
+        // The same guests' online payments (kept as financial records).
+        await Payment.updateMany({ customer: null, guestEmail: { $in: emails } }, { $set: { guestName: 'Guest', guestEmail: null } });
         return r.modifiedCount;
     });
 

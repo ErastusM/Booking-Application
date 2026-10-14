@@ -21,7 +21,7 @@
 import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
 import { FEATURES } from '../features.mjs';
 
-export const PRIVACY_LAST_UPDATED = '26 September 2026';
+export const PRIVACY_LAST_UPDATED = '14 October 2026';
 
 // Retention periods, from the retention job's constants
 // (apps/api/src/constants/retention.js). Keep them in step with that file.
@@ -38,6 +38,7 @@ export const RETENTION = {
     backups: '14 days', // ops/backup/backup.sh BACKUP_RETENTION_DAYS default
     refreshCookie: '30 days', // bp_rt_c / bp_rt_b cookie Max-Age / REFRESH_TOKEN_EXPIRE
 };
+
 
 const op = operatorName(COMPANY);
 const mail = mailLink('privacyEmail');
@@ -71,7 +72,7 @@ const businessesAsControllers = (audience) => ({
         ],
 });
 
-const collectedTable = (audience, W) => {
+const collectedTable = (audience, W, P) => {
     const rows = [
         ['Account details', 'Name, email address, phone number, password (stored only as a one-way hash), profile photo, and whether you are a client, business owner or team member. If you sign in with Google: your Google account ID, name, email address and profile photo.', 'You'],
         ['Sign-up choices', 'When you accepted the Terms and this policy, your confirmation that you are 16 or older, and whether you agreed to marketing emails.', 'You'],
@@ -83,6 +84,9 @@ const collectedTable = (audience, W) => {
         W
             ? ['Wallet and payments', 'Prepaid wallet balances you hold with each business, top-ups, reservations, deductions, refunds and adjustments, payment references and method (bank transfer, eWallet, PayToday or cash), and gift cards (including the recipient’s name and email). We do not collect card numbers.', 'You and the business']
             : ['Payments', 'You pay the business directly at your appointment; we record the price and whether the booking was paid. We do not collect card numbers.', 'You and the business'],
+        // Payment / paymentService: what PayGate tells us about a payment
+        // (sanitizeNotify keeps only these fields and masks anything card-like).
+        ...(P ? [['Online payments', 'When you pay online for a booking: the amount, the booking, our payment reference, its status and history, PayGate’s transaction reference, the result and authorisation code, the card type (for example Visa), and any refunds or disputes. Your card number and security code are entered on PayGate’s page and never reach us.', 'You and PayGate']] : []),
         W
             ? ['Photos and files', 'Profile photos, business portfolio photos, and proof-of-payment images or PDFs you upload with a top-up.', 'You']
             : ['Photos', 'Profile photos and business portfolio photos.', 'You'],
@@ -95,18 +99,28 @@ const collectedTable = (audience, W) => {
             ['Business details', `Business name, category, description, address and map pin, services, prices and currency, opening hours, cancellation policy${W ? ', wallet settings, payment instructions for clients' : ''}, and portfolio photos. Most of this is shown publicly on your booking page.`, 'You'],
             ['Team data', 'For team members you invite: name, email, phone, role and permissions, working hours, shifts, time off, and clock-in and clock-out times.', 'You and your team'],
         );
+        if (P) {
+            // User.paymentsApproval / payoutAccount; LedgerEntry, Payout, Dispute.
+            rows.splice(4, 0,
+                ['Online payments application', 'If you apply to take online payments: your plan, your business’s legal details (business type, registered name and registration number), the owner’s full name and ID or passport number, and the documents you upload (such as the owner’s ID, the company registration and a bank confirmation letter), with Bookplus’s decision and notes.', 'You and Bookplus'],
+                ['Payout bank account', 'The account holder, bank, branch code and account number Bookplus pays you into. The app shows you only the last digits.', 'You'],
+                ['Your balance with Bookplus', 'Online payments for your bookings, fees, refunds, payouts, refund requests and chargeback cases (including evidence Bookplus gathers).', 'Bookplus and PayGate'],
+            );
+        }
     }
     return {
         id: 'what-we-collect',
         title: 'What we collect',
         blocks: [
             { table: { head: ['Type', 'What it includes', 'Where it comes from'], rows } },
-            'We do not ask for your date of birth, ID number, card details or bank account number. Please do not put more health details in comments or forms than the business needs.',
+            audience === 'business' && P
+                ? 'We do not ask for your date of birth or card details. We ask for an ID number and a bank account only if you apply to take online payments. Please do not put more health details in comments or forms than the business needs.'
+                : `We do not ask for your date of birth, ID number, card details or bank account number${P ? ' (card details are entered on PayGate’s page, not ours)' : ''}. Please do not put more health details in comments or forms than the business needs.`,
         ],
     };
 };
 
-const purposes = (W) => ({
+const purposes = (audience, W, P) => ({
     id: 'why',
     title: 'Why we use it, and our legal basis',
     blocks: [
@@ -118,6 +132,8 @@ const purposes = (W) => ({
                 ['Make, change and remind you of bookings; send confirmations and receipts by email; let you message the business', 'Account details, bookings, messages', 'Performing our contract with you'],
                 ['Let a business keep client notes and forms it needs to serve you safely', 'Allergy notes, intake form answers', 'Your explicit consent when you give the information to the business, and the business’s own legal basis; we act for the business'],
                 ...(W ? [['Run the prepaid wallet: top-ups, reservations, refunds, expiry reminders', 'Wallet data, proofs of payment', 'Performing our contract with you']] : []),
+                ...(P ? [['Take online payments for bookings, refund them, and answer card disputes', 'Bookings, online payment records, your name and email address (shared with PayGate)', 'Performing our contract with you; legal obligation to keep financial records']] : []),
+                ...(P && audience === 'business' ? [['Check businesses that apply to take online payments, pay them out, and prevent fraud', 'Application details and documents, payout bank account, your balance with Bookplus', 'Performing our contract with you; our legitimate interest in preventing fraud; legal obligation to keep financial records']] : []),
                 ['Find businesses near you', 'Your location (only when you tap “Near me”)', 'Your consent (your browser asks first)'],
                 ['Show reviews from real bookings', 'Reviews', 'Our legitimate interest in honest reviews, and yours in reading them'],
                 ['Understand how people use Bookplus so we can improve it', 'Usage data and the bp_sid analytics ID', 'Your consent, which you can withdraw at any time'],
@@ -130,7 +146,7 @@ const purposes = (W) => ({
     ],
 });
 
-const sharing = (audience, W) => ({
+const sharing = (audience, W, P) => ({
     id: 'sharing',
     title: 'Who we share it with',
     blocks: [
@@ -142,7 +158,10 @@ const sharing = (audience, W) => ({
             head: ['Provider', 'What they do', 'Where'],
             rows: [
                 ['DigitalOcean, LLC', 'Hosts our servers and database, and the database backups', 'Data centre outside Namibia (company in the USA)'],
-                ['Cloudinary Ltd.', W ? 'Stores and delivers photos and uploaded files, including proofs of payment (kept private)' : 'Stores and delivers photos', 'USA'],
+                ...(P ? [['PayGate (Pty) Ltd', 'Processes online card payments on its own secure page. Receives your name, email address, the amount and our payment reference; sends us the result. Card details go to PayGate only', 'South Africa']] : []),
+                ['Cloudinary Ltd.', W || (P && audience === 'business')
+                    ? `Stores and delivers photos and uploaded files${W ? ', including proofs of payment' : ''}${P && audience === 'business' ? ', including online payments documents' : ''} (kept private)`
+                    : 'Stores and delivers photos', 'USA'],
                 ['Resend, Inc. or our mailbox provider Hostinger', 'Delivers our emails (confirmations, receipts, reminders, password resets)', 'USA (Resend); EU (Hostinger)'],
                 ['Functional Software, Inc. (Sentry)', 'Error monitoring: records crash reports so we can fix them', 'USA'],
                 ['Google LLC', 'Google Sign-In, if you choose it; Google Maps for the business location picker and directions links', 'USA'],
@@ -151,7 +170,9 @@ const sharing = (audience, W) => ({
                 ['Slack or Discord', 'Short error alerts to our team', 'USA'],
             ],
         } },
-        'Card payments through DPO Pay are coming soon; when they go live DPO will process card details directly and we will update this policy first.',
+        P
+            ? 'If you dispute an online payment with your bank (a chargeback), the card company and the banks involved receive the booking details needed to decide it.'
+            : 'Card payments through PayGate are coming soon; when they go live PayGate will process card details directly and we will update this policy first.',
         'We may also disclose information when the law requires it, to protect people’s safety, or to a buyer if Bookplus is ever sold (who must keep to this policy). **We do not sell your personal information** and we do not share it for advertising.',
     ],
 });
@@ -165,7 +186,7 @@ const transfers = () => ({
     ],
 });
 
-const retention = (W) => ({
+const retention = (audience, W, P) => ({
     id: 'retention',
     title: 'How long we keep it',
     blocks: [
@@ -175,6 +196,12 @@ const retention = (W) => ({
                 ['Your account and profile', 'Until you delete your account. Deletion removes or anonymises your personal details (see "Your rights")'],
                 ['Guest contact details (name, email, phone on a guest booking)', `Anonymised ${RETENTION.guestContact}; the booking itself stays`],
                 ['Accounting records (completed bookings)', 'Kept for as long as the law requires. When you delete your account, your name, email and phone are removed from them'],
+                // No fixed period until the lawyer confirms one (legalRetention.test).
+                ...(P ? [['Online payment records, refunds, payouts and chargeback cases', 'Kept as financial records for as long as the law requires. When you delete your account, your name and email are removed from them']] : []),
+                ...(P && audience === 'business' ? [
+                    ['Online payments application documents (ID, company registration, bank letter)', 'Deleted when the application is rejected or you delete your account; otherwise kept while your business can take online payments'],
+                    ['Payout bank account and the owner’s ID number', 'Until you change them or delete your account'],
+                ] : []),
                 ['Allergy notes, client notes and form answers', 'Until the business deletes them, or you delete your account'],
                 ['Messages', 'Until you delete your account'],
                 ['In-app notifications', `Deleted after ${RETENTION.notifications}`],
@@ -250,11 +277,11 @@ const children = () => ({
     ],
 });
 
-const security = (W) => ({
+const security = (audience, W, P) => ({
     id: 'security',
     title: 'Security',
     blocks: [
-        `We protect your information with measures that include: encrypted connections (HTTPS with HSTS) for all traffic; passwords stored only as bcrypt hashes; short-lived sign-in tokens that are revoked when you change your password; rate limits on sign-in; ${W ? 'access to proofs of payment only through private, time-limited links; ' : ''}role-based access for team members and staff; and daily backups.`,
+        `We protect your information with measures that include: encrypted connections (HTTPS with HSTS) for all traffic; passwords stored only as bcrypt hashes; short-lived sign-in tokens that are revoked when you change your password; rate limits on sign-in; ${W ? 'access to proofs of payment only through private, time-limited links; ' : ''}role-based access for team members and staff; ${P ? `card details entered only on PayGate’s secure page; Bookplus staff who handle money sign in with a second step (an authenticator app)${audience === 'business' ? ', and see online payments documents only through private links that expire after 5 minutes, with every viewing logged' : ''}; ` : ''}and daily backups.`,
         'No system is perfectly secure. If a breach affects your information and puts you at risk, we will tell you and the relevant regulator as the law requires.',
     ],
 });
@@ -278,21 +305,22 @@ const changes = () => ({
 // ── The document ────────────────────────────────────────────────────────────
 
 // `features` defaults to the shared switches; tests pass { walletEnabled: true }
-// to check the wallet wording kept for re-enabling.
+// or { paymentsEnabled: true } to check the wording kept for switching them on.
 export const privacyPolicy = (audience = 'customer', features = FEATURES, cookieList = null) => {
     const W = !!features.walletEnabled;
+    const P = !!features.paymentsEnabled;
     const sections = [
         whoWeAre(audience),
         businessesAsControllers(audience),
-        collectedTable(audience, W),
-        purposes(W),
-        sharing(audience, W),
+        collectedTable(audience, W, P),
+        purposes(audience, W, P),
+        sharing(audience, W, P),
         transfers(),
-        retention(W),
+        retention(audience, W, P),
         rights(audience),
         cookies(cookieList),
         children(),
-        security(W),
+        security(audience, W, P),
         contact(),
         changes(),
     ];
@@ -301,7 +329,7 @@ export const privacyPolicy = (audience = 'customer', features = FEATURES, cookie
         updated: PRIVACY_LAST_UPDATED,
         intro: [
             `This policy explains what personal information ${op} collects when you use Bookplus, why, who receives it, how long we keep it and your rights. It should be read with our [Terms of Service](/terms).`,
-            { note: `In short: we collect what is needed to run bookings${W ? ' and wallets' : ''}; the business you book with sees your booking details; allergy notes and intake forms can contain health information and are shown only to that business; analytics is off until you allow it; we never sell your data; you can export or delete it at any time.` },
+            { note: `In short: we collect what is needed to run bookings${W ? ' and wallets' : ''}${P ? ' and online payments (card details go only to PayGate)' : ''}; the business you book with sees your booking details; allergy notes and intake forms can contain health information and are shown only to that business; analytics is off until you allow it; we never sell your data; you can export or delete it at any time.` },
         ],
         sections,
     };

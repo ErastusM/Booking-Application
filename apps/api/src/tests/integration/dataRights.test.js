@@ -19,6 +19,7 @@ const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, makeReview, authHeader } = require('../helpers/factories');
 const User = require('../../models/User');
 const Appointment = require('../../models/Appointment');
+const Payment = require('../../models/Payment');
 const Message = require('../../models/Message');
 const ClientNote = require('../../models/ClientNote');
 const FormSubmission = require('../../models/FormSubmission');
@@ -106,6 +107,10 @@ describe('GET /api/auth/account/export', () => {
 describe('DELETE /api/auth/account — customer', () => {
     it('wants the password, then removes personal data and keeps anonymised records for the business', async () => {
         const { customer, provider, appt, guestAppt } = await seedCustomer();
+        const guestPayment = await Payment.create({
+            appointment: guestAppt._id, provider: provider._id, guestEmail: 'ana@example.com', guestName: 'Ana Silva',
+            kind: 'full', amountCents: 5000, currency: 'NAD', reference: 'BP0000000000000000000000000000AA', status: 'paid',
+        });
         expect((await request(app).delete('/api/auth/account').set(authHeader(customer)).send({ password: 'wrong' })).status).toBe(401);
 
         const res = await request(app).delete('/api/auth/account').set(authHeader(customer)).send({ password: 'Password1!' });
@@ -125,6 +130,8 @@ describe('DELETE /api/auth/account — customer', () => {
         expect(await WalletTransaction.countDocuments({ customer: customer._id })).toBe(1);
         const g = await Appointment.findById(guestAppt._id);
         expect(g).toMatchObject({ guestName: 'Deleted guest', guestEmail: null, guestPhone: null });
+        // An online payment made as a guest with that email: kept, without the name and email.
+        expect(await Payment.findById(guestPayment._id).lean()).toMatchObject({ guestName: 'Deleted guest', guestEmail: null, amountCents: 5000 });
 
         // Gone:
         // Their own words are gone; the business's side of the conversation stays.

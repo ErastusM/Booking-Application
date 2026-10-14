@@ -985,8 +985,15 @@ const BookAppointment = () => {
                                         <span data-testid="review-refund-rules" style={{ display: 'block', marginTop: '0.4rem' }}>
                                             {(providerInfo?.cancellationWindowHours ?? 0) === 0
                                                 ? 'If you cancel, what you paid online is refunded in full.'
-                                                : 'If you cancel in time, what you paid online is refunded in full. A late cancellation or a missed appointment is not refunded.'}
+                                                : 'If you cancel in time, what you paid online is refunded in full. A late cancellation or a missed appointment is not refunded, unless the business agrees.'}
                                             {' '}If the business cancels, you get it all back.
+                                            {/* The full rules, reachable from the pay step (card processor requirement);
+                                                a new tab keeps this booking in progress. */}
+                                            <span style={{ display: 'block', marginTop: '0.4rem' }}>
+                                                <a href="/terms#paying-online" target="_blank" rel="noreferrer" data-testid="review-terms-link" style={{ color: 'var(--gold-dark)' }}>How paying online works</a>
+                                                {' · '}
+                                                <a href="/terms#refunds" target="_blank" rel="noreferrer" data-testid="review-refunds-link" style={{ color: 'var(--gold-dark)' }}>Refund rules</a>
+                                            </span>
                                         </span>
                                     )}
                                 </div>

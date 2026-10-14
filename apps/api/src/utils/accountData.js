@@ -261,6 +261,12 @@ async function purgeAccount(user) {
             { guestEmail: String(user.email).toLowerCase() },
             { $set: { guestName: 'Deleted guest', guestEmail: null, guestPhone: null, notes: '', 'guestMarketing.optIn': false } },
         ));
+        // Online payments made as a guest with this email stay as financial
+        // records, without the name and email.
+        tasks.push(M('Payment').updateMany(
+            { guestEmail: String(user.email).toLowerCase() },
+            { $set: { guestName: 'Deleted guest', guestEmail: null } },
+        ));
     }
     if (isOwner) {
         const roster = await M('TeamMember').find({ provider: id }).select('photoUrl');

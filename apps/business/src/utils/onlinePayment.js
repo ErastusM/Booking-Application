@@ -1,4 +1,10 @@
 // Money paid online for bookings, in words a business reads at a glance.
+import { FEATURES } from '@bookplus/config/features.mjs';
+
+/** Online payments screens: on for everyone, or previewed (VITE_PAYMENTS_PREVIEW) before launch. */
+export const PAYMENTS_VISIBLE = FEATURES.paymentsEnabled || import.meta.env.VITE_PAYMENTS_PREVIEW === 'true';
+/** The feature switches the legal pages are written for (they follow the preview too). */
+export const LEGAL_FEATURES = { ...FEATURES, paymentsEnabled: PAYMENTS_VISIBLE };
 
 /** N$ with cents; negative amounts keep their sign (−N$6.00). */
 export const nad = (cents) => {
