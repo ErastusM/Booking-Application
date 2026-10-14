@@ -45,4 +45,5 @@ export const {
     providerWalletService,
     formService,
     financeService,
+    onlinePaymentsService,
 } = client.services;

@@ -31,6 +31,57 @@ const payoutAccountSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: null },
 }, { _id: false });
 
+// A business's application to take online payments (payment specification,
+// section 6): its chosen plan, its legal details, the documents it uploaded
+// (private Cloudinary files, opened by Bookplus only through short-lived signed
+// links), Bookplus's decision, and the two switches: the business's own
+// Online Payments on/off, and Bookplus's override that switches it off.
+const verificationDocSchema = new mongoose.Schema({
+    kind: { type: String, enum: ['owner_id', 'registration', 'bank_letter', 'other'], required: true },
+    name: { type: String, default: '', maxlength: 120 },
+    publicId: { type: String, required: true },
+    resourceType: { type: String, enum: ['image', 'raw'], default: 'image' },
+    format: { type: String, default: '' },
+    deliveryType: { type: String, default: 'authenticated' },
+    uploadedAt: { type: Date, default: Date.now },
+});
+const paymentsApprovalSchema = new mongoose.Schema({
+    status: { type: String, enum: ['draft', 'submitted', 'info_requested', 'approved', 'rejected'], default: 'draft' },
+    plan: { type: String, enum: ['basic', 'standard', null], default: null },
+    legal: {
+        businessType: { type: String, enum: ['sole_trader', 'cc', 'company', 'other', null], default: null },
+        registeredName: { type: String, default: '', trim: true, maxlength: 120 },
+        registrationNumber: { type: String, default: '', trim: true, maxlength: 40 },
+        ownerName: { type: String, default: '', trim: true, maxlength: 100 },
+        ownerIdNumber: { type: String, default: '', trim: true, maxlength: 30 },
+    },
+    documents: { type: [verificationDocSchema], default: [] },
+    termsAcceptedAt: { type: Date, default: null },
+    submittedAt: { type: Date, default: null },
+    decidedAt: { type: Date, default: null },
+    decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // What Bookplus told the business (why rejected, what else it needs).
+    decisionNote: { type: String, default: '', maxlength: 1000 },
+    // The business's own Online Payments switch (only once approved).
+    switchOn: { type: Boolean, default: false },
+    // Bookplus switched online payments off for this business.
+    adminOff: { type: Boolean, default: false },
+    adminOffReason: { type: String, default: '', maxlength: 500 },
+    // The payout bank account changed after approval: no payout until
+    // Bookplus has checked the new account (a common fraud route).
+    payoutAccountReviewNeeded: { type: Boolean, default: false },
+    history: {
+        type: [{
+            _id: false,
+            status: String,
+            at: { type: Date, default: Date.now },
+            by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+            note: { type: String, default: '' },
+        }],
+        default: [],
+    },
+}, { _id: false });
+
 // Two-step sign-in for admin accounts (utils/mfa.js). The secret is stored
 // encrypted; recovery codes only as hashes.
 const mfaSchema = new mongoose.Schema({
@@ -304,6 +355,10 @@ const userSchema = new mongoose.Schema(
         // rates it agreed to (services/pricing.js ratesFor). Unset = it has not
         // chosen yet, and nothing changes for it until it does.
         pricing: { type: pricingSchema, default: undefined },
+        // Online payments application and switches (see paymentsApprovalSchema).
+        // select:false and stripped from toJSON: ID numbers and document refs
+        // are read only by the payments endpoints.
+        paymentsApproval: { type: paymentsApprovalSchema, default: undefined, select: false },
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
         // Hash of the browser cookie the code was minted for (utils/handoffBinding).
@@ -362,6 +417,7 @@ const userSchema = new mongoose.Schema(
                 delete ret.loginFailures;
                 delete ret.loginLockedUntil;
                 delete ret.payoutAccount;
+                delete ret.paymentsApproval;
                 if (ret.mfa) ret.mfa = { enabled: !!ret.mfa.enabled, enabledAt: ret.mfa.enabledAt || null };
                 return ret;
             },

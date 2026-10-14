@@ -89,6 +89,17 @@ router.get('/payout-account', auth, owner, c.getPayoutAccount);
 router.get('/payout-account/edit', auth, owner, c.getPayoutAccountForEdit);
 router.put('/payout-account', auth, owner, c.updatePayoutAccount);
 
+// Applying to take online payments (the owner): plan, details, documents,
+// send it; then the business's own on/off switch once approved.
+const onboarding = require('../controllers/paymentsOnboardingController');
+router.get('/onboarding', auth, owner, onboarding.getOnboarding);
+router.put('/onboarding', auth, owner, onboarding.updateOnboarding);
+router.post('/onboarding/upload', auth, owner, onboarding.uploadParams);
+router.post('/onboarding/documents', auth, owner, onboarding.addDocument);
+router.delete('/onboarding/documents/:docId', auth, owner, onboarding.removeDocument);
+router.post('/onboarding/submit', auth, owner, onboarding.submit);
+router.put('/onboarding/switch', auth, owner, onboarding.setSwitch);
+
 // The owner's money.
 router.get('/me/balance', auth, owner, c.getMyBalance);
 router.get('/me/ledger', auth, owner, c.getMyLedger);

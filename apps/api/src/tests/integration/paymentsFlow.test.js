@@ -26,7 +26,7 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const Notification = require('../../models/Notification');
 const payments = require('../../services/paymentService');
-const { makeProvider, makeUser, makeService, authHeader } = require('../helpers/factories');
+const { makeProvider, makeUser, makeService, authHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { createFakePaygate } = require('../helpers/fakePaygate');
 
@@ -41,6 +41,7 @@ const setup = async ({ mode = 'full', depositType = 'percent', depositValue = nu
     const provider = await makeProvider({
         businessProfile: { businessName: 'Vibe Cuts', currency },
         paymentSettings: { mode, depositType, depositValue },
+        paymentsApproval: { ...APPROVED_FOR_PAYMENTS },
     });
     const service = await makeService(provider._id, { name: 'Taper Fade', price, duration: 30 });
     return { provider, service };

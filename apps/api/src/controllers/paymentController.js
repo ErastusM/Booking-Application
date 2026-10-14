@@ -18,6 +18,7 @@ const paygate = require('../services/paygate');
 const payments = require('../services/paymentService');
 const { recordFinance } = require('../utils/financeAudit');
 const { withBookingLock } = require('../utils/lock');
+const { canTakePayments } = require('../services/paymentsApproval');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const isId = (v) => mongoose.isValidObjectId(v) && String(new mongoose.Types.ObjectId(String(v))) === String(v);
@@ -84,11 +85,13 @@ exports.updateSettings = async (req, res) => {
 exports.getPolicy = async (req, res) => {
     try {
         if (!isId(req.params.providerId)) return fail(res, 404, 'Business not found');
-        const user = await User.findOne({ _id: req.params.providerId, role: 'provider' }).select('paymentSettings businessProfile.currency').lean();
+        const user = await User.findOne({ _id: req.params.providerId, role: 'provider' }).select('paymentSettings businessProfile.currency +paymentsApproval').lean();
         if (!user) return fail(res, 404, 'Business not found');
         const s = settingsPayload(user);
+        // Not approved, or switched off: everything is paid at the appointment.
+        if (!canTakePayments(user.paymentsApproval)) s.onlinePaymentAvailable = false;
         const priceCents = parseInt(req.query.priceCents, 10);
-        const plan = Number.isFinite(priceCents)
+        const plan = Number.isFinite(priceCents) && s.onlinePaymentAvailable
             ? payments.planFor({ settings: s, currency: s.currency, priceCents })
             : null;
         res.status(200).json({
@@ -130,8 +133,30 @@ exports.updatePayoutAccount = async (req, res) => {
     try {
         const v = payments.validatePayoutAccount(req.body || {});
         if (!v.ok) return fail(res, 400, v.message, 'invalid_payout_account');
-        await User.updateOne({ _id: req.user._id, role: 'provider' }, { $set: { payoutAccount: v.value } });
-        res.status(200).json({ success: true, message: 'Payout account saved', data: payments.publicPayoutAccount(v.value) });
+        const before = await User.findById(req.user._id).select('+payoutAccount +paymentsApproval businessProfile.businessName name').lean();
+        const old = before?.payoutAccount || {};
+        const changed = old.accountNumber !== v.value.accountNumber || old.branchCode !== v.value.branchCode || old.bankName !== v.value.bankName;
+        // A new bank account on an approved business is held until Bookplus
+        // checks it: redirecting payouts is a classic account-takeover move.
+        const hold = changed && !!old.accountNumber && before?.paymentsApproval?.status === 'approved';
+        await User.updateOne({ _id: req.user._id, role: 'provider' }, {
+            $set: { payoutAccount: v.value, ...(hold ? { 'paymentsApproval.payoutAccountReviewNeeded': true } : {}) },
+        });
+        if (changed && old.accountNumber) {
+            await recordFinance({
+                actor: req.user, action: 'payout_account.change', provider: req.user._id,
+                details: { from: payments.publicPayoutAccount(old), to: payments.publicPayoutAccount(v.value), heldForReview: hold },
+            });
+            if (hold) {
+                const { notifyAdmins } = require('../utils/notificationhelper');
+                notifyAdmins(`${before.businessProfile?.businessName || before.name} changed its payout bank account. Check it before the next payout.`, 'system', '/bkplus-command').catch(() => {});
+            }
+        }
+        res.status(200).json({
+            success: true,
+            message: hold ? 'Saved. Bookplus checks a new bank account before paying into it.' : 'Payout account saved',
+            data: { ...payments.publicPayoutAccount(v.value), heldForReview: hold },
+        });
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 

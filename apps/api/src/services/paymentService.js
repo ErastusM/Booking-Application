@@ -26,6 +26,7 @@ const Payout = require('../models/Payout');
 const User = require('../models/User');
 const paygate = require('./paygate');
 const pricing = require('./pricing');
+const { canTakePayments } = require('./paymentsApproval');
 const { paymentsEnabled } = require('../constants/features');
 const { primaryOrigin } = require('../utils/origins');
 const { withLock, withBookingLock } = require('../utils/lock');
@@ -146,8 +147,11 @@ const planFor = ({ settings, currency, priceCents }) => {
 /** The plan for a booking of `price` (N$) with this business. */
 const planForBooking = async (providerId, price) => {
     if (!paymentsEnabled() || !providerId) return null;
-    const provider = await User.findById(providerId).select('paymentSettings businessProfile.currency').lean();
+    const provider = await User.findById(providerId).select('paymentSettings businessProfile.currency +paymentsApproval').lean();
     if (!provider) return null;
+    // Only a business Bookplus approved, with its own switch on and not
+    // switched off by Bookplus, asks for payment online.
+    if (!canTakePayments(provider.paymentsApproval)) return null;
     // Below Bookplus's minimum online booking value (PlatformSettings), the
     // fees would eat the booking: it is paid at the appointment instead.
     const { minOnlineBookingCents } = await pricing.getSettings();
@@ -893,8 +897,11 @@ const startPaymentHoldJob = () => {
  */
 const recordPayout = async ({ providerId, amountCents, reference = '', note = '', paidAt, adminId, allowOverdraw = false, allowMissingAccount = false }) => {
     if (!Number.isInteger(amountCents) || amountCents <= 0) return { ok: false, status: 400, message: 'amountCents must be a whole number of cents above 0' };
-    const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('+payoutAccount name').lean();
+    const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('+payoutAccount +paymentsApproval name').lean();
     if (!provider) return { ok: false, status: 404, message: 'Business not found' };
+    if (provider.paymentsApproval?.payoutAccountReviewNeeded) {
+        return { ok: false, status: 409, code: 'payout_account_unchecked', message: 'This business changed its bank account. Confirm the new account (Money, Business approvals) before paying into it.' };
+    }
     const hasAccount = hasPayoutAccount(provider.payoutAccount);
     if (!hasAccount && !allowMissingAccount) {
         return { ok: false, status: 409, code: 'payout_account_missing', message: 'This business has not added a payout bank account.' };

@@ -30,6 +30,14 @@ router.get('/requests', finance, c.listRequests);
 router.post('/requests/:id/approve', director, c.approveRequest);
 router.post('/requests/:id/reject', director, c.rejectRequest);
 
+// Businesses applying to take online payments (finance reviews them).
+router.get('/approvals', finance, c.listApprovals);
+router.get('/approvals/:id', finance, c.getApproval);
+router.get('/approvals/:id/documents/:docId', finance, c.getApprovalDocument);
+router.post('/approvals/:id/decision', finance, c.decideApproval);
+router.post('/approvals/:id/switch', finance, c.setApprovalSwitch);
+router.post('/approvals/:id/payout-account-checked', finance, c.confirmPayoutAccount);
+
 // Who did what.
 router.get('/audit', finance, c.getAudit);
 

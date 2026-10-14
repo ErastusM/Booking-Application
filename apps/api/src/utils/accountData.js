@@ -26,7 +26,7 @@ const load = (name) => { try { return require(`../models/${name}`); } catch { re
 const SECRET_FIELDS = [
     'password', 'verificationToken', 'verificationTokenExpiry', 'passwordResetToken', 'passwordResetExpiry',
     'staffInvites', 'inviteRequestLog', 'refreshTokenJtis', 'oauthCode', 'oauthCodeExpiry', 'oauthCodeBinding', 'tokenVersion', '__v',
-    'loginFailures', 'loginLockedUntil', 'mfa',
+    'loginFailures', 'loginLockedUntil', 'mfa', 'payoutAccount', 'paymentsApproval',
     'staffPermissions', 'staffTier',
 ];
 const clean = (doc) => {
@@ -125,6 +125,20 @@ async function destroyImages(urls) {
     return n;
 }
 
+/** Best-effort removal of private files (verification documents) from Cloudinary. */
+async function destroyPrivateFiles(docs) {
+    const cloudinary = require('./cloudinary');
+    if (!cloudinary.isConfigured()) return 0;
+    let n = 0;
+    for (const d of docs || []) {
+        try {
+            const r = await cloudinary.destroy({ publicId: d.publicId, resourceType: d.resourceType || 'image', type: d.deliveryType || cloudinary.PROOF_TYPE });
+            if (r.ok) n += 1;
+        } catch { /* best effort */ }
+    }
+    return n;
+}
+
 const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@deleted.bookplus`;
 
 /**
@@ -146,7 +160,9 @@ const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@delete
  *   - any business's client notes about them (incl. allergies/health) and
  *     their intake-form answers;
  *   - guest bookings made with their (verified) email: guest name/email/phone;
- *   - their avatar / portfolio / team photos on Cloudinary (when configured).
+ *   - their avatar / portfolio / team photos on Cloudinary (when configured);
+ *   - their payout bank account, and their online payments application with
+ *     the identity and company documents sent with it.
  * A BUSINESS owner additionally loses: business profile, address and map pin,
  * booking link, portfolio, payment instructions, services (deactivated),
  * locations (deactivated, address cleared), team roster and time-clock
@@ -155,6 +171,10 @@ const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@delete
  */
 async function purgeAccount(user) {
     const id = user._id;
+    // Documents sent to apply for online payments go too (read before the
+    // record is cleared below).
+    const approval = await M('User').findById(id).select('+paymentsApproval').lean();
+    const privateDocs = approval?.paymentsApproval?.documents || [];
     const images = [user.avatar, ...((user.portfolio && user.portfolio.images) || [])].filter(Boolean);
     const ownsEmail = user.isVerified === true || !!user.googleId;
     const isOwner = user.role === 'provider';
@@ -177,7 +197,7 @@ async function purgeAccount(user) {
         $unset: {
             password: '', refreshTokenJtis: '', verificationToken: '', verificationTokenExpiry: '',
             passwordResetToken: '', passwordResetExpiry: '', oauthCode: '', oauthCodeExpiry: '', oauthCodeBinding: '',
-            loginFailures: '', loginLockedUntil: '', mfa: '',
+            loginFailures: '', loginLockedUntil: '', mfa: '', payoutAccount: '', paymentsApproval: '',
             staffInvites: '', inviteRequestLog: '', ageConfirmedAt: '',
         },
         $inc: { tokenVersion: 1 },
@@ -222,6 +242,7 @@ async function purgeAccount(user) {
     await Promise.all(tasks);
     // Images last and without blocking the response on Cloudinary latency.
     destroyImages(images).catch(() => {});
+    destroyPrivateFiles(privateDocs).catch(() => {});
 }
 
-module.exports = { exportAccount, purgeAccount, destroyImages, EXPORT_VERSION, MESSAGE_DELETED };
+module.exports = { exportAccount, purgeAccount, destroyImages, destroyPrivateFiles, EXPORT_VERSION, MESSAGE_DELETED };

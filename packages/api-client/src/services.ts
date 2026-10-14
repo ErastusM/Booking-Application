@@ -78,6 +78,29 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         listAdmins: () => API.get('/admin/finance/admins'),
         setAdminRoles: (id: string, roles: string[]) => API.put(`/admin/finance/admins/${id}/roles`, { roles }),
         resetAdminMfa: (id: string, reason: string) => API.post(`/admin/finance/admins/${id}/reset-mfa`, { reason }),
+        // Businesses applying to take online payments.
+        listApprovals: (status?: string) => API.get('/admin/finance/approvals', { params: status ? { status } : {} }),
+        getApproval: (providerId: string) => API.get(`/admin/finance/approvals/${providerId}`),
+        getApprovalDocument: (providerId: string, docId: string) => API.get(`/admin/finance/approvals/${providerId}/documents/${docId}`),
+        decideApproval: (providerId: string, decision: 'approve' | 'reject' | 'request_info', note?: string) =>
+            API.post(`/admin/finance/approvals/${providerId}/decision`, { decision, note }),
+        setApprovalSwitch: (providerId: string, off: boolean, reason: string) => API.post(`/admin/finance/approvals/${providerId}/switch`, { off, reason }),
+        confirmPayoutAccount: (providerId: string, note: string) => API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note }),
+    },
+
+    // A business applying to take online payments, its switch, and its payout
+    // bank account (all 404 while online payments are off).
+    onlinePaymentsService: {
+        getApplication: () => API.get('/payments/onboarding'),
+        updateApplication: (data: { plan?: string; legal?: any }) => API.put('/payments/onboarding', data),
+        uploadParams: () => API.post('/payments/onboarding/upload'),
+        addDocument: (data: { kind: string; name?: string; ref: any }) => API.post('/payments/onboarding/documents', data),
+        removeDocument: (docId: string) => API.delete(`/payments/onboarding/documents/${docId}`),
+        submit: () => API.post('/payments/onboarding/submit', { acceptTerms: true }),
+        setSwitch: (on: boolean) => API.put('/payments/onboarding/switch', { on }),
+        getPayoutAccount: () => API.get('/payments/payout-account'),
+        getPayoutAccountForEdit: () => API.get('/payments/payout-account/edit'),
+        updatePayoutAccount: (data: any) => API.put('/payments/payout-account', data),
     },
 
     // One-click unsubscribe from marketing email. Public: the signed token from

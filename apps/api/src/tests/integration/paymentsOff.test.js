@@ -24,7 +24,7 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const Notification = require('../../models/Notification');
 const payments = require('../../services/paymentService');
-const { makeProvider, makeUser, makeAdmin, makeService, authHeader } = require('../helpers/factories');
+const { makeProvider, makeUser, makeAdmin, makeService, authHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { createFakePaygate } = require('../helpers/fakePaygate');
 
@@ -45,7 +45,7 @@ afterEach(async () => { gw.reset(); jest.clearAllMocks(); await testDb.clearData
 
 describe('payments switched off', () => {
     it('a client booking at a business set to "full" is confirmed at once, as today — no hold, no PayGate, the usual notices', async () => {
-        const provider = await makeProvider({ businessProfile: { currency: 'NAD' }, paymentSettings: { mode: 'full' } });
+        const provider = await makeProvider({ businessProfile: { currency: 'NAD' }, paymentSettings: { mode: 'full' }, paymentsApproval: { ...APPROVED_FOR_PAYMENTS } });
         const service = await makeService(provider._id, { price: 200, duration: 30 });
         const client = await makeUser({ name: 'Ana Shilongo' });
 

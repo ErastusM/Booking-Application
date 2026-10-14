@@ -9,6 +9,8 @@ import YourDataCard from '../components/YourDataCard';
 import { openConsentSettings } from '@bookplus/api-client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
+import OnlinePaymentsSection from '../components/OnlinePaymentsSection';
+import { FEATURES } from '@bookplus/config/features.mjs';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
 import { Select, Field } from '@bookplus/ui';
@@ -85,10 +87,15 @@ const Stars = ({ rating }) => (
 
 // `ownerOnly`: the business's own storefront (its photos and addresses) — the
 // owner's alone. A team member's Account is this same page over THEIR profile.
+// Online payments appear only once they are switched on for the platform
+// (packages/config/features.mjs); VITE_PAYMENTS_PREVIEW shows them in the
+// end-to-end test build before that.
+const PAYMENTS_VISIBLE = FEATURES.paymentsEnabled || import.meta.env.VITE_PAYMENTS_PREVIEW === 'true';
 const ALL_SECTIONS = [
     { id: 'profile', label: 'My profile' },
     { id: 'portfolio', label: 'Portfolio', ownerOnly: true },
     { id: 'locations', label: 'Locations', ownerOnly: true },
+    ...(PAYMENTS_VISIBLE ? [{ id: 'payments', label: 'Online payments', ownerOnly: true }] : []),
     { id: 'reviews', label: 'Reviews' },
     { id: 'settings', label: 'Personal settings' },
 ];
@@ -638,6 +645,8 @@ const ProviderAccount = () => {
 
                         {/* ── REVIEWS ── */}
                         {section === 'locations' && <LocationsManager />}
+
+                        {section === 'payments' && <OnlinePaymentsSection />}
 
                         {section === 'reviews' && (
                             <div>
