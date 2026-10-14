@@ -39,10 +39,6 @@ export const RETENTION = {
     refreshCookie: '30 days', // bp_rt_c / bp_rt_b cookie Max-Age / REFRESH_TOKEN_EXPIRE
 };
 
-// Online payment records (payments, refunds, payouts, chargeback cases): kept as
-// financial records. apps/api RETENTION.ACCOUNTING_RECORDS_YEARS; owner and
-// lawyer to confirm. Only quoted once online payments are switched on.
-export const FINANCIAL_RECORDS = '5 years';
 
 const op = operatorName(COMPANY);
 const mail = mailLink('privacyEmail');
@@ -200,7 +196,8 @@ const retention = (audience, W, P) => ({
                 ['Your account and profile', 'Until you delete your account. Deletion removes or anonymises your personal details (see "Your rights")'],
                 ['Guest contact details (name, email, phone on a guest booking)', `Anonymised ${RETENTION.guestContact}; the booking itself stays`],
                 ['Accounting records (completed bookings)', 'Kept for as long as the law requires. When you delete your account, your name, email and phone are removed from them'],
-                ...(P ? [['Online payment records, refunds, payouts and chargeback cases', `Kept as financial records for ${FINANCIAL_RECORDS}. When you delete your account, your name and email are removed from them`]] : []),
+                // No fixed period until the lawyer confirms one (legalRetention.test).
+                ...(P ? [['Online payment records, refunds, payouts and chargeback cases', 'Kept as financial records for as long as the law requires. When you delete your account, your name and email are removed from them']] : []),
                 ...(P && audience === 'business' ? [
                     ['Online payments application documents (ID, company registration, bank letter)', 'Deleted when the application is rejected or you delete your account; otherwise kept while your business can take online payments'],
                     ['Payout bank account and the owner’s ID number', 'Until you change them or delete your account'],

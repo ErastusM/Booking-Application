@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CompanyDetails, LegalDocument } from '@bookplus/ui';
 import { COMPANY, isPlaceholder, missingCompanyFields, companyValue, operatorName, mailLink, companyPhones, phoneLinks } from '@bookplus/config/legal/company.mjs';
-import { privacyPolicy, RETENTION, FINANCIAL_RECORDS } from '@bookplus/config/legal/privacy.mjs';
+import { privacyPolicy, RETENTION } from '@bookplus/config/legal/privacy.mjs';
 import { termsOfService } from '@bookplus/config/legal/terms.mjs';
 import { legalNotice } from '@bookplus/config/legal/notice.mjs';
 import { LEGAL_CURRENCIES } from '@bookplus/config/legal/currencies.mjs';
@@ -257,7 +257,8 @@ describe('online payments in the legal text', () => {
         expect(c).toMatch(/PayGate \(Pty\) Ltd/);
         expect(c).toMatch(/Your card number and security code are entered on PayGate’s page and never reach us/);
         expect(c).toMatch(/Online payment records, refunds, payouts and chargeback cases/);
-        expect(c).toContain(FINANCIAL_RECORDS);
+        expect(c).toMatch(/Kept as financial records for as long as the law requires/);
+        expect(c).not.toMatch(/5 years|five years/i);
         expect(c).not.toMatch(/owner’s ID number/);
         const b = textOf(privacyPolicy('business', P));
         expect(b).toMatch(/owner’s full name and ID or passport number/);

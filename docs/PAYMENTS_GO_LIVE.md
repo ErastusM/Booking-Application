@@ -58,7 +58,8 @@ rests on). They appear only when payments are switched on; to read them
 before that, run an app with `VITE_PAYMENTS_PREVIEW=true` (the e2e runs do).
 For the lawyer to confirm or change:
 
-- how long financial records are kept (`FINANCIAL_RECORDS`, now **5 years**, and
+- how long financial records are kept: the Privacy Policy says "for as long
+  as the law requires" until a period is confirmed (the proposal is 5 years,
   `ACCOUNTING_RECORDS_YEARS` in `apps/api/src/constants/retention.js`);
 - refunds for late cancellations and no-shows ("not refunded unless the
   business agrees") against consumer-protection law;
