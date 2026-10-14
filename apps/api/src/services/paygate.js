@@ -11,9 +11,11 @@
  * Everything here is pure (builders, parser, checksum) except `send`, which goes
  * through an injectable transport so tests never touch the network.
  *
- * Secrets: PAYGATE_PASSWORD is both the PayHost password and the checksum key.
- * It is only ever placed inside the request body sent to PayGate; nothing in
- * this module logs a request body, a password or a checksum.
+ * Secrets: PAYGATE_PASSWORD is the PayHost password and, unless
+ * PAYGATE_ENCRYPTION_KEY is set, also the key PayGate signs its messages with
+ * (the terminal's "Encryption Key"). It is only ever placed inside the request
+ * body sent to PayGate; nothing in this module logs a request body, a password
+ * or a checksum.
  */
 const https = require('https');
 const crypto = require('crypto');
@@ -48,6 +50,9 @@ const config = () => ({
     endpoint: process.env.PAYGATE_ENDPOINT || DEFAULT_ENDPOINT,
     paygateId: process.env.PAYGATE_ID || '',
     password: process.env.PAYGATE_PASSWORD || '',
+    // The key PayGate signs callbacks and session fields with. The same as the
+    // password unless the terminal's Encryption Key differs from it.
+    checksumKey: process.env.PAYGATE_ENCRYPTION_KEY || process.env.PAYGATE_PASSWORD || '',
 });
 const isConfigured = () => {
     const c = config();
@@ -313,7 +318,7 @@ const safeEqualHex = (a, b) => {
  * posted (CHECKSUM itself excluded), followed by the key. `pairs` is an ordered
  * list of [name, value] exactly as received, so unknown extra fields are covered.
  */
-const verifyPostedChecksum = (pairs, key = config().password) => {
+const verifyPostedChecksum = (pairs, key = config().checksumKey) => {
     if (!key || !Array.isArray(pairs)) return false;
     const posted = pairs.find(([k]) => k === 'CHECKSUM');
     if (!posted) return false;
@@ -327,9 +332,19 @@ const verifyPostedChecksum = (pairs, key = config().password) => {
  * PAY_REQUEST_ID, TRANSACTION_STATUS and CHECKSUM, so the id and reference come
  * from our own records.
  */
-const verifyReturnChecksum = ({ paygateId, payRequestId, transactionStatus, reference, checksum }, key = config().password) => {
+const verifyReturnChecksum = ({ paygateId, payRequestId, transactionStatus, reference, checksum }, key = config().checksumKey) => {
     if (!key) return false;
     return safeEqualHex(md5(`${paygateId}${payRequestId}${transactionStatus}${reference}${key}`), checksum);
+};
+
+/**
+ * The checksum PayGate puts on a new session's fields: md5(PAYGATE_ID +
+ * PAY_REQUEST_ID + REFERENCE + key). Bookplus doesn't need it to take a
+ * payment; the connection check uses it to prove which key PayGate signs with.
+ */
+const verifySessionChecksum = (fields, key = config().checksumKey) => {
+    if (!key || !fields) return false;
+    return safeEqualHex(md5(`${fields.PAYGATE_ID || ''}${fields.PAY_REQUEST_ID || ''}${fields.REFERENCE || ''}${key}`), fields.CHECKSUM);
 };
 
 /* ───────────────────────────── transport ───────────────────────────── */
@@ -413,6 +428,6 @@ module.exports = {
     config, isConfigured,
     xmlEscape, buildWebPaymentRequest, buildQueryRequest, buildRefundRequest,
     parseWebPaymentResponse, parseQueryResponse, parseRefundResponse,
-    md5, verifyPostedChecksum, verifyReturnChecksum,
+    md5, verifyPostedChecksum, verifyReturnChecksum, verifySessionChecksum,
     setTransport, initiate, query, refund,
 };

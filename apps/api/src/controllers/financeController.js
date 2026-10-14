@@ -86,6 +86,22 @@ const settingsPayload = (settings, user) => {
     return { settings, simulator: sim, launch: launchChecklist(settings, sim), me: { roles: financeRolesOf(user) } };
 };
 
+// POST /api/admin/finance/paygate-check — are the server's PayGate settings
+// right? Opens a test session that is never paid (services/paygateCheck).
+exports.paygateCheck = async (req, res) => {
+    try {
+        const result = await require('../services/paygateCheck').runCheck({ adminEmail: req.user.email });
+        await recordFinance({
+            actor: req.user, action: 'paygate.check',
+            details: { ready: result.ready, items: result.items.map((i) => ({ key: i.key, status: i.status })) },
+        });
+        res.json({ success: true, data: { ...result, checkedAt: new Date() } });
+    } catch (err) {
+        logger.error({ err: err.message }, 'PayGate check failed');
+        fail(res, 500, 'Internal server error');
+    }
+};
+
 // GET /api/admin/finance/settings
 exports.getSettings = async (req, res) => {
     try {

@@ -68,6 +68,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         updateSettings: (changes: any, reason: string) => API.put('/admin/finance/settings', { changes, reason }),
         simulate: (valuesCents: number[]) => API.get('/admin/finance/simulate', { params: { values: valuesCents.join(',') } }),
         setLaunchGate: (gate: string, done: boolean, note: string) => API.post(`/admin/finance/launch/${encodeURIComponent(gate)}`, { done, note }),
+        // Do the server's PayGate settings work? Opens a test session that is never paid.
+        paygateCheck: () => API.post('/admin/finance/paygate-check'),
         setBusinessPricing: (providerId: string, data: any) => API.put(`/admin/finance/businesses/${providerId}/pricing`, data),
         prepareRefund: (paymentId: string, data: { amountCents?: number; reason: string }) => API.post(`/admin/finance/payments/${paymentId}/refund`, data),
         prepareAdjustment: (data: { providerId: string; amountCents: number; reason: string }) => API.post('/admin/finance/adjustments', data),
