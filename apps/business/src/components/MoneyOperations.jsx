@@ -322,7 +322,7 @@ export const PayoutsView = ({ onLocked }) => {
     return (
         <div style={list} data-testid="ops-payouts">
             <p style={muted}>
-                Payouts {(FREQ[s.frequency] || FREQ.weekly)(s.weekdayName)} (next: {day(s.nextRunDate)}), to businesses owed at least {nad(s.minThresholdCents)}.
+                Payouts {(FREQ[s.frequency] || FREQ.weekly)(s.weekdayName)} (next: {day(s.nextRunDate)}), to {s.minThresholdCents > 1 ? `businesses owed at least ${nad(s.minThresholdCents)}` : 'every business Bookplus owes'}.
                 Preparing a payout takes it off the business's balance at once; then make the transfers and mark each one.
             </p>
 
@@ -463,9 +463,10 @@ const DisputeDetail = ({ id, onBack, onLocked }) => {
                     {d.feeCents > 0 && <div style={row}><span>Card processor's fee</span><span>{nad(d.feeCents)}</span></div>}
                     {d.caseReference && <div style={row}><span>Case number</span><span>{d.caseReference}</span></div>}
                     {d.deadlineAt && <div style={row}><span>Evidence due</span><span style={{ color: open && left !== null && left <= 3 ? '#991b1b' : undefined }}>{day(d.deadlineAt)}{open && left !== null ? ` (${left < 0 ? 'passed' : `${left} day${left === 1 ? '' : 's'} left`})` : ''}</span></div>}
-                    {d.payment && <div style={row}><span>Payment</span><span style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{d.payment.reference} · {STATUS_TEXT[d.payment.status]}</span></div>}
+                    {d.payment && <div style={row}><span>Payment</span><span>{STATUS_TEXT[d.payment.status]}{d.payment.refundedCents ? `, ${nad(d.payment.refundedCents)} refunded` : ''}</span></div>}
                     {d.payment?.appointment && <div style={row}><span>Booking</span><span style={{ textAlign: 'right' }}>{[d.payment.appointment.clientName, d.payment.appointment.service].filter(Boolean).join(' · ')}, {day(d.payment.appointment.appointmentDate)}</span></div>}
                 </div>
+                {d.payment && <p style={{ ...muted, fontSize: '0.74rem', marginTop: '0.4rem', fontFamily: 'ui-monospace, monospace', overflowWrap: 'anywhere' }}>{d.payment.reference}</p>}
                 {d.outcomeNote && <p style={{ ...muted, marginTop: '0.5rem', overflowWrap: 'anywhere' }}>Outcome: {d.outcomeNote}</p>}
                 {d.requests.map((r) => (
                     <p key={r._id} style={{ ...muted, marginTop: '0.4rem' }} data-testid="ops-dispute-request">

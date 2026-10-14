@@ -853,9 +853,10 @@ const Admins = ({ me, isDirector, onLocked }) => {
 
 /* ───────────────────────── the panel ───────────────────────── */
 
+// Six, so they sit in an even grid on a phone (2 × 3).
 const VIEWS = [
     ['payments', 'Payments'], ['payouts', 'Payouts'], ['disputes', 'Disputes'],
-    ['prices', 'Prices and fees'], ['approvals', 'Approvals'], ['audit', 'Audit log'], ['admins', 'Admins'],
+    ['approvals', 'Approvals'], ['audit', 'Audit log'], ['prices', 'Settings'],
 ];
 
 const MoneyPanel = () => {
@@ -910,6 +911,8 @@ const MoneyPanel = () => {
                     <Launch launch={data.launch} isDirector={isDirector} onChanged={setData} onLocked={onLocked} />
                     <Simulator sim={data.simulator} />
                     <Settings data={data} isDirector={isDirector} onSaved={setData} onLocked={onLocked} />
+                    <h3 style={{ ...h3, margin: '0.25rem 0 0' }}>Admins and money roles</h3>
+                    <Admins me={me} isDirector={isDirector} onLocked={onLocked} />
                 </>
             )}
             {view === 'approvals' && (
@@ -923,7 +926,6 @@ const MoneyPanel = () => {
             {view === 'payouts' && <PayoutsView onLocked={onLocked} />}
             {view === 'disputes' && <DisputesView onLocked={onLocked} openId={caseId} />}
             {view === 'audit' && <Audit onLocked={onLocked} />}
-            {view === 'admins' && <Admins me={me} isDirector={isDirector} onLocked={onLocked} />}
         </div>
     );
 };

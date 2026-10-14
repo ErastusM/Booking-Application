@@ -42,7 +42,7 @@ test.describe('Admin two-step sign-in', () => {
         // At phone width the wide tables scroll inside their cards; the page never scrolls sideways.
         await page.setViewportSize({ width: 390, height: 844 });
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-        for (const tab of ['Approvals', 'Audit log', 'Admins']) {
+        for (const tab of ['Payments', 'Payouts', 'Disputes', 'Approvals', 'Audit log', 'Settings']) {
             await panel.getByRole('tab', { name: tab }).click();
             await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
         }
