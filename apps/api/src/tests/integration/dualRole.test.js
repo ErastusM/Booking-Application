@@ -3,6 +3,7 @@
  * signup), and a provider can act as a customer (book + reschedule).
  */
 const request = require('supertest');
+const { refreshCookieOf, handoffCookieOf } = require('../helpers/cookies');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
@@ -88,7 +89,7 @@ describe('Become a provider (adds a business account)', () => {
         const code = res.body.data.handoffCode;
         expect(typeof code).toBe('string');
 
-        const exchanged = await request(app).post('/api/auth/exchange-code').send({ code });
+        const exchanged = await request(app).post('/api/auth/exchange-code').set('Cookie', handoffCookieOf(res)).send({ code });
         expect(exchanged.status).toBe(200);
         expect(exchanged.body.data.user.role).toBe('provider');
 

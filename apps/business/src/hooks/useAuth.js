@@ -119,9 +119,9 @@ export const useAuth = () => {
 
     const login = useCallback((userData) => {
         localStorage.setItem('token', userData.token);
-        if (userData.refreshToken) {
-            localStorage.setItem('refreshToken', userData.refreshToken);
-        }
+        // The refresh token stays in its httpOnly cookie; drop any copy an
+        // older version kept here.
+        localStorage.removeItem('refreshToken');
         setToken(userData.token);
         setUser(userData.user);
         setError(null);

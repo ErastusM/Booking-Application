@@ -3,7 +3,9 @@
 // has no emoji, so they are shown the way new ones are written ("New booking:
 // Ana booked…"). Typographic marks such as ★ ✓ × © stay.
 const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u{1F3FB}-\u{1F3FF}]|\u{200D}|\u{FE0F}|\u{20E3}|\u{2726})/gu;
-const KEEP = new Set(['\u{A9}', '\u{AE}', '\u{2122}']); // © ® ™
+// ★ ☆ are typographic stars (⭐ is the emoji); newer Unicode data lists them
+// as pictographic, so they are kept explicitly, like © ® ™.
+const KEEP = new Set(['\u{A9}', '\u{AE}', '\u{2122}', '\u{2605}', '\u{2606}']);
 
 export const stripEmoji = (text) => String(text ?? '').replace(EMOJI, (ch) => (KEEP.has(ch) ? ch : ''));
 

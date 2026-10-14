@@ -25,7 +25,8 @@ const load = (name) => { try { return require(`../models/${name}`); } catch { re
 
 const SECRET_FIELDS = [
     'password', 'verificationToken', 'verificationTokenExpiry', 'passwordResetToken', 'passwordResetExpiry',
-    'staffInvites', 'inviteRequestLog', 'refreshTokenJtis', 'oauthCode', 'oauthCodeExpiry', 'tokenVersion', '__v',
+    'staffInvites', 'inviteRequestLog', 'refreshTokenJtis', 'oauthCode', 'oauthCodeExpiry', 'oauthCodeBinding', 'tokenVersion', '__v',
+    'loginFailures', 'loginLockedUntil',
     'staffPermissions', 'staffTier',
 ];
 const clean = (doc) => {
@@ -175,7 +176,8 @@ async function purgeAccount(user) {
         },
         $unset: {
             password: '', refreshTokenJtis: '', verificationToken: '', verificationTokenExpiry: '',
-            passwordResetToken: '', passwordResetExpiry: '', oauthCode: '', oauthCodeExpiry: '',
+            passwordResetToken: '', passwordResetExpiry: '', oauthCode: '', oauthCodeExpiry: '', oauthCodeBinding: '',
+            loginFailures: '', loginLockedUntil: '',
             staffInvites: '', inviteRequestLog: '', ageConfirmedAt: '',
         },
         $inc: { tokenVersion: 1 },

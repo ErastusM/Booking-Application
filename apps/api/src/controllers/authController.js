@@ -13,16 +13,28 @@ const { notifyAdmins } = require('../utils/notificationhelper');
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 const staffInvites = require('../utils/staffInvites');
 const { teamBusinessSuspended, TEAM_SUSPENDED_MESSAGE } = require('../utils/publicProvider');
+const { bindHandoff, clearHandoff, handoffAllowed } = require('../utils/handoffBinding');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
 const MAX_REFRESH_JTIS = 10;
 
-// A fixed, never-matching bcrypt hash (cost 10, same as the model's genSalt(10)).
+// A fixed, never-matching bcrypt hash at the model's own cost (User.BCRYPT_ROUNDS).
 // Used to spend one bcrypt comparison on the "email doesn't exist" login path so
 // it takes the same time as "email exists, wrong password" — otherwise the
 // short-circuit (no candidate rows → no bcrypt) is a user-enumeration timing oracle.
-const DUMMY_PASSWORD_HASH = bcrypt.hashSync('bookplus-timing-equaliser', 10);
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('bookplus-timing-equaliser', User.BCRYPT_ROUNDS);
+
+// Per-account back-off on wrong passwords (on top of the per-IP rate limit, which
+// a spread-out guesser avoids): after LOCK_AFTER wrong passwords in a row the
+// account pauses for 1 minute, doubling each further miss up to 15 minutes. A
+// correct password resets it.
+const LOCK_AFTER = 5;
+const lockMinutes = (failures) => Math.min(15, 2 ** Math.max(0, failures - LOCK_AFTER));
+const lockedMessage = (until) => {
+    const mins = Math.max(1, Math.ceil((new Date(until) - Date.now()) / 60000));
+    return `Too many wrong passwords. Please wait ${mins} minute${mins === 1 ? '' : 's'} and try again, or reset your password.`;
+};
 
 const hashJti = (jti) => crypto.createHash('sha256').update(jti).digest('hex');
 
@@ -58,22 +70,36 @@ const issueAuthTokens = async (user) => {
  * cookies there are port-agnostic, which is what local dev needs).
  * The JSON body keeps returning both tokens — existing clients unchanged.
  */
-const REFRESH_COOKIE = 'bp_rt';
+// One cookie per side (customer / business): the refresh token is never handed
+// to the page (a script there can't read an httpOnly cookie), and someone signed
+// in to a customer account on one app and a business account on the other keeps
+// both sessions. 'bp_rt' is the shared cookie both apps used before: still read,
+// and retired whenever a per-side cookie is set.
+const LEGACY_REFRESH_COOKIE = 'bp_rt';
+const refreshCookieName = (accountType) => (accountType === 'business' ? 'bp_rt_b' : 'bp_rt_c');
 const refreshCookieAttrs = () => {
     const parts = ['HttpOnly', 'Path=/api/auth', 'SameSite=Lax'];
     if (process.env.COOKIE_DOMAIN) parts.push(`Domain=${process.env.COOKIE_DOMAIN}`);
     if (process.env.NODE_ENV === 'production') parts.push('Secure');
     return parts;
 };
-const setRefreshCookie = (res, refreshToken) => {
+const expireCookie = (res, name) => {
+    res.append('Set-Cookie', [`${name}=`, 'Max-Age=0', ...refreshCookieAttrs()].join('; '));
+};
+const setRefreshCookie = (res, refreshToken, user) => {
     const maxAge = 30 * 24 * 60 * 60; // matches REFRESH_TOKEN_EXPIRE default
-    res.append('Set-Cookie', [`${REFRESH_COOKIE}=${encodeURIComponent(refreshToken)}`, `Max-Age=${maxAge}`, ...refreshCookieAttrs()].join('; '));
+    const name = refreshCookieName(User.accountTypeForRole(user.role));
+    res.append('Set-Cookie', [`${name}=${encodeURIComponent(refreshToken)}`, `Max-Age=${maxAge}`, ...refreshCookieAttrs()].join('; '));
+    expireCookie(res, LEGACY_REFRESH_COOKIE);
 };
-const clearRefreshCookie = (res) => {
-    res.append('Set-Cookie', [`${REFRESH_COOKIE}=`, 'Max-Age=0', ...refreshCookieAttrs()].join('; '));
+// Sign out one side (its cookie, plus the old shared one), or both.
+const clearRefreshCookie = (res, accountType = null) => {
+    if (accountType) expireCookie(res, refreshCookieName(accountType));
+    else { expireCookie(res, 'bp_rt_c'); expireCookie(res, 'bp_rt_b'); }
+    expireCookie(res, LEGACY_REFRESH_COOKIE);
 };
-const readRefreshCookie = (req) => {
-    const match = (req.headers.cookie || '').match(/(?:^|;\s*)bp_rt=([^;]+)/);
+const readCookie = (req, name) => {
+    const match = (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
     return match ? decodeURIComponent(match[1]) : null;
 };
 
@@ -216,7 +242,7 @@ exports.register = async (req, res) => {
             .catch((err) => console.error('Verification email failed:', err.message));
 
         const { token, refreshToken } = await issueAuthTokens(user);
-        setRefreshCookie(res, refreshToken);
+        setRefreshCookie(res, refreshToken, user);
 
         res.status(201).json({
             success: true,
@@ -232,7 +258,6 @@ exports.register = async (req, res) => {
                     isVerified: false,
                 },
                 token,
-                refreshToken,
             }
         });
     } catch (error) {
@@ -302,11 +327,22 @@ exports.login = async (req, res) => {
         const query = accountType
             ? { email, role: User.roleFilterForAccountType(accountType) }
             : { email };
-        const candidates = await User.find(query).select('+password +refreshTokenJtis');
+        const candidates = await User.find(query).select('+password +refreshTokenJtis +loginFailures +loginLockedUntil');
+
+        // Every account this password could open is paused: say so, without
+        // spending a comparison (a paused account must not be guessable).
+        const now = new Date();
+        const withPassword = candidates.filter((c) => c.password);
+        const isLocked = (c) => c.loginLockedUntil && c.loginLockedUntil > now;
+        if (withPassword.length && withPassword.every(isLocked)) {
+            const until = withPassword.map((c) => c.loginLockedUntil).sort((a, b) => a - b)[0];
+            return res.status(429).json({ success: false, code: 'login_locked', message: lockedMessage(until) });
+        }
 
         let user = null;
         let didRealCompare = false;
         for (const candidate of candidates) {
+            if (isLocked(candidate)) continue;
             // matchPassword short-circuits to false without touching bcrypt when the
             // account has no password hash (a Google-only / passwordless account), so
             // track whether an actual bcrypt comparison was performed — candidates
@@ -322,6 +358,17 @@ exports.login = async (req, res) => {
         // comparison against a fixed dummy hash so all three paths cost the same.
         if (!user && !didRealCompare) {
             await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+        }
+
+        if (!user) {
+            // Count the miss on every account the password failed to open.
+            for (const c of withPassword) {
+                if (isLocked(c)) continue;
+                const failures = (c.loginFailures || 0) + 1;
+                const set = { loginFailures: failures };
+                if (failures >= LOCK_AFTER) set.loginLockedUntil = new Date(Date.now() + lockMinutes(failures) * 60000);
+                await User.updateOne({ _id: c._id }, { $set: set });
+            }
         }
 
         if (!user) {
@@ -379,13 +426,24 @@ exports.login = async (req, res) => {
         }
 
         const { token, refreshToken } = await issueAuthTokens(user);
-        setRefreshCookie(res, refreshToken);
+        setRefreshCookie(res, refreshToken, user);
 
         // Record the sign-in. Atomic $set (not user.save) so it never trips
         // validation on a partially-selected doc and never races the jti update.
         // First login for an invited staff member flips their Team status from
         // "Invited · awaiting login" to active.
-        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
+        // A correct password clears the wrong-password count, and a password
+        // hashed at an older, cheaper cost is re-hashed at today's.
+        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date(), loginFailures: 0, loginLockedUntil: null } }).catch(() => {});
+        try {
+            if (bcrypt.getRounds(user.password) < User.BCRYPT_ROUNDS) {
+                // Twin accounts (customer + business on one email) made by this
+                // person share the byte-identical hash, which is how sameIdentity
+                // recognises them, so they move to the new hash together.
+                const newHash = await User.hashPassword(password);
+                await User.updateMany({ email: user.email, password: user.password }, { $set: { password: newHash } });
+            }
+        } catch { /* a failed upgrade never blocks the sign-in */ }
 
         // Does this email hold an account on the OTHER side too? Two different
         // questions, deliberately kept apart:
@@ -446,7 +504,6 @@ exports.login = async (req, res) => {
                     staffOf: user.staffOf,
                 },
                 token,
-                refreshToken,
                 // 'customer' | 'business' | null — the other side these same
                 // credentials also unlock. Kept for its original meaning (and
                 // for bundles cached before otherSide existed): a non-null value
@@ -475,7 +532,7 @@ exports.login = async (req, res) => {
  */
 const googleSession = async (res, user) => {
     const { token, refreshToken } = await issueAuthTokens(user);
-    setRefreshCookie(res, refreshToken);
+    setRefreshCookie(res, refreshToken, user);
 
     // The same question the password login answers: does this email hold an
     // account on the OTHER side? Without this, every Google sign-in landed
@@ -500,7 +557,6 @@ const googleSession = async (res, user) => {
 
     return {
         token,
-        refreshToken,
         user: {
             _id: user._id,
             id: user._id,
@@ -528,9 +584,17 @@ exports.exchangeOAuthCode = async (req, res) => {
 
         const codeHash = crypto.createHash('sha256').update(code).digest('hex');
         const user = await User.findOne({ oauthCode: codeHash, oauthCodeExpiry: { $gt: new Date() } })
-            .select('+oauthCode +oauthCodeExpiry +refreshTokenJtis');
+            .select('+oauthCode +oauthCodeExpiry +oauthCodeBinding +refreshTokenJtis');
 
         if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+        // A copied or shared sign-in link: only the browser that asked may use it.
+        if (!handoffAllowed(req, user.oauthCodeBinding)) {
+            return res.status(400).json({
+                success: false,
+                code: 'handoff_other_browser',
+                message: 'This sign-in link only works in the browser that opened it. Please sign in here instead.',
+            });
+        }
 
         if (user.isActive === false) {
             // Parity with password login: a self-deactivated account reactivates
@@ -550,6 +614,8 @@ exports.exchangeOAuthCode = async (req, res) => {
 
         user.oauthCode = null;
         user.oauthCodeExpiry = null;
+        user.oauthCodeBinding = null;
+        clearHandoff(res);
         // issueAuthTokens no longer saves the doc (atomic jti update) — persist
         // the consumed one-time code (and any reactivation above) explicitly.
         await user.save();
@@ -652,74 +718,73 @@ exports.completeGoogleSignup = async (req, res) => {
  */
 exports.refresh = async (req, res) => {
     try {
-        // Body token from the app's own storage, or the SSO cookie set by a
-        // login on a sibling subdomain (spec §8).
-        const refreshToken = req.body?.refreshToken || readRefreshCookie(req);
-        if (!refreshToken) {
+        // Which session to renew: this app's own cookie first, then a token an
+        // app loaded before this change kept in storage, then the old shared
+        // cookie. Each is tried in turn, so a stale or other-side token never
+        // signs this app out while a good one is available.
+        const { accountType } = req.body || {};
+        const scoped = accountType === 'customer' || accountType === 'business';
+        const candidates = [...new Set([
+            ...(scoped ? [readCookie(req, refreshCookieName(accountType))] : [readCookie(req, 'bp_rt_c'), readCookie(req, 'bp_rt_b')]),
+            req.body?.refreshToken,
+            readCookie(req, LEGACY_REFRESH_COOKIE),
+        ].filter(Boolean))];
+        if (!candidates.length) {
             return res.status(400).json({ success: false, message: 'Refresh token required' });
         }
 
-        let decoded;
-        try {
-            decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-        } catch (err) {
-            return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
-        }
-
-        const user = await User.findById(decoded.id).select('+refreshTokenJtis');
-        if (!user) {
-            return res.status(401).json({ success: false, message: 'Invalid refresh token' });
-        }
-
-        if (user.isActive === false) {
-            return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
-        }
-        if (await teamBusinessSuspended(user)) {
-            return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
-        }
-
-        // App-scoped sessions: each app sends its accountType so the SSO cookie
-        // from a sibling-subdomain login can only bootstrap a session for the
-        // matching side — the business app never silently adopts a customer
-        // session (and vice versa). Legacy clients omit it and keep old behavior.
-        const { accountType } = req.body || {};
-        if ((accountType === 'customer' || accountType === 'business') &&
-            User.accountTypeForRole(user.role) !== accountType) {
-            return res.status(403).json({
-                success: false,
-                message: `This session belongs to a ${User.accountTypeForRole(user.role)} account.`,
-            });
-        }
-
-        // Revoked by a logout / password reset since this refresh token was issued
-        if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
-            return res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
-        }
-
-        // Reuse / rotation check: a tracked account only accepts a refresh token
-        // whose jti is still in its valid list. A token that was already rotated
-        // away (or forged) won't be there, so it's rejected. Tokens predating this
-        // feature carry no jti and the account has no list yet — those are allowed
-        // through (legacy grace) until their first rotation starts tracking them.
-        if (Array.isArray(user.refreshTokenJtis) && user.refreshTokenJtis.length > 0) {
-            if (!decoded.jti || !user.refreshTokenJtis.includes(hashJti(decoded.jti))) {
-                return res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
+        let failure = { status: 401, body: { success: false, message: 'Invalid or expired refresh token' } };
+        for (const refreshToken of candidates) {
+            let decoded;
+            try {
+                decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+            } catch (err) {
+                continue;
             }
-            // Race-tolerant rotation (spec §4.3): the presented jti is NOT
-            // consumed — two tabs (or two apps sharing the SSO cookie) that
-            // refresh with the same token both succeed instead of revoking
-            // each other. Old tokens age out of the capped list as new ones
-            // are issued; logout/password-change still revokes everything at
-            // once via tokenVersion + clearing the list.
+
+            const user = await User.findById(decoded.id).select('+refreshTokenJtis');
+            if (!user) continue;
+
+            // App-scoped sessions: a cookie or token belonging to the other side's
+            // account can't renew a session for this app.
+            if (scoped && User.accountTypeForRole(user.role) !== accountType) {
+                failure = { status: 403, body: { success: false, message: `This session belongs to a ${User.accountTypeForRole(user.role)} account.` } };
+                continue;
+            }
+            if (user.isActive === false) {
+                return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+            }
+            if (await teamBusinessSuspended(user)) {
+                return res.status(403).json({ success: false, code: 'business_suspended', message: TEAM_SUSPENDED_MESSAGE });
+            }
+
+            // Revoked by a logout / password reset since this refresh token was issued
+            if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+                failure = { status: 401, body: { success: false, message: 'Refresh token has been revoked' } };
+                continue;
+            }
+
+            // Reuse / rotation check: a tracked account only accepts a refresh token
+            // whose jti is still in its valid list. A token that was already rotated
+            // away (or forged) won't be there, so it's rejected. Tokens predating this
+            // feature carry no jti and the account has no list yet — those are allowed
+            // through (legacy grace) until their first rotation starts tracking them.
+            // Race-tolerant rotation (spec §4.3): the presented jti is NOT consumed —
+            // two tabs refreshing with the same token both succeed. Old tokens age
+            // out of the capped list; logout / password change revoke everything.
+            if (Array.isArray(user.refreshTokenJtis) && user.refreshTokenJtis.length > 0) {
+                if (!decoded.jti || !user.refreshTokenJtis.includes(hashJti(decoded.jti))) {
+                    failure = { status: 401, body: { success: false, message: 'Refresh token has been revoked' } };
+                    continue;
+                }
+            }
+
+            const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user);
+            setRefreshCookie(res, newRefreshToken, user);
+            // Never in the body: the cookie carries it.
+            return res.status(200).json({ success: true, data: { token } });
         }
-
-        const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user);
-        setRefreshCookie(res, newRefreshToken);
-
-        res.status(200).json({
-            success: true,
-            data: { token, refreshToken: newRefreshToken }
-        });
+        return res.status(failure.status).json(failure.body);
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -733,7 +798,7 @@ exports.refresh = async (req, res) => {
 exports.logout = async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [] } });
-        clearRefreshCookie(res);
+        clearRefreshCookie(res, User.accountTypeForRole(req.user.role));
         res.status(200).json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Logout failed' });
@@ -1034,6 +1099,7 @@ exports.becomeProvider = async (req, res) => {
             $set: {
                 oauthCode: crypto.createHash('sha256').update(handoffCode).digest('hex'),
                 oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000),
+                oauthCodeBinding: bindHandoff(res),
             },
         });
 
@@ -1078,12 +1144,15 @@ const sameIdentity = (a, b) =>
 
 // Mint a one-time code the other origin exchanges for a session (same mechanism
 // as the Google callback). Caller must already own the target document.
-const mintHandoffCode = async (userId) => {
+// Bound to the asking browser (utils/handoffBinding), so a shared link can't
+// sign anyone else in.
+const mintHandoffCode = async (userId, res) => {
     const code = crypto.randomBytes(32).toString('hex');
     await User.updateOne({ _id: userId }, {
         $set: {
             oauthCode: crypto.createHash('sha256').update(code).digest('hex'),
             oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000),
+            oauthCodeBinding: bindHandoff(res),
         },
     });
     return code;
@@ -1151,7 +1220,7 @@ exports.switchSide = async (req, res) => {
             return res.status(404).json({ success: false, message: 'No account on the other side' });
         }
         if (sameIdentity(me, sibling)) {
-            const handoffCode = await mintHandoffCode(sibling._id);
+            const handoffCode = await mintHandoffCode(sibling._id, res);
             return res.status(200).json({ success: true, data: { accountType: otherType, handoffCode } });
         }
         // Independent credentials: only tell a proven owner it's there (and to
@@ -1209,7 +1278,7 @@ exports.addCustomerAccount = async (req, res) => {
             await User.updateOne({ _id: customer._id }, { $set: { password: withPassword.password } });
         }
 
-        const handoffCode = await mintHandoffCode(customer._id);
+        const handoffCode = await mintHandoffCode(customer._id, res);
         res.status(200).json({
             success: true,
             message: 'Your customer account is ready.',
@@ -1377,7 +1446,7 @@ const { ApptPhrase } = require('../utils/apptCopy');
         // Remove / anonymise every personal record (see utils/accountData for
         // exactly what goes and what is kept anonymised for the other party).
         await require('../utils/accountData').purgeAccount(user);
-        clearRefreshCookie(res);
+        clearRefreshCookie(res, User.accountTypeForRole(user.role));
 
         res.status(200).json({ success: true, message: 'Your account has been deleted.' });
     } catch (error) {
@@ -1654,11 +1723,14 @@ exports.resetPassword = async (req, res) => {
         // Invalidate all existing sessions
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.refreshTokenJtis = []; // drop tracked refresh tokens too
+        // Proving the mailbox lifts a wrong-password pause.
+        user.loginFailures = 0;
+        user.loginLockedUntil = null;
         await user.save();
         if (oldHash) {
             await User.updateOne(
                 { email: user.email, _id: { $ne: user._id }, password: oldHash },
-                { $set: { password: user.password, refreshTokenJtis: [] }, $inc: { tokenVersion: 1 } },
+                { $set: { password: user.password, refreshTokenJtis: [], loginFailures: 0, loginLockedUntil: null }, $inc: { tokenVersion: 1 } },
             );
         }
 
@@ -1839,7 +1911,7 @@ exports.acceptStaffInvite = async (req, res) => {
 
         // Sign them straight in — the point of the accept step.
         const { token: accessToken, refreshToken } = await issueAuthTokens(user);
-        setRefreshCookie(res, refreshToken);
+        setRefreshCookie(res, refreshToken, user);
 
         return res.status(200).json({
             success: true,
@@ -1858,7 +1930,6 @@ exports.acceptStaffInvite = async (req, res) => {
                     staffOf: user.staffOf,
                 },
                 token: accessToken,
-                refreshToken,
             },
         });
     } catch (error) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
+const { bindHandoff } = require('../utils/handoffBinding');
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 const { buildState, roleFromState, cookieHeader, clearCookieHeader, verifyState } = require('../utils/oauthState');
 const crypto = require('crypto');
@@ -157,6 +158,8 @@ router.get('/google/callback', (req, res, next) => {
             await User.findByIdAndUpdate(user._id, {
                 oauthCode: codeHash,
                 oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+                // Only this browser may exchange the code (utils/handoffBinding).
+                oauthCodeBinding: bindHandoff(res),
             });
             // On success, use the authenticated account's real role.
             return res.redirect(`${originForRole(user.role)}/auth/callback?code=${code}`);

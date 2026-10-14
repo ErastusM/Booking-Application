@@ -143,6 +143,10 @@ const userSchema = new mongoose.Schema(
         // invited staff account, is what separates "Invited · awaiting login" from an
         // active member on the Team screen.
         lastLoginAt: { type: Date, default: null },
+        // Wrong passwords in a row, and until when sign-in is paused after too
+        // many (controllers/authController.js login). Never sent to the apps.
+        loginFailures: { type: Number, default: 0, select: false },
+        loginLockedUntil: { type: Date, default: null, select: false },
         // Hashes of recently-issued refresh-token ids (jti). A refresh token whose jti
         // isn't here is rejected (rotated-away / forged). undefined = legacy, untracked.
         refreshTokenJtis: { type: [String], default: undefined, select: false },
@@ -261,6 +265,8 @@ const userSchema = new mongoose.Schema(
         deactivatedAt: { type: Date, default: null },
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
+        // Hash of the browser cookie the code was minted for (utils/handoffBinding).
+        oauthCodeBinding: { type: String, default: null, select: false },
         passwordResetToken: { type: String, default: null, select: false },
         passwordResetExpiry: { type: Date, default: null, select: false },
         // Staff set-password invites, kept APART from passwordResetToken. Every
@@ -311,6 +317,9 @@ const userSchema = new mongoose.Schema(
                 delete ret.refreshTokenJtis;
                 delete ret.oauthCode;
                 delete ret.oauthCodeExpiry;
+                delete ret.oauthCodeBinding;
+                delete ret.loginFailures;
+                delete ret.loginLockedUntil;
                 delete ret.payoutAccount;
                 return ret;
             },
@@ -347,13 +356,15 @@ userSchema.pre('validate', function (next) {
     next();
 });
 
+// bcrypt work factor: 12 (the payment-readiness audit's recommendation).
+// Tests run at the minimum so the suite stays fast; BCRYPT_ROUNDS overrides.
+const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS) || (process.env.NODE_ENV === 'test' ? 4 : 12);
+const hashPassword = async (plain) => bcrypt.hash(plain, await bcrypt.genSalt(BCRYPT_ROUNDS));
+
 // Hash password before saving
 userSchema.pre('save', async function (next) {
     if (!this.isModified('password') || !this.password) return next();
-
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-
+    this.password = await hashPassword(this.password);
     next();
 });
 
@@ -371,4 +382,7 @@ userSchema.index({ passwordResetToken: 1 }, { sparse: true });
 userSchema.index({ 'staffInvites.hash': 1 }, { sparse: true });
 userSchema.index({ oauthCode: 1 }, { sparse: true });
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+User.BCRYPT_ROUNDS = BCRYPT_ROUNDS;
+User.hashPassword = hashPassword;
+module.exports = User;

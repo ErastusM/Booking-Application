@@ -14,9 +14,8 @@ const AuthCallback = () => {
     const [params] = useState(() => new URLSearchParams(window.location.search));
     const signupCode = params.get('signup');
 
-    const handleSession = ({ token, refreshToken, user }) => {
+    const handleSession = ({ token, user }) => {
         localStorage.setItem('token', token);
-        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
         login({ token, user });
 
         setTimeout(() => {
