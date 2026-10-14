@@ -23,6 +23,8 @@ const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
+// Every admin request needs two-step sign-in, so the console waits behind it.
+const AdminTwoStepGate = lazy(() => import('./components/AdminTwoStep'));
 const Register = lazy(() => import('./pages/Register'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
@@ -102,12 +104,12 @@ function AppRoutes() {
                     <Route path="/bkplus-command/login" element={<AdminLogin />} />
                     <Route path="/bkplus-command" element={
                         <ProtectedRoute allowedRoles={['admin']} loginPath="/bkplus-command/login">
-                            <AdminDashboard />
+                            <AdminTwoStepGate><AdminDashboard /></AdminTwoStepGate>
                         </ProtectedRoute>
                     } />
                     <Route path="/bkplus-command/insights" element={
                         <ProtectedRoute allowedRoles={['admin']} loginPath="/bkplus-command/login">
-                            <AnalyticsDashboard />
+                            <AdminTwoStepGate><AnalyticsDashboard /></AdminTwoStepGate>
                         </ProtectedRoute>
                     } />
 

@@ -814,7 +814,7 @@ exports.refresh = async (req, res) => {
         for (const refreshToken of candidates) {
             let decoded;
             try {
-                decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+                decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, { algorithms: ['HS256'] });
             } catch (err) {
                 continue;
             }
@@ -2055,7 +2055,7 @@ exports.mfaLogin = async (req, res) => {
         const { mfaToken, code } = req.body || {};
         let ticket;
         try {
-            ticket = jwt.verify(String(mfaToken || ''), MFA_TICKET_SECRET());
+            ticket = jwt.verify(String(mfaToken || ''), MFA_TICKET_SECRET(), { algorithms: ['HS256'] });
         } catch {
             return res.status(401).json({ success: false, code: 'mfa_ticket_expired', message: 'That sign-in took too long. Please enter your email and password again.' });
         }

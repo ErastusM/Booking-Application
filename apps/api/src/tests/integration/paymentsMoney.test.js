@@ -20,7 +20,7 @@ const Payment = require('../../models/Payment');
 const LedgerEntry = require('../../models/LedgerEntry');
 const Payout = require('../../models/Payout');
 const payments = require('../../services/paymentService');
-const { makeProvider, makeUser, makeFinanceAdmin, makeAdmin, makeService, authHeader, financeHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
+const { makeProvider, makeUser, makeFinanceAdmin, makeAdmin, makeService, authHeader, financeHeader, passwordOnlyHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { createFakePaygate } = require('../helpers/fakePaygate');
 
@@ -233,12 +233,12 @@ describe('admin: balances and payouts', () => {
 
         expect((await request(app).get('/api/payments/admin/balances').set(authHeader(owner))).status).toBe(403);
         // Bookplus money needs a session confirmed with two-step sign-in.
-        const unconfirmed = await request(app).get('/api/payments/admin/balances').set(authHeader(admin));
+        const unconfirmed = await request(app).get('/api/payments/admin/balances').set(passwordOnlyHeader(admin));
         expect(unconfirmed.status).toBe(403);
         expect(unconfirmed.body.code).toBe('mfa_required');
         const stale = await request(app).get('/api/payments/admin/balances').set(financeHeader(admin, Math.floor(Date.now() / 1000) - 13 * 3600));
         expect(stale.body.code).toBe('mfa_required');
-        const noMfa = await makeAdmin();
+        const noMfa = await makeAdmin({}, { twoStep: false });
         const r2 = await request(app).get('/api/payments/admin/balances').set(financeHeader(noMfa));
         expect(r2.status).toBe(403);
         expect(r2.body.code).toBe('mfa_setup_required');

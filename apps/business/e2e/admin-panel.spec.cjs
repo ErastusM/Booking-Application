@@ -1,8 +1,7 @@
 const { test, expect } = require('@playwright/test');
-const { SEED } = require('./helpers.cjs');
+const { SEED, adminWithTwoStep, adminConsoleLogin } = require('./helpers.cjs');
 
 const API = `http://localhost:${process.env.E2E_API_PORT || 5053}`;
-const ADMIN = { email: 'e2e-admin@bookplus.dev', password: 'Password1!' };
 
 /**
  * The admin console (/bkplus-command) after the owner's "Fix 1-7":
@@ -12,13 +11,13 @@ const ADMIN = { email: 'e2e-admin@bookplus.dev', password: 'Password1!' };
  * business that has no wallet yet. Everything it changes is on a business
  * built for it (/__e2e/admin-fixture), never the seeded one other specs book.
  */
-async function adminLogin(page) {
-    await page.goto('/bkplus-command/login');
-    await page.getByLabel('Admin email').fill(ADMIN.email);
-    await page.getByLabel('Password').fill(ADMIN.password);
-    await page.getByRole('button', { name: /enter console/i }).click();
-    await page.waitForURL(/\/bkplus-command$/, { timeout: 15_000 });
+// Every admin request needs two-step sign-in, so each test signs in a fresh
+// admin with it on (password, then the code). Returns that admin.
+async function adminLogin(page, request) {
+    const admin = await adminWithTwoStep(request);
+    await adminConsoleLogin(page, admin);
     await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible();
+    return admin;
 }
 
 const confirmDialog = (page) => page.getByRole('alertdialog');
@@ -42,7 +41,7 @@ test.describe('Admin console', () => {
 
     test('every tab loads; No-show filter; Business column and guest names', async ({ page, request }) => {
         const fx = await (await request.post(`${API}/__e2e/admin-fixture`)).json();
-        await adminLogin(page);
+        await adminLogin(page, request);
 
         // The four cards are server-side counts.
         for (const label of ['Users', 'Pending bookings (all)', 'Active services', 'Revenue']) {
@@ -86,7 +85,7 @@ test.describe('Admin console', () => {
             .some((p) => p._id === fx.providerId);
         expect(await listed()).toBe(true);
 
-        await adminLogin(page);
+        await adminLogin(page, request);
         await page.getByRole('tab', { name: 'Users' }).click();
         await page.getByLabel('Search users by name or email').fill(fx.ownerEmail);
         const row = page.getByRole('row').filter({ hasText: fx.ownerEmail });
@@ -110,12 +109,12 @@ test.describe('Admin console', () => {
 
     test('Make admin, then Remove admin; your own row has no actions; staff get no Make admin', async ({ page, request }) => {
         const fx = await (await request.post(`${API}/__e2e/admin-fixture`)).json();
-        await adminLogin(page);
+        const me = await adminLogin(page, request);
         await page.getByRole('tab', { name: 'Users' }).click();
 
         const search = page.getByLabel('Search users by name or email');
-        await search.fill(ADMIN.email);
-        await expect(page.getByRole('row').filter({ hasText: ADMIN.email }).getByText('Your own account: no actions')).toBeVisible();
+        await search.fill(me.email);
+        await expect(page.getByRole('row').filter({ hasText: me.email }).getByText('Your own account: no actions')).toBeVisible();
 
         await search.fill(SEED.staff.email);
         const staffRow = page.getByRole('row').filter({ hasText: SEED.staff.email });
@@ -139,7 +138,7 @@ test.describe('Admin console', () => {
 
     test('credit a business that has no wallet yet', async ({ page, request }) => {
         const fx = await (await request.post(`${API}/__e2e/admin-fixture`)).json();
-        await adminLogin(page);
+        await adminLogin(page, request);
         await page.getByRole('tab', { name: 'Wallet' }).click();
         await page.getByRole('button', { name: 'Credit or debit a business' }).click();
         const dialog = page.getByTestId('wallet-adjust-dialog');
@@ -155,9 +154,9 @@ test.describe('Admin console', () => {
         await expect(page.getByRole('row').filter({ hasText: fx.businessName }).getByText('N$125.00')).toBeVisible();
     });
 
-    test('on a phone the tab row scrolls, with a fade showing there is more', async ({ page }) => {
+    test('on a phone the tab row scrolls, with a fade showing there is more', async ({ page, request }) => {
         await page.setViewportSize({ width: 390, height: 844 });
-        await adminLogin(page);
+        await adminLogin(page, request);
         await expect(page.getByTestId('admin-tabs-fade-right')).toBeVisible();
         await page.getByRole('tab', { name: 'Wallet' }).click();
         await expect(page.getByRole('tab', { name: 'Wallet' })).toBeInViewport();

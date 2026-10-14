@@ -162,6 +162,13 @@ export const createHttp = (
             // (notifications poll, favorites, etc.) probes an authed route. Never bounce
             // them to the login screen. Only a real, expired session (we HAD a token)
             // should attempt a silent refresh and, failing that, force logout.
+            // An admin session that hasn't passed two-step sign-in (or passed it
+            // more than 12 hours ago): the admin console listens and asks for it.
+            const refusal = (error.response?.data as { code?: string } | undefined)?.code;
+            if (status === 403 && (refusal === 'mfa_required' || refusal === 'mfa_setup_required') && typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('admin-two-step-required', { detail: { code: refusal } }));
+            }
+
             const hadToken = !!localStorage.getItem('token');
             const shouldTryRefresh =
                 status === 401 &&
