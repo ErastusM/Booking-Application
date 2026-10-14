@@ -99,6 +99,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         removeDocument: (docId: string) => API.delete(`/payments/onboarding/documents/${docId}`),
         submit: () => API.post('/payments/onboarding/submit', { acceptTerms: true }),
         setSwitch: (on: boolean) => API.put('/payments/onboarding/switch', { on }),
+        // What clients pay online: at the appointment, a deposit, or the full price.
+        getSettings: () => API.get('/payments/settings'),
+        updateSettings: (data: { mode: string; depositType?: string; depositValue?: number | null }) => API.put('/payments/settings', data),
         getPayoutAccount: () => API.get('/payments/payout-account'),
         getPayoutAccountForEdit: () => API.get('/payments/payout-account/edit'),
         updatePayoutAccount: (data: any) => API.put('/payments/payout-account', data),

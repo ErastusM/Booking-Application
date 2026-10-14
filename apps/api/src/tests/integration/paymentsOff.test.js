@@ -96,6 +96,14 @@ describe('payments switched off', () => {
             request(app).get('/api/payments/me/statement.csv'),
             request(app).get('/api/payments/me/payments'),
             request(app).post('/api/payments/507f1f77bcf86cd799439011/refund').send({}),
+            // Applying to take online payments.
+            request(app).get('/api/payments/onboarding'),
+            request(app).put('/api/payments/onboarding').send({ plan: 'basic' }),
+            request(app).post('/api/payments/onboarding/upload'),
+            request(app).post('/api/payments/onboarding/documents').send({}),
+            request(app).delete('/api/payments/onboarding/documents/507f1f77bcf86cd799439011'),
+            request(app).post('/api/payments/onboarding/submit').send({ acceptTerms: true }),
+            request(app).put('/api/payments/onboarding/switch').send({ on: true }),
         ];
         for (const r of asOwner) expect((await r.set(authHeader(provider))).status).toBe(404);
         const asAdmin = [

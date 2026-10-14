@@ -322,3 +322,38 @@ describe('a booking still waiting for payment', () => {
         expect((await Appointment.findById(appt._id)).status).toBe('cancelled');
     });
 });
+
+describe('money still open with Bookplus', () => {
+    it('a business account can not be deleted, by the business or an admin, until it is settled', async () => {
+        const { owner } = await business();
+        await apply(owner);
+        await payments.writeEntry({ provider: owner._id, type: 'adjustment', amountCents: 12500, currency: 'NAD', key: 'owed' });
+        const self = await request(app).delete('/api/auth/account').set(authHeader(owner)).send({ password: 'Password1!' });
+        expect(self.status).toBe(409);
+        expect(self.body.code).toBe('balance_outstanding');
+        expect(self.body.message).toMatch(/owes N\$125\.00/);
+        const admin = await makeAdmin();
+        const byAdmin = await request(app).delete(`/api/users/${owner._id}`).set(authHeader(admin));
+        expect(byAdmin.status).toBe(409);
+        // Nothing was removed.
+        expect((await User.findById(owner._id).select('+payoutAccount').lean()).payoutAccount.accountNumber).toBe('80041234821');
+        // Settled (paid out): now it can go.
+        await payments.writeEntry({ provider: owner._id, type: 'payout', amountCents: -12500, currency: 'NAD', key: 'paid' });
+        expect((await request(app).delete('/api/auth/account').set(authHeader(owner)).send({ password: 'Password1!' })).status).toBe(200);
+    });
+});
+
+describe('Download my data', () => {
+    it('includes the online payments application and the payout account, without storage references', async () => {
+        const { owner } = await business();
+        await apply(owner);
+        const r = await request(app).get('/api/auth/account/export').set(authHeader(owner));
+        expect(r.status).toBe(200);
+        const data = JSON.parse(Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.text);
+        const op = data.business.onlinePayments;
+        expect(op.application).toMatchObject({ status: 'submitted', plan: 'standard', legal: { ownerIdNumber: '85010100123' } });
+        expect(op.application.documents).toHaveLength(3);
+        expect(op.payoutAccount.accountNumber).toBe('80041234821');
+        expect(JSON.stringify(data)).not.toMatch(/bookplus\/verification|publicId/);
+    });
+});

@@ -49,7 +49,8 @@ test.describe('Online payments: apply and approve', () => {
         await page.getByLabel("Owner's full name").fill('Fixture Owner');
         await page.getByLabel("Owner's ID or passport number").fill('85010100123');
         await page.getByRole('button', { name: 'Save details' }).click();
-        await expect(page.getByLabel("Owner's ID or passport number")).toHaveAttribute('placeholder', /Saved \(•+123\)/);
+        await expect(page.getByTestId('id-saved')).toHaveText(/^Saved: •+123$/);
+        await expect(page.getByLabel("Owner's ID or passport number")).toHaveValue('');
 
         // 3. Documents (private upload).
         const pdf = { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') };
@@ -104,6 +105,15 @@ test.describe('Online payments: apply and approve', () => {
         await sw.evaluate((el) => el.scrollIntoView({ block: 'center' })); // clear of the bottom bar
         await sw.getByRole('checkbox').click();
         await expect(sw.getByRole('checkbox')).toBeChecked();
-        await expect(sw).toContainText('On: clients pay online');
+        await expect(sw.getByTestId('switch-label')).toContainText('nothing is asked online yet');
+
+        // A 25% deposit: now a N$200 booking asks for N$50 online.
+        const mode = sw.getByTestId('payment-mode');
+        await mode.getByRole('radio', { name: /A deposit when they book/ }).check();
+        await mode.getByLabel('Percent of the price').fill('25');
+        await mode.getByRole('button', { name: 'Save' }).click();
+        await expect(sw.getByTestId('switch-label')).toContainText('On: clients pay a deposit of 25% of the price when they book');
+        const policy = await (await request.get(`${API}/api/payments/policy/${fx.providerId}?priceCents=20000`)).json();
+        expect(policy.data).toMatchObject({ onlinePayment: true, mode: 'deposit', amountDueOnlineCents: 5000 });
     });
 });

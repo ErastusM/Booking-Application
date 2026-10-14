@@ -60,24 +60,23 @@ const STATUS_TEXT = {
 };
 
 // What the business receives from one online booking of `cents` on a plan.
-const exampleFor = (plan, processingFee, cents) => {
-    const commission = Math.round((cents * plan.commissionBps) / 10000) + (plan.fixedFeeCents || 0);
+const exampleFor = (plan, processingFee, cents, minCommissionCents = 0) => {
+    const commission = Math.min(cents, Math.max(minCommissionCents, Math.round((cents * plan.commissionBps) / 10000) + (plan.fixedFeeCents || 0)));
     const processing = processingFee.known && processingFee.payer === 'business'
         ? Math.round((cents * (processingFee.bps || 0)) / 10000) + (processingFee.fixedCents || 0)
         : 0;
     return { commission, processing, receive: cents - commission - processing };
 };
 
-const PlanCard = ({ plan, processingFee, selected, disabled, onChoose }) => {
-    const monthly = plan.priceCents === 0 && plan.introPriceCents === 0
-        ? 'No monthly fee'
-        : [
-            plan.trialDays ? `Free for ${plan.trialDays} days` : null,
-            plan.introMonths ? `then ${nad(plan.introPriceCents)} a month for ${plan.introMonths} months` : null,
-            `${plan.introMonths || plan.trialDays ? 'then ' : ''}${nad(plan.priceCents)} a month`,
-        ].filter(Boolean).join(', ');
-    const perBooking = plan.fixedFeeCents ? `${pct(plan.commissionBps)} + ${nad(plan.fixedFeeCents)}` : pct(plan.commissionBps);
-    const ex = exampleFor(plan, processingFee, 20000);
+const PlanCard = ({ plan, processingFee, minCommissionCents = 0, selected, disabled, onChoose }) => {
+    const parts = [
+        plan.trialDays ? `free for ${plan.trialDays} days` : null,
+        plan.introMonths ? `${nad(plan.introPriceCents)} a month for ${plan.introMonths} months` : null,
+        `${nad(plan.priceCents)} a month`,
+    ].filter(Boolean).map((p, i) => (i === 0 ? p : `then ${p}`)).join(', ');
+    const monthly = plan.priceCents === 0 && plan.introPriceCents === 0 ? 'No monthly fee' : parts[0].toUpperCase() + parts.slice(1);
+    const perBooking = `${plan.fixedFeeCents ? `${pct(plan.commissionBps)} + ${nad(plan.fixedFeeCents)}` : pct(plan.commissionBps)}${minCommissionCents ? `, at least ${nad(minCommissionCents)}` : ''}`;
+    const ex = exampleFor(plan, processingFee, 20000, minCommissionCents);
     return (
         <label data-testid={`plan-${plan.key}`} style={{
             ...card, display: 'grid', gap: '0.5rem', cursor: disabled ? 'default' : 'pointer',
@@ -96,6 +95,76 @@ const PlanCard = ({ plan, processingFee, selected, disabled, onChoose }) => {
     );
 };
 
+// What a client pays online when booking: nothing (at the appointment), a
+// deposit (percent of the price or a fixed amount), or the full price.
+const describeMode = (m) => {
+    if (!m || m.mode === 'at_appointment') return null;
+    if (m.mode === 'full') return 'the full price';
+    return m.depositType === 'fixed' ? `a deposit of ${nad(m.depositValue)}` : `a deposit of ${m.depositValue}% of the price`;
+};
+
+const PaymentMode = ({ value, onSaved }) => {
+    const toast = useToast();
+    const [mode, setMode] = useState(value?.mode || 'at_appointment');
+    const [depositType, setDepositType] = useState(value?.depositType || 'percent');
+    const [amount, setAmount] = useState(() => {
+        if (value?.mode !== 'deposit' || value?.depositValue == null) return '';
+        return value.depositType === 'fixed' ? (value.depositValue / 100).toFixed(2) : String(value.depositValue);
+    });
+    const [busy, setBusy] = useState(false);
+    const save = async (e) => {
+        e.preventDefault();
+        const body = { mode };
+        if (mode === 'deposit') {
+            const n = Number(String(amount).replace(',', '.'));
+            if (!Number.isFinite(n) || n <= 0) { toast('Enter the deposit', 'error'); return; }
+            body.depositType = depositType;
+            body.depositValue = depositType === 'fixed' ? Math.round(n * 100) : Math.round(n);
+        }
+        setBusy(true);
+        try {
+            const res = await onlinePaymentsService.updateSettings(body);
+            onSaved(res.data.data);
+            toast('Saved', 'success');
+        } catch (err) { toast(apiError(err, 'Could not save.'), 'error'); }
+        setBusy(false);
+    };
+    const options = [
+        ['at_appointment', 'Nothing online', 'Clients pay at the appointment.'],
+        ['deposit', 'A deposit when they book', 'The rest is paid at the appointment.'],
+        ['full', 'The full price when they book', ''],
+    ];
+    return (
+        <form onSubmit={save} style={{ ...stack, borderTop: '1px solid var(--border)', paddingTop: '0.9rem', marginTop: '0.9rem' }} data-testid="payment-mode">
+            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.92rem' }}>What clients pay online</p>
+            <div role="radiogroup" aria-label="What clients pay online" style={{ display: 'grid', gap: '0.5rem' }}>
+                {options.map(([v, title, hint]) => (
+                    <label key={v} style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', fontSize: '0.9rem' }}>
+                        <input type="radio" name="pay-mode" value={v} checked={mode === v} onChange={() => setMode(v)} style={{ accentColor: 'var(--gold)', marginTop: '0.2rem' }} />
+                        <span>{title}{hint && <span style={{ ...muted, display: 'block', fontSize: '0.8rem' }}>{hint}</span>}</span>
+                    </label>
+                ))}
+            </div>
+            {mode === 'deposit' && (
+                <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
+                    <div>
+                        <label style={label} htmlFor="dep-type">Deposit as</label>
+                        <select id="dep-type" value={depositType} onChange={(e) => setDepositType(e.target.value)} style={input}>
+                            <option value="percent">A percentage</option>
+                            <option value="fixed">A fixed amount</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style={label} htmlFor="dep-value">{depositType === 'fixed' ? 'Amount (N$)' : 'Percent of the price'}</label>
+                        <input id="dep-value" value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder={depositType === 'fixed' ? '50.00' : '25'} />
+                    </div>
+                </div>
+            )}
+            <button type="submit" className="btn-primary" style={full} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+        </form>
+    );
+};
+
 const OnlinePaymentsSection = () => {
     const toast = useToast();
     const [d, setD] = useState(null);
@@ -106,10 +175,15 @@ const OnlinePaymentsSection = () => {
     const [bankView, setBankView] = useState(null);
     const [busy, setBusy] = useState('');
     const [terms, setTerms] = useState(false);
+    const [payMode, setPayMode] = useState(null);
     const fileRefs = useRef({});
 
-    const apply = useCallback((data) => {
+    // resetForm: put the server's details into the form. Only on first load
+    // and after saving them, so another save (an upload, the plan) never
+    // wipes details typed but not saved yet.
+    const apply = useCallback((data, { resetForm = false } = {}) => {
         setD(data);
+        if (!resetForm) return;
         setLegal({
             businessType: data.legal.businessType || '',
             registeredName: data.legal.registeredName || '',
@@ -121,12 +195,17 @@ const OnlinePaymentsSection = () => {
 
     const load = useCallback(async () => {
         try {
-            apply((await onlinePaymentsService.getApplication()).data.data);
+            apply((await onlinePaymentsService.getApplication()).data.data, { resetForm: true });
             const acct = (await onlinePaymentsService.getPayoutAccount()).data.data;
             setBankView(acct);
         } catch (err) { setError(apiError(err, 'Could not load your online payments.')); }
     }, [apply]);
     useEffect(() => { load(); }, [load]);
+    const approved = d?.status === 'approved';
+    useEffect(() => {
+        if (!approved) return;
+        onlinePaymentsService.getSettings().then((r) => setPayMode(r.data.data)).catch(() => setPayMode({ mode: 'at_appointment' }));
+    }, [approved]);
 
     const run = async (key, fn, okMessage) => {
         setBusy(key);
@@ -167,7 +246,8 @@ const OnlinePaymentsSection = () => {
         const payload = { ...legal };
         if (!payload.ownerIdNumber) delete payload.ownerIdNumber; // keep the one already given
         if (!payload.businessType) delete payload.businessType;
-        return run('details', () => onlinePaymentsService.updateApplication({ legal: payload }), 'Details saved');
+        return run('details', () => onlinePaymentsService.updateApplication({ legal: payload }), 'Details saved')
+            .then((res) => { if (res?.data?.data) apply(res.data.data, { resetForm: true }); });
     };
 
     const upload = async (kind, file) => {
@@ -212,7 +292,7 @@ const OnlinePaymentsSection = () => {
                 <div data-testid="application-status" style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.85rem' }}>
                     <p style={{ margin: 0, fontWeight: 600, color: d.status === 'approved' ? '#166534' : d.status === 'rejected' ? '#991b1b' : 'var(--charcoal)' }}>{statusTitle}</p>
                     {statusText && <p style={muted}>{statusText}</p>}
-                    {d.decisionNote && ['info_requested', 'rejected'].includes(d.status) && <p style={{ ...muted, color: 'var(--charcoal)' }}>Bookplus: {d.decisionNote}</p>}
+                    {d.decisionNote && ['info_requested', 'rejected'].includes(d.status) && <p style={{ ...muted, color: 'var(--charcoal)', overflowWrap: 'anywhere' }}>Bookplus: {d.decisionNote}</p>}
                     {d.status === 'rejected' && <p style={muted}>The documents you sent were deleted. You can change your details and apply again.</p>}
                 </div>
             </div>
@@ -225,9 +305,16 @@ const OnlinePaymentsSection = () => {
                     ) : (
                         <label style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', fontSize: '0.92rem' }}>
                             <input type="checkbox" checked={d.switchOn} disabled={busy === 'switch'} onChange={(e) => flipSwitch(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
-                            {d.switchOn ? 'On: clients pay online as you have chosen' : 'Off: clients pay at the appointment'}
+                            <span data-testid="switch-label">
+                                {!d.switchOn
+                                    ? 'Off: clients pay at the appointment'
+                                    : describeMode(payMode)
+                                        ? `On: clients pay ${describeMode(payMode)} when they book`
+                                        : 'On, but nothing is asked online yet: choose a deposit or the full price below'}
+                            </span>
                         </label>
                     )}
+                    {!d.adminOff && payMode && <PaymentMode value={payMode} onSaved={setPayMode} />}
                     {d.payoutAccountReviewNeeded && <p style={{ ...muted, marginTop: '0.5rem' }}>Bookplus is checking your new bank account. Payouts start again once it is confirmed.</p>}
                 </div>
             )}
@@ -236,14 +323,16 @@ const OnlinePaymentsSection = () => {
                 <h3 style={{ ...h3, marginBottom: '0.75rem' }}>1. Choose a plan</h3>
                 <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 15rem), 1fr))' }}>
                     {d.plans.map((p) => (
-                        <PlanCard key={p.key} plan={p} processingFee={d.processingFee} selected={d.plan === p.key} disabled={!editable || busy === 'plan'}
+                        <PlanCard key={p.key} plan={p} processingFee={d.processingFee} minCommissionCents={d.minCommissionCents || 0} selected={d.plan === p.key} disabled={!editable || busy === 'plan'}
                             onChoose={choosePlan} />
                     ))}
                 </div>
                 <p style={{ ...muted, marginTop: '0.75rem', fontSize: '0.8rem' }}>
-                    {d.processingFee.known
-                        ? `The card processing fee, ${pct(d.processingFee.bps)}${d.processingFee.fixedCents ? ` + ${nad(d.processingFee.fixedCents)}` : ''} per payment, is ${d.processingFee.payer === 'business' ? 'taken from your payout' : 'paid by Bookplus'}. It is not returned when a payment is refunded.`
-                        : 'A card processing fee charged by the card processor is added to these. Bookplus confirms it before online payments start.'}
+                    {!d.processingFee.known
+                        ? 'A card processing fee charged by the card processor is added to these. Bookplus confirms it before online payments start.'
+                        : d.processingFee.payer === 'business'
+                            ? `The card processing fee, ${pct(d.processingFee.bps)}${d.processingFee.fixedCents ? ` + ${nad(d.processingFee.fixedCents)}` : ''} per payment, is taken from your payout. The card processor keeps it when a payment is refunded.`
+                            : 'Bookplus pays the card processing fee.'}
                 </p>
             </div>
 
@@ -274,7 +363,10 @@ const OnlinePaymentsSection = () => {
                     <div>
                         <label style={label} htmlFor="op-id">Owner's ID or passport number</label>
                         <input id="op-id" value={legal.ownerIdNumber} maxLength={30} autoComplete="off" onChange={(e) => setLegal((l) => ({ ...l, ownerIdNumber: e.target.value }))} style={input}
-                            placeholder={d.legal.hasOwnerIdNumber ? `Saved (${d.legal.ownerIdNumberMasked}). Type to replace it.` : ''} />
+                            placeholder={d.legal.hasOwnerIdNumber && editable ? 'Type a new number to replace it' : ''} aria-describedby="op-id-saved" />
+                        {d.legal.hasOwnerIdNumber && (
+                            <p id="op-id-saved" data-testid="id-saved" style={{ ...muted, fontSize: '0.8rem', marginTop: '0.3rem' }}>Saved: {d.legal.ownerIdNumberMasked}</p>
+                        )}
                     </div>
                     {editable && <button type="submit" className="btn-primary" style={full} disabled={busy === 'details'}>{busy === 'details' ? 'Saving…' : 'Save details'}</button>}
                 </fieldset>

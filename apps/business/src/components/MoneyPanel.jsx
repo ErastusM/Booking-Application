@@ -480,11 +480,11 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
         // it, cut its link back to this page, then point it at the document.
         // ('noopener' would make window.open return null, losing the tab.)
         const tab = window.open('about:blank', '_blank');
-        if (tab) tab.opener = null;
+        if (!tab) { toast('Allow pop-ups for this site to open documents.', 'error'); return; }
+        tab.opener = null;
         try {
             const { url } = (await financeService.getApprovalDocument(id, doc._id)).data.data;
-            if (tab) tab.location.href = url;
-            else toast('Allow pop-ups for this site to open documents.', 'error');
+            tab.location.href = url;
         } catch (err) {
             if (tab) tab.close();
             toast(apiError(err, 'Could not open the document.'), 'error');
@@ -519,7 +519,7 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
         </div>
     );
     return (
-        <div style={{ display: 'grid', gap: '0.9rem', marginTop: '0.75rem' }} data-testid="application-review">
+        <div style={{ display: 'grid', gap: '0.9rem', marginTop: '0.75rem', gridTemplateColumns: 'minmax(0, 1fr)', overflowWrap: 'anywhere' }} data-testid="application-review">
             <div>
                 <p style={{ ...h3, marginBottom: '0.25rem' }}>Business</p>
                 <Row k="Business" v={a.businessName} />
@@ -597,7 +597,7 @@ const ApplicationReview = ({ id, onChanged, onLocked }) => {
             {app.history?.length > 0 && (
                 <details>
                     <summary style={{ cursor: 'pointer', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>History</summary>
-                    <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6, overflowWrap: 'anywhere' }}>
                         {app.history.map((h, i) => <li key={i}>{when(h.at)}: {APPLICATION_STATUS[h.status] || h.status.replace(/_/g, ' ')}{h.note ? `, ${h.note}` : ''}</li>)}
                     </ul>
                 </details>

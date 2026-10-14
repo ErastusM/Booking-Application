@@ -352,6 +352,16 @@ const balanceSummary = async (providerId) => {
     };
 };
 
+/**
+ * Money still open between Bookplus and a business: a balance either way, or
+ * refunds on their way. While there is any, the business account can't be
+ * deleted (its payout bank account and records are needed to settle it).
+ */
+const outstandingFor = async (providerId) => {
+    const { balanceOwedCents, refundsPendingCents } = await balanceSummary(providerId);
+    return { balanceOwedCents, refundsPendingCents, open: balanceOwedCents !== 0 || refundsPendingCents > 0 };
+};
+
 /* ───────────────────────────── notify payload hygiene ───────────────────────────── */
 
 const NOTIFY_KEEP = new Set([
@@ -942,7 +952,7 @@ module.exports = {
     toCents, formatCents, newReference,
     settingsOf, validateSettings, planFor, planForBooking,
     maskAccountNumber, validatePayoutAccount, hasPayoutAccount, publicPayoutAccount,
-    balanceOf, balanceSummary, monthStart, writeEntry,
+    balanceOf, balanceSummary, outstandingFor, monthStart, writeEntry,
     sanitizeNotify, applyQueryResult, syncPayment, ensurePaidEffects,
     PaymentStartError, startSession, checkoutPayload, retryCheckout,
     requestRefund, retryRefund, refundBooking, releaseHold, onAppointmentCancelled,

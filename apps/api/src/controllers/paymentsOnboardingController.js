@@ -56,6 +56,7 @@ const payload = async (user) => {
         uploadsAvailable: cloudinary.isConfigured(),
         plans: plansOffered(settings),
         processingFee: processingFeeOffered(settings),
+        minCommissionCents: Math.max(0, settings.minCommissionCents || 0),
         payout: { frequency: settings.payout?.frequency || 'weekly', weekday: settings.payout?.weekday ?? 5 },
         maxDocuments: rules.MAX_DOCS,
     };
@@ -140,15 +141,20 @@ exports.updateOnboarding = async (req, res) => {
 
 // POST /api/payments/onboarding/upload — signed parameters for one private upload
 exports.uploadParams = async (req, res) => {
-    if (!cloudinary.isConfigured()) {
-        return fail(res, 503, 'Uploading documents is unavailable right now. Please try again later.', 'uploads_unavailable');
+    try {
+        if (!cloudinary.isConfigured()) {
+            return fail(res, 503, 'Uploading documents is unavailable right now. Please try again later.', 'uploads_unavailable');
+        }
+        const user = await load(req.user._id);
+        if (user.paymentsApproval && !rules.isEditable(user.paymentsApproval)) {
+            return fail(res, 409, NOT_EDITABLE, 'not_editable');
+        }
+        res.set('Cache-Control', 'no-store');
+        return res.json({ success: true, data: cloudinary.verificationUploadParams(req.user._id) });
+    } catch (err) {
+        logger.error({ err: err.message }, 'onboarding upload params failed');
+        return fail(res, 500, 'Internal server error');
     }
-    const user = await load(req.user._id);
-    if (user.paymentsApproval && !rules.isEditable(user.paymentsApproval)) {
-        return fail(res, 409, 'Your application is with Bookplus.', 'not_editable');
-    }
-    res.set('Cache-Control', 'no-store');
-    return res.json({ success: true, data: cloudinary.verificationUploadParams(req.user._id) });
 };
 
 // POST /api/payments/onboarding/documents { kind, name, ref: { publicId, resourceType, format } }

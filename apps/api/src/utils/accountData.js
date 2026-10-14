@@ -38,6 +38,31 @@ const clean = (doc) => {
 const EXPORT_VERSION = 1;
 const MESSAGE_DELETED = '[message deleted]';
 
+/**
+ * What a business gave to apply for online payments, and its payout bank
+ * account (read explicitly: both are kept out of every other payload). The
+ * documents are listed by kind, name and date; the files themselves stay in
+ * private storage.
+ */
+async function onlinePaymentsExport(userId) {
+    const u = await M('User').findById(userId).select('+paymentsApproval +payoutAccount').lean();
+    const a = u?.paymentsApproval;
+    const acct = u?.payoutAccount;
+    if (!a && !acct) return null;
+    return {
+        application: a ? {
+            status: a.status, plan: a.plan || null, legal: a.legal || {},
+            documents: (a.documents || []).map((d) => ({ kind: d.kind, name: d.name || '', uploadedAt: d.uploadedAt || null })),
+            submittedAt: a.submittedAt || null, decidedAt: a.decidedAt || null, decisionNote: a.decisionNote || '',
+            onlinePaymentsSwitchedOn: !!a.switchOn,
+        } : null,
+        payoutAccount: acct ? {
+            accountHolder: acct.accountHolder || '', bankName: acct.bankName || '', branchCode: acct.branchCode || '',
+            accountNumber: acct.accountNumber || '', updatedAt: acct.updatedAt || null,
+        } : null,
+    };
+}
+
 /** Build the "Download my data" document for one user id. */
 async function exportAccount(userId) {
     const user = await M('User').findById(userId).lean();
@@ -80,6 +105,7 @@ async function exportAccount(userId) {
         services: await M('Service').find({ provider: user._id }).lean(),
         locations: await M('Location').find({ provider: user._id }).lean(),
         bookingsReceived: await M('Appointment').countDocuments({ provider: user._id }),
+        onlinePayments: await onlinePaymentsExport(user._id),
         note: 'Your clients’ details and their bookings with you are your business records; view or export them from the Clients screen.',
     } : undefined;
 
