@@ -96,7 +96,7 @@ not urgent) · **N/A** (doesn't apply at this size).
 | 26 | No CSRF protection | OK | The API takes the session in a header, not a cookie. The refresh cookie is HttpOnly, Secure, SameSite=Lax and limited to `/api/auth`. |
 | 27 | Unverified payment webhooks | OK | PayGate's checksum is compared in constant time, and Bookplus asks PayGate for the result before trusting it. Ledger keys make repeats harmless. |
 | 28 | Code nobody can debug | OK · Fixed | Architecture docs, handbook and runbooks; structured logs with secrets redacted; server errors now alert (Fixed 6). |
-| 29 | No tests | OK | About 1,580 API tests, about 650 business unit tests, and Playwright end-to-end tests for both apps. They run on every pull request and gate every deploy. |
+| 29 | No tests | OK | About 1,570 API tests, about 650 business unit tests, and Playwright end-to-end tests for both apps. They run on every pull request and gate every deploy. |
 | 30 | Code ownership | OK · You | The code, lockfiles, migration scripts, CHANGELOG and version tags are all in the repository. When it moves to the new organisation, move the Actions secrets and the production environment with it. |
 
 ## Checklist 2 — the engineering list
