@@ -503,6 +503,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     pushService: {
         getPublicKey: () => API.get('/push/vapid-public-key'),
         subscribe: (subscription: any) => API.post('/push/subscribe', subscription),
+        // Is this device's subscription stored for the signed-in user?
+        status: (endpoint: string) => API.post('/push/status', { endpoint }),
         unsubscribe: (endpoint: string) => API.post('/push/unsubscribe', { endpoint }),
     },
 

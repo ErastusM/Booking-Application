@@ -465,4 +465,41 @@ describe('server reset script', () => {
         expect(after.mfa).toBeUndefined();
         expect(await FinancialAuditLog.findOne({ action: 'security.mfa_reset' }).lean()).toMatchObject({ actorRole: 'system', reason: 'Server script: Lost phone' });
     });
+    it('shuts out an admin nobody recognises, by id: suspended, signed out, listed as such, recorded', async () => {
+        const { lockAdmin, listAdmins } = require('../../../scripts/reset_admin_mfa');
+        const FinanceRequest = require('../../models/FinanceRequest');
+        const stranger = await makeFinanceAdmin({ email: 'stranger@bookplus.pro' });
+        const main = await makeFinanceAdmin({ email: 'main@bookplus.pro' });
+        await FinanceRequest.collection.insertOne({ type: 'adjustment', status: 'pending', preparedBy: stranger._id, amountCents: 500000, createdAt: new Date() });
+        const before = await User.findById(stranger._id).lean();
+        const owner = process.env.ADMIN_EMAIL;
+        process.env.ADMIN_EMAIL = 'Main@bookplus.pro ';
+        try {
+            expect((await lockAdmin(String(main._id), 'x')).ok).toBe(false); // never the main admin
+            expect((await lockAdmin('stranger@bookplus.pro', 'x')).ok).toBe(false); // ids only, never an email
+            expect((await lockAdmin('0123456789abcdef01234567', 'x')).ok).toBe(false);
+            const r = await lockAdmin(String(stranger._id), 'Unknown admin');
+            expect(r).toMatchObject({ ok: true, waiting: 1 });
+            expect(r.message).toMatch(/1 money request\(s\) they prepared are still waiting/);
+        } finally { process.env.ADMIN_EMAIL = owner; }
+        const after = await User.findById(stranger._id).select('+refreshTokenJtis').lean();
+        expect(after).toMatchObject({ role: 'admin', isActive: false, deactivatedAt: null, refreshTokenJtis: [] });
+        expect(after.tokenVersion).toBe((before.tokenVersion || 0) + 1);
+        expect((await listAdmins()).find((a) => a.email === 'stranger@bookplus.pro')).toMatchObject({ id: String(stranger._id), suspended: true });
+        expect(await FinancialAuditLog.findOne({ action: 'security.admin_locked' }).lean()).toMatchObject({ actorRole: 'system', reference: 'stranger@bookplus.pro', reason: 'Server script: Unknown admin' });
+        // Its old session no longer works.
+        expect((await request(app).get('/api/auth/profile').set(authHeader(stranger))).status).toBe(403);
+    });
+
+    it('lists every admin and whether two-step is on', async () => {
+        const { listAdmins } = require('../../../scripts/reset_admin_mfa');
+        await makeFinanceAdmin({ email: 'b.admin@bookplus.pro' });
+        const off = await makeFinanceAdmin({ email: 'a.admin@bookplus.pro' });
+        await User.updateOne({ _id: off._id }, { $unset: { mfa: '' } });
+        const listed = (await listAdmins()).filter((a) => /^[ab]\.admin@/.test(a.email));
+        expect(listed).toEqual([
+            { id: String(off._id), email: 'a.admin@bookplus.pro', twoStep: false, suspended: false },
+            { id: expect.stringMatching(/^[0-9a-f]{24}$/), email: 'b.admin@bookplus.pro', twoStep: true, suspended: false },
+        ]);
+    });
 });

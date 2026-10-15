@@ -33,6 +33,21 @@ exports.subscribe = async (req, res) => {
     }
 };
 
+// Whether this device's subscription is stored for the signed-in user. The
+// browser keeps its subscription when the server forgets it (another account
+// turned it on here, or the list was cleared after a key rotation), so the
+// app asks before showing notifications as on.
+exports.status = async (req, res) => {
+    const { endpoint } = req.body || {};
+    if (typeof endpoint !== 'string' || !endpoint) return res.status(400).json({ success: false, message: 'Invalid subscription' });
+    try {
+        const registered = !!(await PushSubscription.exists({ endpoint, user: req.user._id }));
+        res.status(200).json({ success: true, registered });
+    } catch {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 // Remove a subscription
 exports.unsubscribe = async (req, res) => {
     try {

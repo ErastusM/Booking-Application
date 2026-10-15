@@ -203,6 +203,35 @@ describe('one-click unsubscribe', () => {
         expect((await User.findById(other._id)).marketingEmails.optIn).toBe(true);
     });
 
+    it('after a JWT_SECRET rotation, an old link still unsubscribes but cannot undo', async () => {
+        const { derivedKey } = require('../../utils/marketing');
+        const customer = await makeUser({
+            marketingEmails: { optIn: true, source: 'register' },
+            consentLog: [{ kind: 'marketing_emails', value: true, source: 'register', at: new Date() }],
+        });
+        const old = makeUnsubscribeToken({ userId: customer._id });
+        const jwt = process.env.JWT_SECRET;
+        process.env.UNSUBSCRIBE_KEY_LEGACY = derivedKey().toString('hex');
+        process.env.UNSUBSCRIBE_KEY = 'e'.repeat(64);
+        process.env.JWT_SECRET = 'rotated-jwt-secret-0123456789abcdef0123456789';
+        try {
+            const res = await request(app).post(`/api/marketing/unsubscribe/${old}`).expect(200);
+            expect(res.body.data).toMatchObject({ subscribed: false, canUndo: false });
+            expect((await User.findById(customer._id)).marketingEmails.optIn).toBe(false);
+            expect((await request(app).post(`/api/marketing/resubscribe/${old}`)).status).toBe(400);
+            expect((await User.findById(customer._id)).marketingEmails.optIn).toBe(false);
+            // A link sent after the rotation can undo as before.
+            const fresh = makeUnsubscribeToken({ userId: customer._id });
+            const again = await request(app).post(`/api/marketing/unsubscribe/${fresh}`).expect(200);
+            expect(again.body.data.canUndo).toBe(true);
+            await request(app).post(`/api/marketing/resubscribe/${fresh}`).expect(200);
+        } finally {
+            process.env.JWT_SECRET = jwt;
+            delete process.env.UNSUBSCRIBE_KEY;
+            delete process.env.UNSUBSCRIBE_KEY_LEGACY;
+        }
+    });
+
     it('a GET (link scanners, browsers) changes nothing and redirects to the page', async () => {
         const customer = await makeUser({ marketingEmails: { optIn: true } });
         const token = makeUnsubscribeToken({ userId: customer._id });
