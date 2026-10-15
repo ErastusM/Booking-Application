@@ -202,3 +202,19 @@ describe('MoneyPanel — businesses applying for online payments', () => {
         expect(toast).toHaveBeenCalledWith('Approved', 'success');
     });
 });
+
+describe('MoneyPanel — audit log', () => {
+    it('labels a role change, with the account, old → new role and who did it', async () => {
+        auth.financeService.getAudit = vi.fn().mockResolvedValue({ data: { data: [{
+            _id: 'a1', action: 'security.role_change', reference: 'vido@barber.test', reason: 'provider → admin',
+            actor: { name: 'Boss Admin', email: 'boss@bookplus.pro' }, actorRole: 'director', amountCents: null,
+            approvalStatus: 'not_required', createdAt: '2026-10-15T09:00:00Z',
+        }], next: null } });
+        await openSettings('audit');
+        const row = await screen.findByTestId('audit-row');
+        expect(row).toHaveTextContent('Changed an account\'s role (vido@barber.test)');
+        expect(row).toHaveTextContent('provider → admin');
+        expect(row).toHaveTextContent('Boss Admin (director)');
+        expect(row).not.toHaveTextContent('security.role_change');
+    });
+});
