@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useModalChrome, trapTab } from '../../hooks/useModalChrome';
 import { FEATURES } from '@bookplus/config/features.mjs';
 import { analyticsService } from '../../services';
 import { PageHead, Panel, Kpis, Status, Empty } from '../../components/admin/ui';
@@ -13,7 +14,11 @@ const MEMBERSHIPS = FEATURES.membershipsEnabled;
 const Detail = ({ id, onClose }) => {
     const [d, setD] = useState(null);
     const [error, setError] = useState('');
-    const box = useRef(null);
+    // Escape, scroll lock and focus on open (once); Tab stays in the dialog.
+    const box = useModalChrome(onClose);
+    // Focus goes back to the business's name when it closes.
+    const opener = useRef(typeof document !== 'undefined' ? document.activeElement : null);
+    useEffect(() => () => { opener.current?.focus?.(); }, []);
     useEffect(() => {
         let alive = true;
         analyticsService.getProviderRevenueDetail(id)
@@ -21,17 +26,12 @@ const Detail = ({ id, onClose }) => {
             .catch(() => alive && setError('Could not load this business’s revenue.'));
         return () => { alive = false; };
     }, [id]);
-    useEffect(() => {
-        box.current?.focus();
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-    }, [onClose]);
 
     const max = d ? Math.max(...d.monthly.map((m) => m.revenue), 1) : 1;
     return (
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', zIndex: 1300, overflowY: 'auto', padding: '24px 16px' }}>
             <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={d ? `${d.provider.name}: revenue` : 'Revenue'} onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => trapTab(e, box.current)}
                 className="adm-panel" style={{ maxWidth: 760, margin: '0 auto', outline: 'none' }}>
                 <div className="adm-panel-head">
                     <div style={{ minWidth: 0 }}>
@@ -70,8 +70,8 @@ const Detail = ({ id, onClose }) => {
                                 <div className="adm-label">Top services</div>
                                 {d.topServices.length === 0 ? <p className="adm-muted">No completed bookings yet.</p> : (
                                     <table className="adm-table"><tbody>
-                                        {d.topServices.map((s) => (
-                                            <tr key={s.name}><td style={{ paddingLeft: 0 }}>{s.name}<span className="adm-sub">{count(s.count)} booking{s.count === 1 ? '' : 's'}</span></td><td className="num" style={{ paddingRight: 0 }}>{money0(s.revenue)}</td></tr>
+                                        {d.topServices.map((s, i) => (
+                                            <tr key={String(s._id ?? i)}><td style={{ paddingLeft: 0 }}>{s.name}<span className="adm-sub">{count(s.count)} booking{s.count === 1 ? '' : 's'}</span></td><td className="num" style={{ paddingRight: 0 }}>{money0(s.revenue)}</td></tr>
                                         ))}
                                     </tbody></table>
                                 )}

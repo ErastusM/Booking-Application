@@ -4,14 +4,21 @@ import { FEATURES } from '@bookplus/config/features.mjs';
 import { analyticsService, appointmentService } from '../../services';
 import { appointmentBusiness, appointmentClient } from '../../utils/adminPanel';
 import { PageHead, Panel, Kpis, Status, Empty } from '../../components/admin/ui';
+import { useTwoStepStatus } from '../../components/AdminTwoStep';
 import { useAdminData } from './adminData';
 import { BOOKING_STATUS, bookingDay, cents, count, day, money, money0, plural } from './format';
 
 // What needs someone first, the platform in four figures, and the latest bookings.
 
-const NeedsYou = ({ counts }) => {
+const NeedsYou = ({ counts, codesLeft }) => {
     if (!counts) return <Empty>Loading…</Empty>;
     const rows = [];
+    // New codes come from a director resetting two-step sign-in (Admins and roles).
+    if (codesLeft !== undefined && codesLeft <= 2) rows.push({
+        tone: 'bad', to: counts.money !== false ? 'settings/admins' : null, action: 'Open',
+        text: codesLeft === 0 ? 'No recovery codes left' : `${plural(codesLeft, 'recovery code')} left`,
+        sub: 'A director can reset your two-step sign-in to issue new ones',
+    });
     if (counts.applications) rows.push({
         tone: 'bad', to: 'money/approvals', action: 'Review',
         text: `${plural(counts.applications, 'business', 'businesses')} waiting for online payments approval`,
@@ -37,17 +44,22 @@ const NeedsYou = ({ counts }) => {
         const done = launch.items.filter((i) => i.done).length;
         rows.push({ to: 'settings/go-live', action: 'Continue', text: `Go-live checklist: ${done} of ${launch.items.length} done`, sub: 'Online payments stay off until it is complete' });
     }
-    if (!rows.length) return <Empty>Nothing needs you right now.</Empty>;
+    if (!rows.length) {
+        return counts.error
+            ? <div role="alert" className="adm-error" style={{ margin: 16 }}>Could not load what needs you. It tries again every minute.</div>
+            : <Empty>Nothing needs you right now.</Empty>;
+    }
     return rows.map((r) => (
         <div className="adm-row" key={r.text} data-testid="needs-you-row">
             <div><Status tone={r.tone}>{r.text}</Status>{r.sub && <span className="adm-sub" style={{ marginLeft: 14 }}>{r.sub}</span>}</div>
-            <Link className="adm-link" to={`/bkplus-command/${r.to}`}>{r.action}</Link>
+            {r.to && <Link className="adm-link" to={`/bkplus-command/${r.to}`}>{r.action}</Link>}
         </div>
     ));
 };
 
 const Overview = () => {
     const { counts } = useAdminData();
+    const codesLeft = useTwoStepStatus()?.recoveryCodesLeft;
     const [overview, setOverview] = useState(null);
     const [latest, setLatest] = useState(null);
 
@@ -69,7 +81,7 @@ const Overview = () => {
                 ]} data-testid="overview-figures" />
                 <div className="adm-cols adm-cols-wide">
                     <Panel title="Needs you" data-testid="needs-you">
-                        <NeedsYou counts={counts} />
+                        <NeedsYou counts={counts} codesLeft={codesLeft} />
                     </Panel>
                     <Panel title="Latest bookings" aside={<Link className="adm-link" to="/bkplus-command/bookings">All bookings</Link>}>
                         {!latest ? <Empty>Loading…</Empty> : !latest.length ? <Empty>No bookings yet.</Empty> : (

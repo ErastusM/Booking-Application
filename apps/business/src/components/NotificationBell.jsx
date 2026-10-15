@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { notificationService } from '../services';
 import { cleanNotice } from '../utils/cleanNotice';
 
-const NotificationBell = ({ isTransparent }) => {
+// tone: 'light' (default) for the business app's ink navbar; 'dark' on a light
+// surface (the admin console's page and phone top bar).
+const NotificationBell = ({ isTransparent, tone = 'light' }) => {
+    const fg = tone === 'dark' ? 'var(--text-secondary)' : 'rgba(255,255,255,0.8)';
+    const fgHover = tone === 'dark' ? 'var(--charcoal)' : 'var(--gold)';
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [open, setOpen] = useState(false);
@@ -120,9 +124,9 @@ const NotificationBell = ({ isTransparent }) => {
             <button
                 onClick={handleOpen}
                 aria-label="Notifications"
-                style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.8)', transition: 'color 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--gold)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
+                style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: fg, transition: 'color 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.color = fgHover; }}
+                onMouseLeave={e => { e.currentTarget.style.color = fg; }}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

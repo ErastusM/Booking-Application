@@ -34,16 +34,20 @@ const Users = () => {
     const [busy, setBusy] = useState(null);
     const [deleting, setDeleting] = useState(null);
 
+    // Only the latest request may fill the table (typing and paging overlap).
+    const seq = useRef(0);
     const load = useCallback(async () => {
+        const n = ++seq.current;
         try {
             const params = { page };
             if (search.trim()) params.search = search.trim();
             if (role) params.role = role;
             if (status) params.status = status;
             const res = await userService.getAllUsers(params);
+            if (n !== seq.current) return;
             setRows(res.data.data);
             setMeta({ total: res.data.total, pages: res.data.pages || 1 });
-        } catch { toast('Could not load users.', 'error'); setRows([]); }
+        } catch { if (n === seq.current) { toast('Could not load users.', 'error'); setRows([]); } }
     }, [page, search, role, status, toast]);
     const first = useRef(true);
     useEffect(() => {

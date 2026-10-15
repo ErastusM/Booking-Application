@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { panel as card, h2, h3, muted, input, label, errBox } from './admin/ui';
@@ -16,6 +16,10 @@ const fullButton = { width: '100%', justifyContent: 'center', textAlign: 'center
 const apiError = (err, fallback) => err?.response?.data?.message || fallback;
 
 export const TWO_STEP_EVENT = 'admin-two-step-required';
+
+// The signed-in admin's two-step status (e.g. recoveryCodesLeft) for the console.
+export const TwoStepStatus = createContext(null);
+export const useTwoStepStatus = () => useContext(TwoStepStatus);
 
 const CodeInput = ({ value, onChange, id, placeholder = '123456' }) => (
     <input id={id} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="one-time-code" inputMode="text"
@@ -171,7 +175,7 @@ export const AdminTwoStepGate = ({ children }) => {
 
     const ready = status?.enabled && status?.sessionConfirmed;
     settingUp.current = !!status && !status.enabled;
-    if (ready) return children;
+    if (ready) return <TwoStepStatus.Provider value={status}>{children}</TwoStepStatus.Provider>;
     return (
         <div className="adm-door" data-testid="admin-two-step-gate">
             <div className="adm-door-box" style={{ maxWidth: '26rem' }}>

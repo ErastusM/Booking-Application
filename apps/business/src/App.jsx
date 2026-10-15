@@ -172,7 +172,8 @@ function SignupSurveyGate() {
 function SkipLink() {
     return (
         <a href="#main-content" className="skip-link" onClick={(e) => {
-            const main = document.getElementById('main-content');
+            // In the admin console, skip the sidebar too.
+            const main = document.getElementById('admin-content') || document.getElementById('main-content');
             if (!main) return;
             e.preventDefault();
             main.focus();

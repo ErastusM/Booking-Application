@@ -101,7 +101,7 @@ const Insights = () => {
                         {popularServices.length === 0 ? <Empty>No bookings yet.</Empty> : (
                             <table className="adm-table">
                                 <thead><tr><th>Service</th><th className="num">Bookings</th></tr></thead>
-                                <tbody>{popularServices.map((s) => <tr key={s.name}><td>{s.name}</td><td className="num">{count(s.count)}</td></tr>)}</tbody>
+                                <tbody>{popularServices.map((s, i) => <tr key={String(s._id ?? i)}><td>{s.name}</td><td className="num">{count(s.count)}</td></tr>)}</tbody>
                             </table>
                         )}
                     </Panel>
@@ -109,7 +109,7 @@ const Insights = () => {
                         {ratingsPerService.length === 0 ? <Empty>No reviews yet.</Empty> : (
                             <table className="adm-table">
                                 <thead><tr><th>Service</th><th className="num">Reviews</th><th className="num">Average</th></tr></thead>
-                                <tbody>{ratingsPerService.map((s) => <tr key={s.name}><td>{s.name}</td><td className="num">{count(s.count)}</td><td className="num">{Number(s.avgRating).toFixed(1)} / 5</td></tr>)}</tbody>
+                                <tbody>{ratingsPerService.map((s, i) => <tr key={String(s._id ?? i)}><td>{s.name}</td><td className="num">{count(s.count)}</td><td className="num">{Number(s.avgRating).toFixed(1)} / 5</td></tr>)}</tbody>
                             </table>
                         )}
                     </Panel>

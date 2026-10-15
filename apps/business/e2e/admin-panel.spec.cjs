@@ -42,6 +42,12 @@ test.describe('Admin console', () => {
     test('every section loads; No-show filter; Business column and guest names', async ({ page, request }) => {
         const fx = await (await request.post(`${API}/__e2e/admin-fixture`)).json();
         await adminLogin(page, request);
+        // The console has its own frame: no business navigation, the
+        // notifications bell, and two-step is checked once, not per section.
+        await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^Notifications/ })).toBeVisible();
+        let twoStepChecks = 0;
+        page.on('request', (r) => { if (r.method() === 'GET' && new URL(r.url()).pathname === '/api/auth/mfa') twoStepChecks += 1; });
 
         // Overview: four server-side figures, and what needs someone.
         const figures = page.getByTestId('overview-figures');
@@ -81,6 +87,7 @@ test.describe('Admin console', () => {
         await adminSection(page, 'Insights');
         await expect(page.getByText('Users are clients and business owners. Team members and admins are counted separately.')).toBeVisible();
         await expect(page.getByText('No-show', { exact: true })).toBeVisible();
+        expect(twoStepChecks).toBe(0);
         // An old link still lands on it.
         await page.goto('/bkplus-command/insights');
         await expect(page.getByRole('heading', { name: 'Insights', level: 1 })).toBeVisible();

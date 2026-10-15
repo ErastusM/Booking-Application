@@ -46,10 +46,17 @@ test.describe('Admin two-step sign-in', () => {
         // At phone width the wide tables scroll inside their panels; the page never scrolls sideways.
         await page.setViewportSize({ width: 390, height: 844 });
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-        for (const section of ['Overview', 'Bookings', 'Users', 'Revenue', 'Dashboard', 'Payments', 'Payouts', 'Disputes', 'Approvals', 'Costs', 'Audit log', 'Admins and roles']) {
+        // Every section, by its sidebar name and its page title, measured once it has loaded.
+        const sections = [
+            ['Overview'], ['Bookings'], ['Users'], ['Services'], ['Revenue'], ['Wallets'], ['Insights'],
+            ['Dashboard'], ['Payments'], ['Payouts'], ['Disputes'], ['Approvals'], ['Costs', 'Running costs'],
+            ['Prices and fees'], ['Go-live checklist'], ['Admins and roles'], ['Audit log'],
+        ];
+        for (const [section, title = section] of sections) {
             await adminSection(page, section);
-            await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-            await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+            await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
+            await expect(page.getByText(/^Loading/)).toHaveCount(0, { timeout: 15_000 });
+            await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), { message: section }).toBeLessThanOrEqual(0);
         }
     });
 

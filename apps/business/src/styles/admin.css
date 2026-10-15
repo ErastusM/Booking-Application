@@ -29,8 +29,9 @@
 
 .adm-side {
   position: sticky;
-  top: 0;
-  height: 100dvh;
+  /* Below the status bar in the installed app (0 in a browser). */
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100dvh - env(safe-area-inset-top, 0px));
   overflow-y: auto;
   background: var(--ink);
   color: #c9cccb;
@@ -51,6 +52,19 @@
 .adm-brand b { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: #fff; }
 .adm-brand b span { color: var(--gold); }
 .adm-brand small { color: #8a8e8c; font-size: 0.75rem; }
+.adm-side-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.adm-close {
+  display: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #2a2c2b;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e8e7;
+  cursor: pointer;
+  flex-shrink: 0;
+}
 
 .adm-group {
   color: #8a8e8c;
@@ -108,6 +122,8 @@
   gap: 6px;
 }
 .adm-foot b { color: #e6e8e7; font-weight: 500; display: block; overflow-wrap: anywhere; }
+/* Amber on ink: 9:1. */
+.adm-foot-warn { color: var(--warning); }
 .adm-foot-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .adm-foot button {
   background: none;
@@ -126,12 +142,16 @@
 
 .adm-topbar { display: none; }
 .adm-scrim { display: none; }
+.adm-content { min-width: 0; position: relative; }
+.adm-main:focus { outline: none; }
+/* One notification bell for the console: top right of the page, in the top bar on a phone. */
+.adm-bell { position: absolute; top: 10px; right: 24px; z-index: 30; }
 
 @media (max-width: 1023px) {
   .adm { grid-template-columns: minmax(0, 1fr); background: var(--off-white); }
   .adm-topbar {
     position: sticky;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);
     z-index: 40;
     display: flex;
     align-items: center;
@@ -143,6 +163,8 @@
   }
   .adm-topbar .adm-brand { padding: 0; color: var(--charcoal); }
   .adm-topbar .adm-brand b { color: var(--charcoal); }
+  .adm-bell { position: fixed; top: calc(6px + env(safe-area-inset-top, 0px)); right: 10px; z-index: 45; }
+  .adm-close { display: grid; }
   .adm-burger {
     width: 36px;
     height: 36px;
@@ -188,7 +210,8 @@
   gap: 12px;
   flex-wrap: wrap;
   min-height: 64px;
-  padding: 10px 0;
+  /* Room on the right for the notification bell. */
+  padding: 10px 52px 10px 0;
   margin-bottom: 24px;
   border-bottom: 1px solid var(--border);
 }
@@ -268,6 +291,9 @@
   font-size: 0.86rem;
 }
 .adm-row:last-child { border-bottom: 0; }
+/* A long status in a row wraps under its dot instead of running into the action. */
+.adm-row .adm-status { white-space: normal; align-items: flex-start; }
+.adm-row .adm-status::before { margin-top: 0.45em; }
 .adm-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
 .adm-sub { display: block; color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
 
@@ -294,7 +320,7 @@
 }
 .adm-kpi-value[data-tone='bad'] { color: var(--danger-fg); }
 .adm-kpi-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
-.adm-up { color: var(--adm-ok); }
+.adm-up { color: var(--success-fg); }
 .adm-down { color: var(--danger-fg); }
 
 @media (max-width: 720px) {
@@ -398,6 +424,7 @@
 .adm-seg button:first-child { border-left: 0; }
 .adm-seg button:hover { color: var(--charcoal); }
 .adm-seg button[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
+.adm-seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
 body.dark-mode .adm-seg button[aria-pressed='true'] { background: var(--charcoal); color: var(--ink); }
 
 .adm-input {
@@ -465,6 +492,8 @@ body.dark-mode .adm-seg button[aria-pressed='true'] { background: var(--charcoal
 .adm-door-box { width: 100%; max-width: 380px; }
 .adm-door .adm-brand { padding: 0 0 16px; color: var(--charcoal); }
 .adm-door .adm-brand b { color: var(--charcoal); }
+/* "Admin" next to the logo on light surfaces (4.5:1 or better). */
+.adm-topbar .adm-brand small, .adm-door .adm-brand small { color: var(--text-muted); }
 .adm-door .adm-panel-body { padding: 22px; display: grid; gap: 14px; }
 .adm-door h1 { font-family: var(--font-display); font-size: 1.2rem; font-weight: 650; margin: 0; color: var(--charcoal); }
 .adm-door .btn-primary { width: 100%; padding: 0.65rem 1rem; font-size: 0.9rem; }

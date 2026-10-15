@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Select } from '@bookplus/ui';
 import { appointmentService } from '../../services';
 import { useToast } from '../../components/Toast';
@@ -31,13 +31,17 @@ const Bookings = () => {
     const [busy, setBusy] = useState(null);
     const [error, setError] = useState('');
 
+    // Only the latest request may fill the table (filters and paging overlap).
+    const seq = useRef(0);
     const load = useCallback(async () => {
+        const n = ++seq.current;
         try {
             const res = await appointmentService.getAllAppointments({ page, ...(status ? { status } : {}) });
+            if (n !== seq.current) return;
             setRows(res.data.data);
             setMeta({ total: res.data.total, pages: res.data.pages || 1 });
             setError('');
-        } catch { setError('Could not load bookings.'); setRows([]); }
+        } catch { if (n === seq.current) { setError('Could not load bookings.'); setRows([]); } }
     }, [page, status]);
     useEffect(() => { load(); }, [load]);
 

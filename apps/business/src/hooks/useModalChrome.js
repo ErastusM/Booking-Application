@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react';
 // sideways (phones overlay their scrollbars, so there is nothing to keep).
 let lockCount = 0;
 let saved = { html: '', body: '', gutter: '' };
-const lockScroll = () => {
+export const lockScroll = () => {
     if (lockCount === 0) {
         const root = document.documentElement;
         const hasScrollbar = window.innerWidth - root.clientWidth > 0;
@@ -21,7 +21,7 @@ const lockScroll = () => {
     }
     lockCount += 1;
 };
-const unlockScroll = () => {
+export const unlockScroll = () => {
     lockCount = Math.max(0, lockCount - 1);
     if (lockCount === 0) {
         const root = document.documentElement;

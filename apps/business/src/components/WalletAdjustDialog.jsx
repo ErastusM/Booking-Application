@@ -64,8 +64,9 @@ const WalletAdjustDialog = ({ searchProviders, walletFor, submit, onClose, initi
 
     const toggle = (on) => ({
         flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
-        border: `1px solid ${on ? 'var(--ink)' : 'var(--border)'}`,
-        background: on ? 'var(--ink)' : 'var(--card-bg)', color: on ? 'var(--on-ink)' : 'var(--text-secondary)',
+        // --charcoal flips in dark mode (--ink would vanish on a dark card).
+        border: `1px solid ${on ? 'var(--charcoal)' : 'var(--border)'}`,
+        background: on ? 'var(--charcoal)' : 'var(--card-bg)', color: on ? 'var(--card-bg)' : 'var(--text-secondary)',
     });
 
     return (

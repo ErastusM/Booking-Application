@@ -39,6 +39,9 @@ describe('AdminTwoStepGate', () => {
         expect(screen.queryByText('The console')).not.toBeInTheDocument();
 
         await userEvent.click(screen.getByRole('button', { name: 'Start set-up' }));
+        expect(await screen.findByRole('img', { name: /QR code/ })).toHaveAttribute('src', 'data:image/png;base64,AAA');
+        // The secret is shown in groups of four so it can be typed.
+        expect(screen.getByTestId('mfa-secret').querySelectorAll('span')).toHaveLength(8);
         await userEvent.type(await screen.findByLabelText('Enter the 6-digit code the app shows'), '123456');
         await userEvent.click(screen.getByRole('button', { name: 'Turn on' }));
         expect(await screen.findByTestId('mfa-recovery-codes')).toHaveTextContent('AAAAA-11111');
@@ -60,6 +63,7 @@ describe('AdminTwoStepGate', () => {
         await userEvent.type(await screen.findByLabelText('Code'), '654321');
         await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
         expect(auth.authService.mfaConfirm).toHaveBeenCalledWith('654321');
+        expect(ctx.login).toHaveBeenCalledWith({ token: 'tok3', user: ctx.user });
         expect(await screen.findByText('The console')).toBeInTheDocument();
     });
 
