@@ -4,7 +4,8 @@ Everything below the "owner steps" line is automated: CI builds and pushes
 three images (`erastusm/bookplus-server`, `erastusm/bookplus-customer`,
 `erastusm/bookplus-business`), syncs `docker-compose.yml` +
 `nginx/conf.d/bookplus.conf` + `ops/` to the droplet, runs
-`compose pull && up -d --force-recreate`, waits for the API healthcheck, and
+`compose pull && up -d --remove-orphans` (recreating only what changed) and
+reloads nginx, waits for the API healthcheck, and
 executes the idempotent data migrations (`migrate_team_colors.js`,
 `migrate_account_types.js`). See `.github/workflows/ci-cd.yml`.
 

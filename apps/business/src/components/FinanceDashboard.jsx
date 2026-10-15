@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { financeService } from '../services';
 import { useToast } from './Toast';
 import { nad, parseCents } from '../utils/onlinePayment';
+import { panel as card, muted, input, small, list, bad as red, Kpis } from './admin/ui';
 
 // Admin console, Money → Dashboard and Costs (payment specification,
 // section 15). Dashboard: businesses by plan, what Bookplus kept, what it
@@ -10,19 +11,10 @@ import { nad, parseCents } from '../utils/onlinePayment';
 // contribution are always shown apart. Costs: the running costs a director
 // enters for each month.
 
-const card = { background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.1rem', boxShadow: 'var(--shadow-sm)', minWidth: 0 };
-const h3 = { fontFamily: 'var(--font-display)', fontSize: '0.98rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.6rem' };
-const muted = { color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5, margin: 0 };
+const h3 = { fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.6rem' };
 const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', fontSize: '0.86rem', padding: '0.3rem 0' };
-const list = { display: 'grid', gap: '0.75rem', gridTemplateColumns: 'minmax(0, 1fr)' };
-const small = { padding: '0.3rem 0.75rem', fontSize: '0.78rem' };
-const input = {
-    width: '100%', padding: '0.55rem 0.7rem', border: '1.5px solid var(--border-input)', borderRadius: 'var(--radius-sm)',
-    fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'white', boxSizing: 'border-box',
-};
 const apiError = (err, fallback) => err?.response?.data?.message || fallback;
 const isLocked = (err) => err?.response?.data?.code === 'mfa_required';
-const red = '#991b1b';
 
 // Periods, as Windhoek dates (YYYY-MM-DD).
 const ymd = (d) => new Date(d.getTime() + 2 * 3600000).toISOString().slice(0, 10);
@@ -47,14 +39,6 @@ const Line = ({ k, v, testid, color }) => (
     <div style={row} data-testid={testid}>
         <span style={{ color: 'var(--text-secondary)' }}>{k}</span>
         <span style={{ fontWeight: 600, color: color || 'var(--charcoal)', textAlign: 'right' }}>{v}</span>
-    </div>
-);
-
-const Big = ({ label, value, sub, testid, color }) => (
-    <div style={card} data-testid={testid}>
-        <p style={{ ...muted, fontWeight: 600 }}>{label}</p>
-        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.45rem', fontWeight: 700, color: color || 'var(--charcoal)', margin: '0.15rem 0 0' }}>{value}</p>
-        {sub && <p style={{ ...muted, fontSize: '0.76rem', marginTop: '0.15rem' }}>{sub}</p>}
     </div>
 );
 
@@ -101,16 +85,16 @@ export const DashboardView = ({ launch, onLocked, onOpenSettings }) => {
     return (
         <div style={list} data-testid="finance-dashboard">
             {launch && !launch.ready && (
-                <div style={{ ...card, borderColor: '#fcd34d', background: '#fffbeb' }} data-testid="dash-launch">
-                    <p style={{ margin: 0, fontSize: '0.88rem', color: '#92400e' }}>
+                <div className="adm-note" data-testid="dash-launch">
+                    <p style={{ margin: 0 }}>
                         Online payments are off: {gatesLeft} of {launch.items.length} launch item{launch.items.length === 1 ? '' : 's'} still to do.{' '}
-                        <button type="button" onClick={onOpenSettings} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--gold-dark)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}>See the checklist</button>
+                        <button type="button" className="adm-link" onClick={onOpenSettings}>See the checklist</button>
                     </p>
                 </div>
             )}
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }} role="group" aria-label="Period">
+            <div className="adm-seg" role="group" aria-label="Period" style={{ justifySelf: 'start' }}>
                 {PERIODS.map(([k, label]) => (
-                    <button key={k} type="button" aria-pressed={period === k} className={period === k ? 'btn-primary' : 'btn-outline'} style={small} onClick={() => setPeriod(k)}>{label}</button>
+                    <button key={k} type="button" aria-pressed={period === k} onClick={() => setPeriod(k)}>{label}</button>
                 ))}
             </div>
             {error && <p role="alert" style={{ ...muted, color: red }}>{error}</p>}
@@ -118,16 +102,16 @@ export const DashboardView = ({ launch, onLocked, onOpenSettings }) => {
             {d && (
                 <>
                     <p style={{ ...muted, fontSize: '0.76rem' }}>{d.period.from} to {d.period.to}</p>
-                    <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-                        <Big testid="dash-revenue" label="Revenue" value={nad(d.revenue.totalCents)} sub="Commission and fees kept" />
-                        <Big testid="dash-net" label="Net contribution" value={nad(d.results.netContributionCents)} color={d.results.netContributionCents < 0 ? red : undefined} sub="After processing, booking costs and chargebacks" />
-                        <Big testid="dash-bookings" label="Paid online" value={String(d.bookings.paidOnline)} sub={d.bookings.paidOnline ? `${nad(d.bookings.valueCents)}, average ${nad(d.bookings.averageValueCents)}` : 'No bookings paid online'} />
-                        <Big testid="dash-breakeven" label="Break-even" value={d.results.breakEven.coveredPct === null ? 'No costs entered' : `${d.results.breakEven.coveredPct}%`}
-                            sub={d.results.breakEven.fixedCostsCents
+                    <Kpis items={[
+                        { testid: 'dash-revenue', label: 'Revenue', value: nad(d.revenue.totalCents), sub: 'Commission and fees kept' },
+                        { testid: 'dash-net', label: 'Net contribution', value: nad(d.results.netContributionCents), tone: d.results.netContributionCents < 0 ? 'bad' : undefined, sub: 'After processing, booking costs and chargebacks' },
+                        { testid: 'dash-bookings', label: 'Paid online', value: String(d.bookings.paidOnline), sub: d.bookings.paidOnline ? `${nad(d.bookings.valueCents)}, average ${nad(d.bookings.averageValueCents)}` : 'No bookings paid online' },
+                        { testid: 'dash-breakeven', label: 'Break-even', value: d.results.breakEven.coveredPct === null ? 'No costs entered' : `${d.results.breakEven.coveredPct}%`,
+                            sub: d.results.breakEven.fixedCostsCents
                                 ? `of ${nad(d.results.breakEven.fixedCostsCents)} running costs${d.results.breakEven.moreBookingsNeeded ? `; about ${d.results.breakEven.moreBookingsNeeded} more bookings at the average net` : ''}`
-                                : 'Enter the running costs under Costs'} />
-                    </div>
-
+                                : 'Enter the running costs under Costs' },
+                    ]} />
+                    <div className="adm-cols">
                     <div style={card} data-testid="dash-businesses">
                         <h3 style={h3}>Businesses</h3>
                         <Line k="Approved for online payments" v={d.businesses.approved} />
@@ -184,6 +168,7 @@ export const DashboardView = ({ launch, onLocked, onOpenSettings }) => {
                         {d.results.businesses.count === 0 && <p style={muted}>None in this period.</p>}
                         {d.results.businesses.negative > 0 && <p style={{ ...muted, color: red, marginBottom: '0.4rem' }}>{d.results.businesses.negative} business{d.results.businesses.negative === 1 ? '' : 'es'} cost Bookplus money.</p>}
                         <GroupRows rows={d.results.businesses.rows.map((r) => ({ ...r, key: r.providerId }))} label={(g) => g.businessName || 'Business'} />
+                    </div>
                     </div>
                 </>
             )}

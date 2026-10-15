@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { adminWithTwoStep, adminConsoleLogin } = require('./helpers.cjs');
+const { adminWithTwoStep, adminConsoleLogin, adminSection } = require('./helpers.cjs');
 
 const API = `http://localhost:${process.env.E2E_API_PORT || 5053}`;
 
@@ -28,11 +28,8 @@ test.describe('Money operations (admin)', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         const admin = await adminWithTwoStep(request);
         await adminConsoleLogin(page, admin);
-        await page.getByRole('tab', { name: 'Money' }).click();
-        const panel = page.getByTestId('money-panel');
-
         // Payouts: due, prepared (only this business), the bank file, paid.
-        await panel.getByRole('tab', { name: 'Payouts' }).click();
+        await adminSection(page, 'Payouts');
         const due = page.getByTestId('ops-payouts-due');
         const mine = due.getByLabel(`Pay ${fx.businessName}`);
         await expect(mine).toBeChecked();
@@ -54,7 +51,7 @@ test.describe('Money operations (admin)', () => {
         await expect(page.getByTestId('ops-payout').filter({ hasText: fx.businessName })).toHaveCount(0);
 
         // Payments: the booking's payment; a complaint becomes a case.
-        await panel.getByRole('tab', { name: 'Payments' }).click();
+        await adminSection(page, 'Payments');
         await page.getByLabel('Payment reference').fill(paid.reference);
         await page.getByRole('button', { name: 'Find' }).click();
         await page.getByRole('button', { name: 'Paid', exact: true }).click();
@@ -76,7 +73,7 @@ test.describe('Money operations (admin)', () => {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
         // Costs: this month's running costs (this admin holds both roles).
-        await panel.getByRole('tab', { name: 'Costs' }).click();
+        await adminSection(page, 'Costs');
         const costs = page.getByTestId('finance-costs');
         await costs.getByRole('button', { name: 'Add a cost' }).click();
         await costs.getByLabel('What it is').fill('Server');
@@ -86,7 +83,7 @@ test.describe('Money operations (admin)', () => {
         await expect(page.getByText('Saved')).toBeVisible();
 
         // Dashboard: the booking paid online is counted; the running costs are set against it.
-        await panel.getByRole('tab', { name: 'Dashboard' }).click();
+        await adminSection(page, 'Dashboard');
         const dash = page.getByTestId('finance-dashboard');
         await expect(dash.getByTestId('dash-bookings')).not.toContainText('No bookings paid online');
         await expect(dash.getByTestId('dash-breakeven')).toContainText('running costs');

@@ -57,10 +57,12 @@ jobs:
           pnpm --filter "@bookplus/customer" build
           pnpm --filter "@bookplus/business" build
 
-      # The deploy syncs nginx/conf.d to the server and recreates nginx; a broken
+      # The deploy syncs nginx/conf.d to the server and reloads nginx; a broken
       # config there means the whole site is down. Test it here first, with
-      # throwaway certificates at the real paths and the compose service names
-      # resolving to localhost.
+      # throwaway certificates at the real paths. (The --add-host flags only
+      # matter if a proxy_pass ever names a host directly: the upstreams are
+      # looked up per request, so nginx -t does not check them. The next step
+      # does.)
       - name: nginx config — test
         run: |
           le="$RUNNER_TEMP/letsencrypt"; mkdir -p "$le/live/bookplus.pro"
@@ -72,6 +74,18 @@ jobs:
             --add-host server:127.0.0.1 --add-host customer:127.0.0.1 --add-host business:127.0.0.1 \
             -v "$PWD/nginx/conf.d:/etc/nginx/conf.d:ro" -v "$le:/etc/letsencrypt:ro" \
             nginx:alpine nginx -t
+
+      # nginx finds server/customer/business through Docker's DNS when a request
+      # comes in, so a typo in an upstream would pass nginx -t and 502 the site.
+      - name: nginx upstreams — are compose services
+        run: |
+          services="$(awk '/^services:/{s=1;next} /^[^[:space:]#]/{s=0} s && /^  [A-Za-z0-9_.-]+:/{sub(/^  /,"");sub(/:.*/,"");print}' docker-compose.yml)"
+          hosts="$(sed -nE 's/^[[:space:]]*map[[:space:]]+\$host[[:space:]]+\$bp_[a-z_]+[[:space:]]*\{[[:space:]]*default[[:space:]]+([A-Za-z0-9_.-]+):[0-9]+;.*/\1/p' nginx/conf.d/bookplus.conf)"
+          [ -n "$hosts" ] || { echo "no upstream maps found in bookplus.conf" >&2; exit 1; }
+          for h in $hosts; do
+            echo "$services" | grep -qx "$h" || { echo "nginx upstream '$h' is not a service in docker-compose.yml" >&2; exit 1; }
+          done
+          echo "upstreams OK: $(echo $hosts)"
 
   # 1b) Browser coverage. These suites existed but NOTHING ran them: the workflow
   # only built the two apps, so the single end-to-end booking-funnel test and the

@@ -86,11 +86,12 @@ done
     echo "IMAGE_TAG=$target"
 } > .env.next && mv .env.next .env
 
-# Full recreate, matching the deploy path exactly. NOT scoped to the three app
-# services: nginx resolves `server`, `customer` and `business` once when its
-# config loads and has no resolver directive, so recreating those three without
-# restarting nginx leaves it proxying to dead IPs — a 502 on every request,
-# during an incident.
+# Full recreate of EVERY service, mongodb and nginx included. This is not what a
+# deploy does: the deploy runs `docker compose up -d --remove-orphans`, which
+# recreates only what changed, because --force-recreate restarts MongoDB (a few
+# seconds of API errors). nginx no longer needs it: it looks the containers up
+# through Docker's DNS (answers kept 10 s), so recreating only the three app
+# services also works, with up to ~10 s of 502s after each comes back.
 docker compose up -d --force-recreate
 
 for i in $(seq 1 40); do

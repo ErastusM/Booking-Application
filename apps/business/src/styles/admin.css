@@ -1,0 +1,501 @@
+/*
+ * Bookplus admin console (/bkplus-command). A working tool, not a landing page:
+ * a black sidebar (a drawer on a phone), flat white panels with thin borders,
+ * one strip of figures, dense tables with right-aligned amounts. Orange marks
+ * the current section and the few things that need someone; nothing else.
+ * Colours, type and spacing come from @bookplus/design-tokens.
+ */
+
+.adm {
+  --adm-side: 232px;
+  --adm-gap: 20px;
+  --adm-radius: var(--radius-sm);
+  --adm-ok: #1f9d62;
+  --adm-warn: #d4870f;
+  --adm-bad: #d23b2a;
+  --adm-info: #3b82f6;
+  --adm-mute: #a3a7a5;
+  display: grid;
+  grid-template-columns: var(--adm-side) minmax(0, 1fr);
+  min-height: 100dvh;
+  /* The sidebar's column stays black however long the page is. */
+  background: linear-gradient(90deg, var(--ink) var(--adm-side), var(--off-white) var(--adm-side));
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+
+.adm-side {
+  position: sticky;
+  /* Below the status bar in the installed app (0 in a browser). */
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100dvh - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  background: var(--ink);
+  color: #c9cccb;
+  /* Clear of the home indicator in the installed app (0 in a browser). */
+  padding: 18px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid #141516;
+}
+.adm-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px 18px;
+  color: #fff;
+  text-decoration: none;
+}
+.adm-brand b { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: #fff; }
+.adm-brand b span { color: var(--gold); }
+.adm-brand small { color: #8a8e8c; font-size: 0.75rem; }
+.adm-side-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.adm-close {
+  display: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #2a2c2b;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e8e7;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.adm-group {
+  color: #8a8e8c;
+  font-size: 0.75rem;
+  padding: 14px 10px 6px;
+}
+.adm-nav { display: flex; flex-direction: column; gap: 2px; }
+.adm-nav a {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: #c9cccb;
+  text-decoration: none;
+  font-size: 0.845rem;
+  line-height: 1.3;
+}
+.adm-nav a:hover { background: #111213; color: #fff; }
+.adm-nav a.active { background: #18191a; color: #fff; }
+.adm-nav a.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gold);
+}
+.adm-nav a:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.adm-count {
+  min-width: 20px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #e6e8e7;
+  background: #2a2c2b;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+}
+/* Ink on orange: 5.25:1. */
+.adm-count[data-hot='true'] { background: var(--gold); color: var(--ink); }
+
+.adm-foot {
+  margin-top: auto;
+  padding: 12px 10px 2px;
+  border-top: 1px solid #1e2020;
+  font-size: 0.8rem;
+  color: #8a8e8c;
+  display: grid;
+  gap: 6px;
+}
+.adm-foot b { color: #e6e8e7; font-weight: 500; display: block; overflow-wrap: anywhere; }
+/* Amber on ink: 9:1. */
+.adm-foot-warn { color: var(--warning); }
+.adm-foot-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.adm-foot button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #c9cccb;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: #4a4d4c;
+}
+.adm-foot button:hover { color: #fff; }
+
+/* ── Phone: top bar + drawer ─────────────────────────────────────────── */
+
+.adm-topbar { display: none; }
+.adm-scrim { display: none; }
+.adm-content { min-width: 0; position: relative; }
+.adm-main:focus { outline: none; }
+/* One notification bell for the console: top right of the page, in the top bar on a phone. */
+.adm-bell { position: absolute; top: 10px; right: 24px; z-index: 30; }
+
+@media (max-width: 1023px) {
+  .adm { grid-template-columns: minmax(0, 1fr); background: var(--off-white); }
+  .adm-topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .adm-topbar .adm-brand { padding: 0; color: var(--charcoal); }
+  .adm-topbar .adm-brand b { color: var(--charcoal); }
+  .adm-bell { position: fixed; top: calc(6px + env(safe-area-inset-top, 0px)); right: 10px; z-index: 45; }
+  .adm-close { display: grid; }
+  .adm-burger {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--charcoal);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .adm-side {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(300px, 86vw);
+    height: 100dvh;
+    z-index: 1200;
+    transform: translateX(-102%);
+    /* Hidden (and out of the tab order) once it has slid away. */
+    visibility: hidden;
+    transition: transform var(--dur) var(--ease-out), visibility 0s linear var(--dur);
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  }
+  .adm[data-drawer='open'] .adm-side { transform: none; visibility: visible; transition-delay: 0s; }
+  .adm[data-drawer='open'] .adm-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(4, 5, 5, 0.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) { .adm-side { transition: none; } }
+
+/* ── Page ────────────────────────────────────────────────────────────── */
+
+.adm-main { min-width: 0; padding: 0 32px 56px; }
+.adm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 64px;
+  /* Room on the right for the notification bell. */
+  padding: 10px 52px 10px 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.adm-head h1 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--charcoal);
+}
+.adm-crumb { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 2px; }
+.adm-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.adm-stack { display: grid; gap: var(--adm-gap); grid-template-columns: minmax(0, 1fr); }
+.adm-cols { display: grid; gap: var(--adm-gap); grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.adm-cols-wide { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.adm-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.adm-meta { font-size: 0.8rem; color: var(--text-secondary); }
+.adm-muted { color: var(--text-muted); font-size: 0.8rem; line-height: 1.55; margin: 0; }
+.adm-error {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  border: 1px solid color-mix(in srgb, var(--danger-fg) 25%, transparent);
+  border-radius: var(--adm-radius);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+}
+.adm-note {
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border-radius: var(--adm-radius);
+  padding: 10px 12px;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 1023px) {
+  /* The skip link stops the page title below the sticky top bar. */
+  .adm-main { padding: 0 16px 48px; scroll-margin-top: calc(56px + env(safe-area-inset-top, 0px)); }
+  .adm-head { min-height: auto; padding: 18px 0 12px; margin-bottom: 16px; }
+  .adm-cols, .adm-cols-wide { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Panels ──────────────────────────────────────────────────────────── */
+
+.adm-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--adm-radius);
+  min-width: 0;
+}
+.adm-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.adm-panel-head h2 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--charcoal);
+}
+.adm-panel-body { padding: 14px 16px; }
+.adm-panel-empty { padding: 28px 16px; text-align: center; color: var(--text-muted); font-size: 0.84rem; }
+
+/* Rows in a panel: label and value, or item and action. */
+.adm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.86rem;
+}
+.adm-row:last-child { border-bottom: 0; }
+/* A long status in a row wraps under its dot instead of running into the action. */
+.adm-row .adm-status { white-space: normal; align-items: flex-start; }
+.adm-row .adm-status::before { margin-top: 0.45em; }
+.adm-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.adm-sub { display: block; color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+
+/* ── Figures ─────────────────────────────────────────────────────────── */
+
+.adm-kpis {
+  display: grid;
+  grid-template-columns: repeat(var(--adm-kpi-n, 4), minmax(0, 1fr));
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--adm-radius);
+}
+.adm-kpi { padding: 14px 16px; border-left: 1px solid var(--border); min-width: 0; }
+.adm-kpi:first-child { border-left: 0; }
+.adm-kpi-label { font-size: 0.78rem; color: var(--text-muted); }
+.adm-kpi-value {
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+  color: var(--charcoal);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.adm-kpi-value[data-tone='bad'] { color: var(--danger-fg); }
+.adm-kpi-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+.adm-up { color: var(--success-fg); }
+.adm-down { color: var(--danger-fg); }
+
+@media (max-width: 720px) {
+  .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-kpi { border-left: 0; border-top: 1px solid var(--border); padding: 12px 14px; }
+  .adm-kpi:nth-child(2n) { border-left: 1px solid var(--border); }
+  .adm-kpi:nth-child(-n + 2) { border-top: 0; }
+  .adm-kpi-value { font-size: 1.25rem; }
+  /* An odd last figure takes the whole row. */
+  .adm-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; border-left: 0; }
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────── */
+
+.adm-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Contains the screen-reader-only header labels (absolutely positioned),
+     which otherwise widen the page past a phone's edge. */
+  position: relative;
+}
+.adm-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.adm-table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.adm-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.adm-table tbody tr:last-child td { border-bottom: 0; }
+.adm-table .num, .adm-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.adm-table .strong { font-weight: 600; color: var(--charcoal); }
+.adm-table .dim { color: var(--text-muted); }
+.adm-table .nowrap { white-space: nowrap; }
+.adm-table .actions { white-space: nowrap; text-align: right; }
+.adm-table .actions > * + * { margin-left: 6px; }
+/* Wide tables keep their columns on a phone and scroll inside their panel. */
+@media (max-width: 1023px) { .adm-scroll > .adm-table.wide { min-width: 640px; } }
+
+/* ── Controls ────────────────────────────────────────────────────────── */
+
+/* Buttons keep the shared classes (.btn-primary / .btn-outline); in the console
+   they are compact and flat. */
+.adm .btn-primary, .adm .btn-outline, .adm .btn-danger,
+.adm-door .btn-primary, .adm-door .btn-outline {
+  border-radius: 6px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.adm .btn-outline, .adm-door .btn-outline { border-width: 1px; background: var(--card-bg); }
+.adm .btn-primary:hover, .adm .btn-outline:hover, .adm .btn-danger:hover,
+.adm-door .btn-primary:hover, .adm-door .btn-outline:hover { transform: none; box-shadow: none; }
+.adm .btn-primary:active, .adm .btn-outline:active, .adm-door .btn-primary:active { transform: none; }
+
+.adm-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--charcoal);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.adm-link:hover { text-decoration-color: var(--charcoal); }
+.adm-link[data-tone='bad'] { color: var(--danger-fg); }
+.adm-link:disabled { color: var(--text-muted); cursor: not-allowed; text-decoration: none; }
+
+/* A row of choices where one is on (filters, periods). */
+.adm-seg {
+  display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-bg);
+}
+.adm-seg button {
+  flex-shrink: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  padding: 6px 12px;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.adm-seg button:first-child { border-left: 0; }
+.adm-seg button:hover { color: var(--charcoal); }
+.adm-seg button[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
+.adm-seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+body.dark-mode .adm-seg button[aria-pressed='true'] { background: var(--charcoal); color: var(--ink); }
+
+.adm-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+}
+.adm-label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+
+/* Status: a coloured dot and plain words, not a pastel pill. */
+.adm-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+.adm-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--adm-dot, var(--adm-mute));
+  flex-shrink: 0;
+}
+.adm-status[data-tone='ok'] { --adm-dot: var(--adm-ok); }
+.adm-status[data-tone='warn'] { --adm-dot: var(--adm-warn); }
+.adm-status[data-tone='bad'] { --adm-dot: var(--adm-bad); }
+.adm-status[data-tone='info'] { --adm-dot: var(--adm-info); }
+.adm-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+/* Simple bars (insights, revenue trend). */
+.adm-bars { display: flex; align-items: flex-end; gap: 3px; height: 160px; }
+.adm-bars > div { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.adm-bars > div > span { display: block; width: 100%; background: var(--charcoal); opacity: 0.85; border-radius: 2px 2px 0 0; min-height: 0; }
+.adm-meter { height: 6px; border-radius: 3px; background: var(--surface-sunken); overflow: hidden; }
+.adm-meter > span { display: block; height: 100%; background: var(--charcoal); }
+
+/* ── Sign-in and two-step screens ────────────────────────────────────── */
+
+.adm-door {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--off-white);
+}
+.adm-door-box { width: 100%; max-width: 380px; }
+.adm-door .adm-brand { padding: 0 0 16px; color: var(--charcoal); }
+.adm-door .adm-brand b { color: var(--charcoal); }
+/* "Admin" next to the logo on light surfaces (4.5:1 or better). */
+.adm-topbar .adm-brand small, .adm-door .adm-brand small { color: var(--text-muted); }
+.adm-door .adm-panel-body { padding: 22px; display: grid; gap: 14px; }
+.adm-door h1 { font-family: var(--font-display); font-size: 1.2rem; font-weight: 650; margin: 0; color: var(--charcoal); }
+.adm-door .btn-primary { width: 100%; padding: 0.65rem 1rem; font-size: 0.9rem; }

@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import { panel as card, h2, h3, muted, input, label, errBox } from './admin/ui';
+import '../styles/admin.css';
 
 // Two-step sign-in (an authenticator app) for admin accounts. The API refuses
 // every admin request from a session that hasn't passed it in the last 12 hours
@@ -9,21 +11,15 @@ import { useAuthContext } from '../context/AuthContext';
 // session (the 12 hours ran out) brings the code screen back
 // (packages/api-client fires 'admin-two-step-required').
 
-const card = { background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', boxShadow: 'var(--shadow-sm)', minWidth: 0 };
-const h2 = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' };
-const h3 = { fontFamily: 'var(--font-display)', fontSize: '0.98rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.75rem' };
-const muted = { color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 };
-const input = {
-    width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid var(--border-input)', borderRadius: 'var(--radius-sm)',
-    fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'white', boxSizing: 'border-box',
-};
-const label = { display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' };
-const errBox = { background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' };
 const fullButton = { width: '100%', justifyContent: 'center', textAlign: 'center' };
 
 const apiError = (err, fallback) => err?.response?.data?.message || fallback;
 
 export const TWO_STEP_EVENT = 'admin-two-step-required';
+
+// The signed-in admin's two-step status (e.g. recoveryCodesLeft) for the console.
+export const TwoStepStatus = createContext(null);
+export const useTwoStepStatus = () => useContext(TwoStepStatus);
 
 const CodeInput = ({ value, onChange, id, placeholder = '123456' }) => (
     <input id={id} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="one-time-code" inputMode="text"
@@ -35,7 +31,7 @@ const CodeInput = ({ value, onChange, id, placeholder = '123456' }) => (
 const Step = ({ n, title, children }) => (
     <section style={{ display: 'grid', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
         <h3 style={{ ...h3, margin: 0, display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
-            <span aria-hidden="true" style={{ color: 'var(--gold-dark)', fontVariantNumeric: 'tabular-nums' }}>{n}.</span>
+            <span aria-hidden="true" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{n}.</span>
             <span>{title}</span>
         </h3>
         {children}
@@ -179,13 +175,16 @@ export const AdminTwoStepGate = ({ children }) => {
 
     const ready = status?.enabled && status?.sessionConfirmed;
     settingUp.current = !!status && !status.enabled;
-    if (ready) return children;
+    if (ready) return <TwoStepStatus.Provider value={status}>{children}</TwoStepStatus.Provider>;
     return (
-        <div style={{ maxWidth: '28rem', margin: '2.5rem auto', padding: '0 1rem' }} data-testid="admin-two-step-gate">
-            {error ? <div role="alert" style={errBox}>{error}</div>
-                : !status ? <p style={muted}>Loading…</p>
-                    : !status.enabled ? <MfaSetup onDone={setupDone} />
-                        : <MfaConfirm onDone={load} />}
+        <div className="adm-door" data-testid="admin-two-step-gate">
+            <div className="adm-door-box" style={{ maxWidth: '26rem' }}>
+                <div className="adm-brand"><b>Book<span>plus</span></b><small>Admin</small></div>
+                {error ? <div role="alert" style={errBox}>{error}</div>
+                    : !status ? <p style={muted}>Loading…</p>
+                        : !status.enabled ? <MfaSetup onDone={setupDone} />
+                            : <MfaConfirm onDone={load} />}
+            </div>
         </div>
     );
 };

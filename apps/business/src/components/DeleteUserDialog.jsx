@@ -25,9 +25,9 @@ const DeleteUserDialog = ({ user, loadPreview, onConfirm, onClose, busy = false 
     const ready = !busy && (!text.requireTyping || typed.trim() === text.requireTyping);
 
     return (
-        <div onClick={busy ? undefined : onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+        <div onClick={busy ? undefined : onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div role="alertdialog" aria-modal="true" aria-labelledby="delete-user-title" data-testid="delete-user-dialog" onClick={(e) => e.stopPropagation()}
-                style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '460px', overflow: 'hidden' }}>
+                style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', width: '100%', maxWidth: '460px', overflow: 'hidden' }}>
                 <div style={{ padding: '1.2rem 1.35rem 0.4rem' }}>
                     <h2 id="delete-user-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--danger-fg)', margin: 0 }}>{text.title}</h2>
                 </div>
@@ -59,7 +59,7 @@ const DeleteUserDialog = ({ user, loadPreview, onConfirm, onClose, busy = false 
                     <button type="button" onClick={onClose} disabled={busy} className="btn-outline" style={{ padding: '0.55rem 1.1rem' }}>Cancel</button>
                     <button type="button" onClick={onConfirm} disabled={!ready} style={{
                         padding: '0.55rem 1.1rem', borderRadius: 'var(--radius-sm)', border: 'none',
-                        background: '#b91c1c', color: '#fff', fontWeight: 600, fontFamily: 'var(--font-body)',
+                        background: 'var(--danger-solid)', color: '#fff', fontWeight: 600, fontFamily: 'var(--font-body)',
                         fontSize: '0.88rem', cursor: ready ? 'pointer' : 'not-allowed', opacity: ready ? 1 : 0.45,
                     }}>{busy ? 'Deleting…' : text.confirmLabel}</button>
                 </div>
