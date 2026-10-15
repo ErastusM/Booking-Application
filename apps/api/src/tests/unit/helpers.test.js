@@ -3,7 +3,7 @@
  * These run without any DB or HTTP — pure logic.
  */
 const jwt = require('jsonwebtoken');
-const { generateToken, generateRefreshToken, validateEmail } = require('../../utils/helpers');
+const { generateToken, generateRefreshToken, tokenRevoked, validateEmail } = require('../../utils/helpers');
 
 describe('generateToken', () => {
     it('returns a valid JWT signed with JWT_SECRET', () => {
@@ -66,6 +66,28 @@ describe('generateRefreshToken', () => {
         const token = generateRefreshToken('user456');
         const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
         expect(decoded.tokenVersion).toBe(0);
+    });
+});
+
+describe('tokenRevoked', () => {
+    it('accepts a token carrying the account\'s current tokenVersion', () => {
+        expect(tokenRevoked({ tokenVersion: 2 }, { tokenVersion: 2 })).toBe(false);
+        expect(tokenRevoked(jwt.decode(generateToken('abc')), { tokenVersion: 0 })).toBe(false);
+    });
+
+    it('refuses a token from before the last bump', () => {
+        expect(tokenRevoked({ tokenVersion: 1 }, { tokenVersion: 2 })).toBe(true);
+    });
+
+    it('refuses a token with no tokenVersion, whatever the account\'s version', () => {
+        for (const claims of [{}, { tokenVersion: undefined }, { tokenVersion: null }]) {
+            expect(tokenRevoked(claims, { tokenVersion: 0 })).toBe(true);
+            expect(tokenRevoked(claims, {})).toBe(true);
+        }
+    });
+
+    it('reads an account with no stored tokenVersion as version 0', () => {
+        expect(tokenRevoked({ tokenVersion: 0 }, {})).toBe(false);
     });
 });
 

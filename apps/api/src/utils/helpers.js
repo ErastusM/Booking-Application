@@ -27,6 +27,13 @@ exports.generateRefreshToken = (id, tokenVersion = 0, jti, extra = {}) => {
     });
 };
 
+// Whether a decoded access/refresh token predates the account's last
+// tokenVersion bump (logout everywhere, password change, admin two-step reset).
+// Every token we issue carries tokenVersion, so a token WITHOUT one was forged
+// with the signing key or minted by long-gone code — refuse it rather than let
+// it skip revocation.
+exports.tokenRevoked = (claims, user) => (claims.tokenVersion ?? null) !== (user.tokenVersion ?? 0);
+
 exports.formatResponse = (success, message, data = null, statusCode = 200) => {
     return {
         success,
