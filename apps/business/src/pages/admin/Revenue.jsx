@@ -29,7 +29,7 @@ const Detail = ({ id, onClose }) => {
 
     const max = d ? Math.max(...d.monthly.map((m) => m.revenue), 1) : 1;
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', zIndex: 1300, overflowY: 'auto', padding: '24px 16px' }}>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', zIndex: 1300, overflowY: 'auto', padding: 'calc(24px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px))' }}>
             <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={d ? `${d.provider.name}: revenue` : 'Revenue'} onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => trapTab(e, box.current)}
                 className="adm-panel" style={{ maxWidth: 760, margin: '0 auto', outline: 'none' }}>

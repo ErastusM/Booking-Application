@@ -190,6 +190,7 @@ export const PaymentsView = ({ onLocked, onCaseOpened }) => {
             </div>
             {view === 'attention' && <p style={muted}>Payments still open after 15 minutes, flagged ones, and refunds that did not go through.</p>}
             {error && <p role="alert" style={{ ...muted, color: bad }}>{error}</p>}
+            {!rows && !error && <p style={muted}>Loading…</p>}
             {rows && rows.length === 0 && <div style={card}><p style={muted}>{view === 'attention' ? 'Nothing needs a look.' : 'No payments.'}</p></div>}
             {(rows || []).map((p) => (
                 <PaymentCard key={p._id} p={p} onLocked={onLocked} onCaseOpened={onCaseOpened}
@@ -582,6 +583,7 @@ export const DisputesView = ({ onLocked, openId = null }) => {
             </div>
             <p style={muted}>Card chargebacks and complaints that a paid service was not provided. Open a case from a payment (Payments).</p>
             {error && <p role="alert" style={{ ...muted, color: bad }}>{error}</p>}
+            {!rows && !error && <p style={muted}>Loading…</p>}
             {rows && rows.length === 0 && <div style={card}><p style={muted}>{status === 'open' ? 'No open cases.' : 'No closed cases yet.'}</p></div>}
             {(rows || []).map((d) => {
                 const left = daysLeft(d.deadlineAt);

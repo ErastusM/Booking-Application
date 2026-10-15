@@ -57,10 +57,20 @@ describe('Overview', () => {
     });
 
     it('recovery codes running low come first, pointing at Admins and roles', () => {
-        renderWith(base, { recoveryCodesLeft: 1 });
-        const [row] = screen.getAllByTestId('needs-you-row');
-        expect(row).toHaveTextContent('1 recovery code left');
-        expect(within(row).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/bkplus-command/settings/admins');
+        renderWith({ ...base, applications: 2, payouts: 1, payoutsCents: 5000 }, { recoveryCodesLeft: 1 });
+        const rows = screen.getAllByTestId('needs-you-row');
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toHaveTextContent('1 recovery code left');
+        expect(within(rows[0]).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/bkplus-command/settings/admins');
+        expect(rows[1]).toHaveTextContent('2 businesses waiting for online payments approval');
+        expect(needsYou().queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('a failed load still shows its error next to the recovery row', () => {
+        const none = { payments: null, payouts: null, applications: null, requests: null, cases: null, topUps: null, launch: null };
+        renderWith({ ...base, ...none, money: undefined, error: true }, { recoveryCodesLeft: 1 });
+        expect(screen.getAllByTestId('needs-you-row')[0]).toHaveTextContent('1 recovery code left');
+        expect(needsYou().getByRole('alert')).toHaveTextContent('Could not load what needs you');
     });
 
     it('without a money role the recovery row has no link it could not open', () => {

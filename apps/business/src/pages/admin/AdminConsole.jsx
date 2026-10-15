@@ -43,13 +43,15 @@ export const loadCounts = async (prev = null) => {
         settle(providerWalletService.getAdminSummary()),
     ]);
     const noRole = settings.error?.response?.data?.code === 'finance_role_required';
+    // Any failure other than "no money role" means this round's counts are incomplete.
+    const failed = (r) => !!r.error && r.error.response?.data?.code !== 'finance_role_required';
     // A value from this round, else the last good one (a failed poll changes nothing).
     const keep = (r, pick, key) => (r.value ? pick(r.value.data) : (prev?.[key] ?? null));
     const payable = due.value ? due.value.data.data.filter((r) => r.payable) : null;
     return {
         // true: money role; false: the API said there is none; otherwise the last known.
         money: settings.value ? true : noRole ? false : (prev?.money ?? undefined),
-        error: !settings.value && !noRole, // the money counts could not be loaded this round
+        error: [attention, due, applications, requests, cases, settings, wallets].some(failed),
         payments: keep(attention, (d) => d.total ?? d.data?.length ?? 0, 'payments'),
         payouts: payable ? payable.length : (prev?.payouts ?? null),
         payoutsCents: due.value ? due.value.data.totalPayableCents : (prev?.payoutsCents ?? null),
@@ -177,7 +179,14 @@ const AdminConsole = () => {
     // drawer, Escape closes it, and focus goes back to the menu button.
     useEffect(() => {
         if (!drawer) return undefined;
-        const onKey = (e) => { if (e.key === 'Escape') setDrawer(false); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') setDrawer(false);
+            // Focus dropped out of the drawer (a click on a bare spot): Tab brings it back.
+            else if (e.key === 'Tab' && !aside.current?.contains(document.activeElement)) {
+                e.preventDefault();
+                aside.current?.querySelector('a, button')?.focus();
+            }
+        };
         document.addEventListener('keydown', onKey);
         lockScroll();
         aside.current?.querySelector('a, button')?.focus();
@@ -189,7 +198,9 @@ const AdminConsole = () => {
             wide?.removeEventListener?.('change', onWide);
             unlockScroll();
             const at = document.activeElement;
-            if (!at || at === document.body || aside.current?.contains(at)) burger.current?.focus();
+            // Focus in the drawer, or on something around it (body, or App's <main
+            // tabIndex=-1> after a tap on the scrim): back to the menu button.
+            if (!at || aside.current?.contains(at) || at.contains(aside.current)) burger.current?.focus();
         };
     }, [drawer]);
 

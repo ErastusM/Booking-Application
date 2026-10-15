@@ -95,6 +95,16 @@ describe('AdminConsole', () => {
         expect(within(nav).getByRole('link', { name: 'Prices and fees' })).toBeInTheDocument();
     });
 
+    it('one count failing is an error, not an all-clear', async () => {
+        svc.financeService.listApprovals = vi.fn(refuse(500));
+        expect(await loadCounts(null)).toMatchObject({ money: true, error: true, applications: null, payments: 2 });
+        // Without a money role only the wallet count is theirs; it failing is an error too.
+        for (const k of Object.keys(svc.financeService)) svc.financeService[k] = vi.fn(refuse(403, 'finance_role_required'));
+        expect(await loadCounts(null)).toMatchObject({ money: false, error: false });
+        svc.providerWalletService.getAdminSummary = vi.fn(refuse(500));
+        expect(await loadCounts(null)).toMatchObject({ money: false, error: true, topUps: null });
+    });
+
     it('a failed poll keeps the last good counts', async () => {
         const first = await loadCounts(null);
         expect(first).toMatchObject({ money: true, error: false, payments: 2, payouts: 1, applications: 1, requests: 2, topUps: 1 });

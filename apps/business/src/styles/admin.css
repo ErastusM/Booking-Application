@@ -35,7 +35,8 @@
   overflow-y: auto;
   background: var(--ink);
   color: #c9cccb;
-  padding: 18px 12px 14px;
+  /* Clear of the home indicator in the installed app (0 in a browser). */
+  padding: 18px 12px calc(14px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -248,7 +249,8 @@
 }
 
 @media (max-width: 1023px) {
-  .adm-main { padding: 0 16px 48px; }
+  /* The skip link stops the page title below the sticky top bar. */
+  .adm-main { padding: 0 16px 48px; scroll-margin-top: calc(56px + env(safe-area-inset-top, 0px)); }
   .adm-head { min-height: auto; padding: 18px 0 12px; margin-bottom: 16px; }
   .adm-cols, .adm-cols-wide { grid-template-columns: minmax(0, 1fr); }
 }

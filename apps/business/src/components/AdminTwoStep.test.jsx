@@ -49,6 +49,8 @@ describe('AdminTwoStepGate', () => {
 
         // A late refusal from an earlier request doesn't hide the codes.
         act(() => { window.dispatchEvent(new CustomEvent(TWO_STEP_EVENT)); });
+        await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+        expect(auth.authService.mfaStatus).toHaveBeenCalledTimes(1);
         expect(screen.getByTestId('mfa-recovery-codes')).toBeInTheDocument();
 
         await userEvent.click(screen.getByRole('button', { name: 'I saved them' }));

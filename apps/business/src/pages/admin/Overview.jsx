@@ -14,7 +14,8 @@ const NeedsYou = ({ counts, codesLeft }) => {
     if (!counts) return <Empty>Loading…</Empty>;
     const rows = [];
     // New codes come from a director resetting two-step sign-in (Admins and roles).
-    if (codesLeft !== undefined && codesLeft <= 2) rows.push({
+    const codesLow = codesLeft !== undefined && codesLeft <= 2;
+    if (codesLow) rows.push({
         tone: 'bad', to: counts.money !== false ? 'settings/admins' : null, action: 'Open',
         text: codesLeft === 0 ? 'No recovery codes left' : `${plural(codesLeft, 'recovery code')} left`,
         sub: 'A director can reset your two-step sign-in to issue new ones',
@@ -44,17 +45,22 @@ const NeedsYou = ({ counts, codesLeft }) => {
         const done = launch.items.filter((i) => i.done).length;
         rows.push({ to: 'settings/go-live', action: 'Continue', text: `Go-live checklist: ${done} of ${launch.items.length} done`, sub: 'Online payments stay off until it is complete' });
     }
-    if (!rows.length) {
-        return counts.error
-            ? <div role="alert" className="adm-error" style={{ margin: 16 }}>Could not load what needs you. It tries again every minute.</div>
-            : <Empty>Nothing needs you right now.</Empty>;
-    }
-    return rows.map((r) => (
-        <div className="adm-row" key={r.text} data-testid="needs-you-row">
-            <div><Status tone={r.tone}>{r.text}</Status>{r.sub && <span className="adm-sub" style={{ marginLeft: 14 }}>{r.sub}</span>}</div>
-            {r.to && <Link className="adm-link" to={`/bkplus-command/${r.to}`}>{r.action}</Link>}
-        </div>
-    ));
+    // Shown when no count could be listed (the recovery row is not a count).
+    const failed = counts.error && rows.length === (codesLow ? 1 : 0)
+        ? <div role="alert" className="adm-error" style={{ margin: 16 }}>Could not load what needs you. It tries again every minute.</div>
+        : null;
+    if (!rows.length) return failed || <Empty>Nothing needs you right now.</Empty>;
+    return (
+        <>
+            {rows.map((r) => (
+                <div className="adm-row" key={r.text} data-testid="needs-you-row">
+                    <div><Status tone={r.tone}>{r.text}</Status>{r.sub && <span className="adm-sub" style={{ marginLeft: 14 }}>{r.sub}</span>}</div>
+                    {r.to && <Link className="adm-link" to={`/bkplus-command/${r.to}`}>{r.action}</Link>}
+                </div>
+            ))}
+            {failed}
+        </>
+    );
 };
 
 const Overview = () => {
