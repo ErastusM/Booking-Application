@@ -18,7 +18,16 @@ const Unsubscribe = () => {
         if (ran.current) return; // StrictMode double-mount
         ran.current = true;
         marketingService.unsubscribe(token)
-            .then(() => setState('unsubscribed'))
+            .then((res) => {
+                // An older link can't undo: say how to get these emails back instead.
+                const d = res?.data?.data;
+                if (d?.canUndo === false) {
+                    setMessage(d.kind === 'guest'
+                        ? 'To get these emails again, tick the offers box when you next book.'
+                        : 'To get these emails again, turn them on in your account settings.');
+                }
+                setState('unsubscribed');
+            })
             .catch((err) => { setState('error'); setMessage(err.response?.data?.message || 'We couldn’t process this link. Please try again.'); });
     }, [token]);
 

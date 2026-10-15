@@ -587,7 +587,7 @@ const ACTION_LABELS = {
     'refund.reject': 'Rejected a refund', 'refund.execute': 'Refunded', 'refund.fail': 'Refund did not go through', 'refund.owner': 'Business refunded',
     'adjustment.request': 'Asked for an adjustment', 'adjustment.approve': 'Approved an adjustment', 'adjustment.reject': 'Rejected an adjustment',
     'adjustment.execute': 'Adjusted a balance', 'adjustment.fail': 'Adjustment failed', 'payout.record': 'Recorded a payout',
-    'roles.update': 'Changed money roles', 'security.mfa_enabled': 'Turned on two-step sign-in', 'security.mfa_reset': 'Reset two-step sign-in',
+    'roles.update': 'Changed money roles', 'security.mfa_enabled': 'Turned on two-step sign-in', 'security.mfa_reset': 'Reset two-step sign-in', 'security.admin_locked': 'Suspended an admin (server)',
     'payment.sync': 'Asked PayGate about a payment', 'refund.retry': 'Sent a refund again', 'refund.retry_fail': 'Refund still not taken',
     'payout.prepare': 'Prepared a payout', 'payout.paid': 'Marked a payout paid', 'payout.failed': 'Payout returned by the bank',
     'payout.bank_file': 'Downloaded the payout bank file', 'dispute.open': 'Opened a case', 'dispute.evidence': 'Added evidence to a case',
