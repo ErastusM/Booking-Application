@@ -235,6 +235,23 @@ describe('POST /api/auth/logout + token revocation', () => {
             .set('Authorization', `Bearer ${expiredToken}`);
         expect(res.status).toBe(401);
     });
+
+    it('refuses a correctly signed token with no tokenVersion (it could never be revoked)', async () => {
+        const user = await makeUser();
+        const sign = (payload) => jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
+
+        const versionless = await request(app)
+            .get('/api/auth/profile')
+            .set('Authorization', `Bearer ${sign({ id: user._id.toString() })}`);
+        expect(versionless.status).toBe(401);
+        expect(versionless.body.message).toBe('Token has been revoked');
+
+        // The same token carrying the account's version is fine.
+        const versioned = await request(app)
+            .get('/api/auth/profile')
+            .set('Authorization', `Bearer ${sign({ id: user._id.toString(), tokenVersion: 0 })}`);
+        expect(versioned.status).toBe(200);
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -337,6 +354,22 @@ describe('POST /api/auth/refresh', () => {
         const { token } = await loginAndGetTokens();
         const res = await request(app).post('/api/auth/refresh').send({ refreshToken: token });
         expect(res.status).toBe(401);
+    });
+
+    it('refuses a correctly signed refresh token with no tokenVersion', async () => {
+        // Never logged in, so no jti list yet: only tokenVersion stands between
+        // this token and a fresh session.
+        const user = await makeUser();
+        const sign = (payload) => jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+
+        const versionless = await request(app).post('/api/auth/refresh')
+            .send({ refreshToken: sign({ id: user._id.toString() }) });
+        expect(versionless.status).toBe(401);
+        expect(versionless.body.message).toMatch(/revoked/i);
+
+        const versioned = await request(app).post('/api/auth/refresh')
+            .send({ refreshToken: sign({ id: user._id.toString(), tokenVersion: 0 }) });
+        expect(versioned.status).toBe(200);
     });
 
     it('revokes the refresh token after logout (tokenVersion bump)', async () => {
