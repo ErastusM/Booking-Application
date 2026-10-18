@@ -7,11 +7,13 @@
     "exports": {
         ".": "./index.js",
         "./tokens.css": "./tokens.css",
+        "./ionic-bridge.css": "./ionic-bridge.css",
         "./tailwind-preset": "./tailwind-preset.js"
     },
     "files": [
         "index.js",
         "tokens.css",
+        "ionic-bridge.css",
         "tailwind-preset.js"
     ]
 }
