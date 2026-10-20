@@ -26,26 +26,26 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@fullcalendar/core':
-        specifier: ^6.1.20
-        version: 6.1.21
+        specifier: ^6.1.22
+        version: 6.1.22
       '@fullcalendar/daygrid':
-        specifier: ^6.1.20
-        version: 6.1.21(@fullcalendar/core@6.1.21)
+        specifier: ^6.1.22
+        version: 6.1.22(@fullcalendar/core@6.1.22)
       '@fullcalendar/interaction':
-        specifier: ^6.1.20
-        version: 6.1.21(@fullcalendar/core@6.1.21)
+        specifier: ^6.1.22
+        version: 6.1.22(@fullcalendar/core@6.1.22)
       '@fullcalendar/react':
-        specifier: ^6.1.20
-        version: 6.1.21(@fullcalendar/core@6.1.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^6.1.22
+        version: 6.1.22(@fullcalendar/core@6.1.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@fullcalendar/timegrid':
-        specifier: ^6.1.20
-        version: 6.1.21(@fullcalendar/core@6.1.21)
+        specifier: ^6.1.22
+        version: 6.1.22(@fullcalendar/core@6.1.22)
       '@react-google-maps/api':
         specifier: ^2.20.8
         version: 2.20.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react:
-        specifier: ^1.51.0
-        version: 1.57.0(@types/react@18.3.31)(react@18.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@18.3.31)(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -102,8 +102,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       lucide-react:
-        specifier: ^1.51.0
-        version: 1.57.0(@types/react@18.3.31)(react@18.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@18.3.31)(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -244,6 +244,10 @@ packages:
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
+
+  '@babel/runtime@7.29.10':
+    resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.29.7':
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
@@ -433,30 +437,30 @@ packages:
   '@fontsource-variable/plus-jakarta-sans@5.3.0':
     resolution: {integrity: sha512-/l/4r0yyWK9JzAlmA0LiYgGgmJe/Gswt4jTJEzr5QhJfwMbvJZDmYWyW0M4X7yCK69BajMVlV/Lx8g7WDc1+sw==}
 
-  '@fullcalendar/core@6.1.21':
-    resolution: {integrity: sha512-t3u/+sqh3Iq7TWtUnVLcGDUE6OWZh0UD3c04bI/l7lSLAgAKr3kngBmhHiQD1QXpwC8ZN5iNqG7a7gOVixhSKQ==}
+  '@fullcalendar/core@6.1.22':
+    resolution: {integrity: sha512-ju5PJUE++zr8XXCGtlXlrodF6doUy9BDfzx+VmE0B+XDBM2A5cUi/aU3M1ANfw/StmKhwqew7Ps7bXMiv/JREg==}
 
-  '@fullcalendar/daygrid@6.1.21':
-    resolution: {integrity: sha512-QYb1y40RGYLlOxKpYWg8O+7njEnKnFG8Tt7qjnubJGR35s1phQg67E+81y2TyAbbm59p2JFOCXGDk9t6KDujIA==}
+  '@fullcalendar/daygrid@6.1.22':
+    resolution: {integrity: sha512-cpom5+bAvsGG5nX+snsCtpMIyyhAr+QlseD9mhz5Vq7rMBTzx43mSkz6IBvQ3vz5h2idbDmT1cggEn/dzZwt9Q==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.21
+      '@fullcalendar/core': ~6.1.22
 
-  '@fullcalendar/interaction@6.1.21':
-    resolution: {integrity: sha512-WPYpqtljDWmU0Xm2cOtFrLlocgxv7cgkOppj34Q6OUUat8a6Cnd6kYo2JR+irP223PE5lBYHFNp1qh7SIpJc0w==}
+  '@fullcalendar/interaction@6.1.22':
+    resolution: {integrity: sha512-r8Njw8aPNFGRwDjVAh9NTh3ZJib5tcUoLi/BM4uYJt5Cs9tDiirmImaqxhx56hclVFX7ktd5CdaMX0+ArSbm5A==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.21
+      '@fullcalendar/core': ~6.1.22
 
-  '@fullcalendar/react@6.1.21':
-    resolution: {integrity: sha512-TLpmGUd5k/PMdCh8XbeFC9PW9wuGvMms1oCxWgXyjK3EFPXAAd0PLfcvwKdyxoAS5eK1E4RJFkjMHvsYHpimcg==}
+  '@fullcalendar/react@6.1.22':
+    resolution: {integrity: sha512-H7woM4nhvXjyM4Up2D3iSp5f8o3pRPGkiHRixvxxvIMdSMBxboGTqCI7T/vjnAfz5TCxXdeX5HxmSHeANsa6gg==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.21
+      '@fullcalendar/core': ~6.1.22
       react: ^16.7.0 || ^17 || ^18 || ^19
       react-dom: ^16.7.0 || ^17 || ^18 || ^19
 
-  '@fullcalendar/timegrid@6.1.21':
-    resolution: {integrity: sha512-2DnShx/jallGmb8QCkr6pAOu/zuPhJrP7+uTrAtSnbqsX7GF3lTxqSeNGkTQwsgF5g/ia8udhQ+JNYaE+TN1cQ==}
+  '@fullcalendar/timegrid@6.1.22':
+    resolution: {integrity: sha512-gNMtkXrkfN3iszXty+pYbJwGxcozL0xBVKYmEd1lm0DMEbrffpVJyV+vifmtl/eIbWCNRWrMWUtGLbYy/ukykA==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.21
+      '@fullcalendar/core': ~6.1.22
 
   '@googlemaps/js-api-loader@1.16.8':
     resolution: {integrity: sha512-CROqqwfKotdO6EBjZO/gQGVTbeDps5V7Mt9+8+5Q+jTg5CRMi3Ii/L9PmV3USROrt2uWxtGzJHORmByxyo9pSQ==}
@@ -739,8 +743,8 @@ packages:
   '@vitest/utils@2.1.9':
     resolution: {integrity: sha512-v0psaMSkNJ3A2NMrUEHFRzJtDPFn+/VWZ5WxImB21T9fjucJRmS7xCS3ppEnARb9y11OAzaD+P2Ps+b+BGX5iQ==}
 
-  acorn@8.17.0:
-    resolution: {integrity: sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg==}
+  acorn@8.19.0:
+    resolution: {integrity: sha512-oJlA3XiRm7Cyk6qFD2Jn8ak9B7jSy0qy00ADO3+8dpT0LSjFihQYv4C02LFCSYJV3Q37xYwwRy5m+IpIiUzqWw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
 
@@ -1029,8 +1033,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.57.0:
-    resolution: {integrity: sha512-bXFZEucYhAzLD62Jse76AbTR6LiSLTn3Tqir2f1n8rZrWAdLodYy7jnRZSPIT89dRLk/IseMOUWG82wJtTyTTw==}
+  lucide-react@1.59.0:
+    resolution: {integrity: sha512-5qgMyyCPU6OvnKpLS2t693+ZtiqA8oaSweWoUows0BLFKFf6V75m4+CptpmohZHpD5IuOVIBXHBBiv2vpLJmtw==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -1468,6 +1472,8 @@ snapshots:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.29.7
 
+  '@babel/runtime@7.29.10': {}
+
   '@babel/runtime@7.29.7': {}
 
   '@babel/template@7.29.7':
@@ -1586,28 +1592,28 @@ snapshots:
 
   '@fontsource-variable/plus-jakarta-sans@5.3.0': {}
 
-  '@fullcalendar/core@6.1.21':
+  '@fullcalendar/core@6.1.22':
     dependencies:
       preact: 10.12.1
 
-  '@fullcalendar/daygrid@6.1.21(@fullcalendar/core@6.1.21)':
+  '@fullcalendar/daygrid@6.1.22(@fullcalendar/core@6.1.22)':
     dependencies:
-      '@fullcalendar/core': 6.1.21
+      '@fullcalendar/core': 6.1.22
 
-  '@fullcalendar/interaction@6.1.21(@fullcalendar/core@6.1.21)':
+  '@fullcalendar/interaction@6.1.22(@fullcalendar/core@6.1.22)':
     dependencies:
-      '@fullcalendar/core': 6.1.21
+      '@fullcalendar/core': 6.1.22
 
-  '@fullcalendar/react@6.1.21(@fullcalendar/core@6.1.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@fullcalendar/react@6.1.22(@fullcalendar/core@6.1.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@fullcalendar/core': 6.1.21
+      '@fullcalendar/core': 6.1.22
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@fullcalendar/timegrid@6.1.21(@fullcalendar/core@6.1.21)':
+  '@fullcalendar/timegrid@6.1.22(@fullcalendar/core@6.1.22)':
     dependencies:
-      '@fullcalendar/core': 6.1.21
-      '@fullcalendar/daygrid': 6.1.21(@fullcalendar/core@6.1.21)
+      '@fullcalendar/core': 6.1.22
+      '@fullcalendar/daygrid': 6.1.22(@fullcalendar/core@6.1.22)
 
   '@googlemaps/js-api-loader@1.16.8': {}
 
@@ -1742,7 +1748,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.7
+      '@babel/runtime': 7.29.10
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -1863,7 +1869,7 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 1.2.0
 
-  acorn@8.17.0:
+  acorn@8.19.0:
     optional: true
 
   agent-base@6.0.2:
@@ -2164,7 +2170,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.57.0(@types/react@18.3.31)(react@18.3.1):
+  lucide-react@1.59.0(@types/react@18.3.31)(react@18.3.1):
     dependencies:
       react: 18.3.1
     optionalDependencies:
@@ -2336,7 +2342,7 @@ snapshots:
   terser@5.48.0:
     dependencies:
       '@jridgewell/source-map': 0.3.11
-      acorn: 8.17.0
+      acorn: 8.19.0
       commander: 2.20.3
       source-map-support: 0.5.21
     optional: true
