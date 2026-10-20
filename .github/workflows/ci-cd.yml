@@ -334,7 +334,7 @@ jobs:
 
       - name: Deploy over SSH (compose pull + up)
         if: env.DEPLOY_HOST != '' && steps.tip.outputs.superseded != 'true'
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
