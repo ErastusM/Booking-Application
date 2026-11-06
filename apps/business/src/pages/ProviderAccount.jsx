@@ -15,11 +15,10 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
 import { Select, Field } from '@bookplus/ui';
 import { useToast } from '../components/Toast';
+import { uploadToCloudinary } from '../utils/uploadImage';
 import PortfolioPhotos, { MAX_PHOTOS } from '../components/PortfolioPhotos';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 
-const CLOUDINARY_CLOUD = 'dktit6s95';
-const CLOUDINARY_PRESET = 'bookplus';
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
 
 // Notice (in hours) a client must give to cancel or reschedule online.
@@ -62,19 +61,6 @@ const BookingLinkCard = ({ user, setUser }) => {
             )}
         </div>
     );
-};
-
-const uploadToCloudinary = async (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('upload_preset', CLOUDINARY_PRESET);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
-        method: 'POST',
-        body: fd,
-    });
-    if (!res.ok) throw new Error('Upload failed');
-    const data = await res.json();
-    return data.secure_url;
 };
 
 const Stars = ({ rating }) => (
