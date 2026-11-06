@@ -517,6 +517,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         redeem: (code: string) => API.post('/giftcards/redeem', { code }),
     },
 
+    // Signed parameters for ONE public picture upload (avatar, portfolio, team photo).
+    uploadService: {
+        photoParams: () => API.post('/uploads/photo'),
+    },
+
     walletService: {
         // Client
         getMyWallets: () => API.get('/wallet/mine'),

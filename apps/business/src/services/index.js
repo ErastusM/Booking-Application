@@ -40,6 +40,7 @@ export const {
     timeClockService,
     suggestionService,
     pushService,
+    uploadService,
     walletService,
     giftCardService,
     providerWalletService,
