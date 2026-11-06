@@ -7,6 +7,11 @@ const { sessionFresh } = require('../utils/mfa');
 const VERIFY_OPTIONS = { algorithms: ['HS256'] };
 exports.verifySessionToken = (token) => jwt.verify(token, process.env.JWT_SECRET, VERIFY_OPTIONS);
 
+// Every token the API issues carries the account's tokenVersion, which goes up
+// on sign-out everywhere, a password change or a two-step reset. A token
+// without one is refused: otherwise it would survive all of those.
+exports.tokenVersionMatches = (decoded, user) => decoded.tokenVersion === (user.tokenVersion ?? 0);
+
 // An admin account can delete users, make admins, move wallet money and see
 // every business, so every admin request needs a session that passed two-step
 // sign-in in the last MFA_SESSION_HOURS (utils/mfa). Before that, an admin can
@@ -57,7 +62,7 @@ exports.auth = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
         }
 
-        if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== req.user.tokenVersion) {
+        if (!exports.tokenVersionMatches(decoded, req.user)) {
             return res.status(401).json({ success: false, message: 'Token has been revoked' });
         }
 
@@ -89,7 +94,7 @@ exports.optionalAuth = async (req, res, next) => {
         // Only attach a fully-valid, active, non-revoked session (for an admin,
         // one that passed two-step sign-in); otherwise stay anonymous.
         if (user && user.isActive !== false &&
-            !(decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) &&
+            exports.tokenVersionMatches(decoded, user) &&
             !adminTwoStepBlock(req, user, decoded) &&
             !(await teamBusinessSuspended(user))) {
             req.user = user;

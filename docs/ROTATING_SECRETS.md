@@ -227,8 +227,9 @@ https://business.bookplus.pro/bkplus-command/login:
   payouts, money roles and the security entries, plus payout runs and wallet
   adjustments. The log starts on 14 October 2026 and records money and
   two-step actions only. From 3 June (when the key became public) to then,
-  nothing was recorded, and making someone an admin, suspending and deleting
-  are never recorded. For those, step 6 is the check.
+  nothing was recorded. Role changes (Make admin, Remove admin) are recorded
+  from 6 November 2026; suspending and deleting accounts are not. For those,
+  step 6 is the check.
 - If step 6 found an admin you did not know:
   1. In the console, open Money, Approvals and reject every waiting request
      that admin prepared (reason: preparer locked).
