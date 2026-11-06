@@ -309,6 +309,19 @@ describe('4 · Make / Remove admin', () => {
         expect(down.body.data.accountType).toBe('business');
     });
 
+    it('every role change is in the audit log, with who did it and from what to what', async () => {
+        const FinancialAuditLog = require('../../models/FinancialAuditLog');
+        const admin = await makeAdmin();
+        const { provider } = await openBusiness();
+        await setRole(admin, provider, 'admin').expect(200);
+        await setRole(admin, provider, 'provider').expect(200);
+        // A refused change is not recorded.
+        expect((await setRole(admin, provider, 'provider')).status).toBe(400);
+        const rows = await FinancialAuditLog.find({ action: 'security.role_change' }).sort({ createdAt: 1, _id: 1 }).lean();
+        expect(rows.map((r) => r.reason)).toEqual(['provider → admin', 'admin → provider']);
+        expect(rows[0]).toMatchObject({ actor: admin._id, reference: provider.email, details: { userId: String(provider._id), from: 'provider', to: 'admin' } });
+    });
+
     it('an admin with no recorded earlier role is demoted to customer only', async () => {
         const admin = await makeAdmin();
         const legacy = await makeAdmin();

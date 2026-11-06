@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { recordFinance } = require('../utils/financeAudit');
 const { removeBusinessData, keepClientNameOnBookings } = require('../utils/adminAccountRemoval');
 
 // The admin seeded from ADMIN_EMAIL at boot (server.js seedAdmin). Its admin
@@ -265,6 +266,13 @@ exports.updateUserRole = async (req, res) => {
                 message: `This email already has a separate ${accountType} account — the role cannot be changed.`,
             });
         }
+
+        // Recorded before it happens (Settings, Audit log), like every money action:
+        // a role change that cannot be recorded does not go ahead.
+        await recordFinance({
+            actor: req.user, action: 'security.role_change', reference: target.email,
+            reason: `${target.role} → ${role}`, details: { userId: String(target._id), from: target.role, to: role },
+        });
 
         // Signed-in sessions of the account are ended: its access has changed.
         const user = await User.findByIdAndUpdate(

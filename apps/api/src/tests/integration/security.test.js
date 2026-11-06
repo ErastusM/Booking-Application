@@ -212,3 +212,23 @@ describe('Input validation edge cases', () => {
         expect(JSON.stringify(res.body)).not.toContain('secret@provider.com');
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session tokens without a tokenVersion
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a session token with no tokenVersion', () => {
+    // Every token the API issues has one; one without it would survive sign-out
+    // everywhere, a password change and a two-step reset.
+    it('is refused', async () => {
+        const jwt = require('jsonwebtoken');
+        const customer = await makeUser({ role: 'customer' });
+        const noVersion = jwt.sign({ id: customer._id.toString() }, process.env.JWT_SECRET, { expiresIn: '15m' });
+        const res = await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${noVersion}`);
+        expect(res.status).toBe(401);
+        expect(res.body.message).toMatch(/revoked/i);
+
+        // With its version, the same token works.
+        const ok = jwt.sign({ id: customer._id.toString(), tokenVersion: customer.tokenVersion ?? 0 }, process.env.JWT_SECRET, { expiresIn: '15m' });
+        expect((await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${ok}`)).status).toBe(200);
+    });
+});
