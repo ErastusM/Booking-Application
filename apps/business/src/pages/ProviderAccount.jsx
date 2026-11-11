@@ -141,9 +141,10 @@ const ProviderAccount = () => {
     const isStaff = user?.role === 'staff';
     // The owner's Bookplus plan: a section only once Bookplus shows plans to businesses.
     const [plan, setPlan] = useState(null);
+    const loadPlan = () => subscriptionService.mine().then((r) => setPlan(r.data.data)).catch(() => setPlan(null));
     useEffect(() => {
         if (isStaff || !user) return;
-        subscriptionService.mine().then((r) => setPlan(r.data.data)).catch(() => setPlan(null));
+        loadPlan(); // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isStaff, user]);
     const sidebarItems = [
         ...ALL_SECTIONS,
@@ -643,7 +644,14 @@ const ProviderAccount = () => {
 
                         {section === 'payments' && <OnlinePaymentsSection />}
 
-                        {section === 'plan' && <PlanSection plan={plan} />}
+                        {section === 'plan' && (
+                            <PlanSection
+                                plan={plan}
+                                // Back from PayGate: ?section=plan&checkout=<reference>
+                                checkoutRef={new URLSearchParams(location.search).get('checkout') || ''}
+                                onChanged={loadPlan}
+                            />
+                        )}
 
                         {section === 'reviews' && (
                             <div>

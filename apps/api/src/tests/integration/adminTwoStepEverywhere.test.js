@@ -83,6 +83,23 @@ describe('session tokens', () => {
         expect((await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${hs512}`)).status).toBe(401);
     });
 
+    it('a token with no tokenVersion is refused, even one claiming two-step sign-in', async () => {
+        // The shape forged with the old leaked key: correctly signed, mfa: true,
+        // and no tokenVersion, so no password change, sign-out everywhere or
+        // two-step reset could ever revoke it.
+        const admin = await makeAdmin();
+        const claims = { id: admin._id.toString(), mfa: true, mfaAt: Math.floor(Date.now() / 1000) };
+        const session = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: '15m' });
+        const users = await request(app).get('/api/users').set('Authorization', `Bearer ${session}`);
+        expect(users.status).toBe(401);
+        expect(users.body.message).toBe('Token has been revoked');
+
+        const refresh = jwt.sign(claims, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+        const renewed = await request(app).post('/api/auth/refresh').send({ refreshToken: refresh });
+        expect(renewed.status).toBe(401);
+        expect(renewed.body.data).toBeUndefined();
+    });
+
     it('a refresh token is not a session token', async () => {
         const user = await makeUser();
         const refresh = generateRefreshToken(user._id, 0, 'jti-1');

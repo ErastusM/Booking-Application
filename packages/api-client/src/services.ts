@@ -125,6 +125,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     // A business owner's own Bookplus plan ({ visible: false } until shown to businesses).
     subscriptionService: {
         mine: () => API.get('/subscriptions/me'),
+        // Add card and start plan: where to send the browser (PayGate's own
+        // page, by a form POST of `fields`), then the result by reference.
+        // acceptTerms: the owner ticked "I agree" to the plan terms and the
+        // monthly payments; the API refuses without it.
+        startCheckout: (acceptTerms: boolean) => API.post('/subscriptions/me/checkout', { acceptTerms }),
+        checkoutStatus: (reference: string) => API.get(`/subscriptions/me/checkout/${encodeURIComponent(reference)}`),
     },
 
     // Paying online for a booking (customer side; all 404 while online payments

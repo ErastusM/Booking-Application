@@ -6,7 +6,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { walletEnabled, membershipsEnabled, paymentsEnabled } = require('../../constants/features');
+const { walletEnabled, membershipsEnabled, paymentsEnabled, subscriptionBillingEnabled } = require('../../constants/features');
 
 describe('wallet feature switch', () => {
     it('the apps default to off', () => {
@@ -75,5 +75,32 @@ describe('card payments for plans: the apps\' switch', () => {
     it('defaults to off (it also decides whether the plan clauses are in the legal text)', () => {
         const src = fs.readFileSync(path.resolve(__dirname, '../../../../../packages/config/features.mjs'), 'utf8');
         expect(src).toMatch(/subscriptionBillingEnabled:\s*false/);
+    });
+});
+
+describe('subscription billing switch (adding a card to start a plan)', () => {
+    it('defaults to off when SUBSCRIPTION_BILLING_ENABLED is unset, and only "true" turns it on', () => {
+        const prev = process.env.SUBSCRIPTION_BILLING_ENABLED;
+        try {
+            delete process.env.SUBSCRIPTION_BILLING_ENABLED;
+            expect(subscriptionBillingEnabled()).toBe(false);
+            process.env.SUBSCRIPTION_BILLING_ENABLED = 'yes';
+            expect(subscriptionBillingEnabled()).toBe(false);
+            process.env.SUBSCRIPTION_BILLING_ENABLED = 'true';
+            expect(subscriptionBillingEnabled()).toBe(true);
+        } finally {
+            if (prev === undefined) delete process.env.SUBSCRIPTION_BILLING_ENABLED;
+            else process.env.SUBSCRIPTION_BILLING_ENABLED = prev;
+        }
+    });
+});
+
+describe('plan terms version', () => {
+    it('is the Business Terms\' "last updated" date, so the recorded agreement names the text the owner saw', () => {
+        const { PLAN_TERMS_VERSION } = require('../../constants/consent');
+        const src = fs.readFileSync(path.resolve(__dirname, '../../../../../packages/config/legal/terms.mjs'), 'utf8');
+        const m = src.match(/export const TERMS_LAST_UPDATED = '([^']+)'/);
+        expect(m).not.toBeNull();
+        expect(PLAN_TERMS_VERSION).toBe(m[1]);
     });
 });

@@ -16,6 +16,7 @@ export const STATUS = {
     exempt: ['Kept free', undefined],
     trialing: ['Free trial', 'info'],
     trial_ended: ['Trial ended', 'warn'],
+    active: ['Paying', 'ok'],
 };
 
 const SubscriptionsView = ({ isDirector, onLocked }) => {
@@ -52,13 +53,17 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
     return (
         <div style={list} data-testid="finance-subscriptions">
             <p style={muted}>
-                Billing is not switched on yet: nobody is charged. Businesses from before {day(data.startedAt) || 'subscriptions started'} are
+                {data.cardsOn
+                    ? 'Businesses on a trial can add a card to start their plan; the first month is charged then. Monthly charges are not switched on yet.'
+                    : 'Billing is not switched on yet: nobody is charged.'}
+                {' '}Businesses from before {day(data.startedAt) || 'subscriptions started'} are
                 kept free until you move them; new businesses start a free trial when they sign up.
             </p>
             <Kpis items={[
                 { label: 'Kept free', value: String(c.exempt || 0) },
                 { label: 'On a free trial', value: String(c.trialing || 0) },
                 { label: 'Trial ended', value: String(c.trial_ended || 0), sub: 'No card saved yet' },
+                { label: 'Paying', value: String(c.active || 0), sub: 'Card saved' },
             ]} />
 
             <div style={card}>
@@ -101,7 +106,10 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
                                 <tr key={id} data-testid="subscription-row">
                                     <td style={td}><b>{r.provider.name}</b><div style={muted}>{r.provider.email}</div></td>
                                     <td style={td}>{day(r.provider.createdAt)}</td>
-                                    <td style={td}><Status tone={tone}>{shown}</Status></td>
+                                    <td style={td}>
+                                        <Status tone={tone}>{shown}</Status>
+                                        {r.card && <div style={muted}>{r.card.brand || 'Card'} ending {r.card.last4}{r.status === 'active' && r.paidThrough ? `, paid to ${day(r.paidThrough)}` : ''}</div>}
+                                    </td>
                                     <td style={td}>{r.status === 'exempt' ? '' : day(r.trialEndsAt)}</td>
                                     <td style={td}>{r.status === 'exempt' ? 'Nothing' : `${nad(r.nextPriceCents)}/month`}</td>
                                     <td style={td}>

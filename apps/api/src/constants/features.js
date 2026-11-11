@@ -38,6 +38,21 @@ const requirePayments = (req, res, next) => (paymentsEnabled()
     ? next()
     : res.status(404).json({ success: false, message: 'Not found' }));
 
+/**
+ * SUBSCRIPTION_BILLING_ENABLED — businesses adding a card to start their
+ * Bookplus plan: the first payment through PayGate (terminal 1, "One time
+ * and tokenization"), which also saves the card for the monthly charges. Default OFF.
+ * While off, "Add card and start plan" is never offered and every route that
+ * opens or completes a card payment for a plan answers 404. It is offered only
+ * when this is on AND plans are shown to businesses (admin console, Money ->
+ * Subscriptions) AND PayGate is configured AND the vault wire format is
+ * filled in (services/paygate.js).
+ */
+const subscriptionBillingEnabled = () => String(process.env.SUBSCRIPTION_BILLING_ENABLED || '').toLowerCase() === 'true';
+const requireSubscriptionBilling = (req, res, next) => (subscriptionBillingEnabled()
+    ? next()
+    : res.status(404).json({ success: false, message: 'Not found' }));
+
 const WALLET_COMING_SOON = {
     success: false,
     code: 'WALLET_COMING_SOON',
@@ -49,5 +64,5 @@ const requireWallet = (req, res, next) => (walletEnabled() ? next() : res.status
 
 module.exports = {
     walletEnabled, WALLET_COMING_SOON, requireWallet, membershipsEnabled, requireMemberships,
-    paymentsEnabled, requirePayments,
+    paymentsEnabled, requirePayments, subscriptionBillingEnabled, requireSubscriptionBilling,
 };

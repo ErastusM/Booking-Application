@@ -271,3 +271,67 @@ describe('real PayGate responses (test merchant)', () => {
         }, 'test')).toBe(true);
     });
 });
+
+describe('terminals', () => {
+    const saved = { ...process.env };
+    afterEach(() => { process.env = { ...saved }; });
+
+    it('terminal 1 ("One time and tokenization") is the PAYGATE_* settings, and the default', () => {
+        process.env.PAYGATE_ID = '111';
+        process.env.PAYGATE_PASSWORD = 'pay';
+        delete process.env.PAYGATE_ENCRYPTION_KEY;
+        expect(paygate.config()).toEqual(paygate.config('tokenize'));
+        expect(paygate.config('tokenize')).toMatchObject({ paygateId: '111', password: 'pay', checksumKey: 'pay' });
+        expect(paygate.isConfigured('tokenize')).toBe(true);
+    });
+
+    it('an unknown terminal is an error, never a silent fallback to another one', () => {
+        expect(() => paygate.config('non3ds')).toThrow(/Unknown PayGate terminal/);
+    });
+});
+
+describe('vault (saving the card)', () => {
+    const base = {
+        paygateId: '1', password: 'p', reference: 'BSX', amountCents: 6999, currency: 'NAD', customer: {}, notifyUrl: 'n', returnUrl: 'r',
+    };
+    afterEach(() => paygate.setVaultWire(null));
+
+    it('is not ready until the wire format is filled in: a request to save a card is refused', () => {
+        expect(paygate.vaultReady()).toBe(false);
+        expect(() => paygate.buildWebPaymentRequest({ ...base, vault: true })).toThrow(expect.objectContaining({ code: 'VAULT_NOT_READY' }));
+        // An ordinary payment is unaffected.
+        expect(paygate.buildWebPaymentRequest(base)).toContain('<Amount>6999</Amount>');
+    });
+
+    it('once described, places the vault element after the one named, and only when asked', () => {
+        paygate.setVaultWire({ after: 'Customer', requestXml: '<X>1</X>', extract: () => null });
+        const xml = paygate.buildWebPaymentRequest({ ...base, vault: true });
+        expect(xml).toMatch(/<\/Customer><X>1<\/X><Redirect>/);
+        expect(paygate.buildWebPaymentRequest(base)).not.toContain('<X>1</X>');
+    });
+
+    it('a Query reports the saved card through the wire format, and nothing when it is not filled in', () => {
+        const body = '<Envelope><Body><SingleFollowUpResponse><QueryResponse><Status><TransactionStatusCode>1</TransactionStatusCode><Tok>abcdef1234</Tok></Status></QueryResponse></SingleFollowUpResponse></Body></Envelope>';
+        expect(paygate.parseQueryResponse(body).vault).toBeNull();
+        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: ({ status }) => ({ vaultId: status.Tok }) });
+        expect(paygate.parseQueryResponse(body).vault).toEqual({ vaultId: 'abcdef1234' });
+        // A broken extractor never breaks the Query.
+        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: () => { throw new Error('boom'); } });
+        expect(paygate.parseQueryResponse(body)).toMatchObject({ ok: true, transactionStatusCode: 1, vault: null });
+    });
+
+    it('cardSummary keeps the token, brand, last 4 and expiry only', () => {
+        expect(paygate.cardSummary({ vaultId: 'a1b2c3d4-e5f6', brand: 'Visa', maskedCard: '400000xxxxxx0002', expiry: '122030' }))
+            .toEqual({ vaultId: 'a1b2c3d4-e5f6', brand: 'Visa', last4: '0002', expMonth: 12, expYear: 2030 });
+        expect(paygate.cardSummary({ vaultId: 'a1b2c3d4-e5f6', maskedCard: '****1111', expiry: '07/29' }))
+            .toEqual({ vaultId: 'a1b2c3d4-e5f6', brand: null, last4: '1111', expMonth: 7, expYear: 2029 });
+        // A full card number never survives: only its last 4 digits.
+        const s = paygate.cardSummary({ vaultId: 'a1b2c3d4-e5f6', maskedCard: '4000000000000002', expiry: '1330' });
+        expect(JSON.stringify(s)).not.toContain('400000');
+        expect(s).toMatchObject({ last4: '0002', expMonth: null, expYear: null });
+        // No token (or not token-shaped): nothing.
+        expect(paygate.cardSummary({ maskedCard: '****1111' })).toBeNull();
+        expect(paygate.cardSummary({ vaultId: '<script>' })).toBeNull();
+        expect(paygate.cardSummary(null)).toBeNull();
+    });
+});
