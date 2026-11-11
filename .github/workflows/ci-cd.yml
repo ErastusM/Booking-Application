@@ -134,8 +134,17 @@ jobs:
           pnpm --filter "@bookplus/api-client" build
           pnpm --filter "@bookplus/ui" build
 
+      # --with-deps also apt-installs fonts the runner image lacks. When the
+      # runner can't reach the Ubuntu mirrors, that alone would fail the job
+      # before any spec runs, so install the browser without them (the image
+      # already has Chromium's libraries; no spec compares screenshots). The
+      # suites below still run and still gate.
       - name: Install Playwright browsers
-        run: pnpm --filter "@bookplus/customer" exec playwright install --with-deps chromium
+        run: |
+          pnpm --filter "@bookplus/customer" exec playwright install --with-deps chromium || {
+            echo "::warning::Could not install Chromium's system packages (apt); installing the browser alone."
+            pnpm --filter "@bookplus/customer" exec playwright install chromium
+          }
 
       - name: Customer — e2e
         run: pnpm --filter "@bookplus/customer" test:e2e
