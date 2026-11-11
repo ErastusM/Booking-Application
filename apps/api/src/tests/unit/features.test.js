@@ -71,6 +71,13 @@ describe('payments feature switch', () => {
     });
 });
 
+describe('card payments for plans: the apps\' switch', () => {
+    it('defaults to off (it also decides whether the plan clauses are in the legal text)', () => {
+        const src = fs.readFileSync(path.resolve(__dirname, '../../../../../packages/config/features.mjs'), 'utf8');
+        expect(src).toMatch(/subscriptionBillingEnabled:\s*false/);
+    });
+});
+
 describe('subscription billing switch (adding a card to start a plan)', () => {
     it('defaults to off when SUBSCRIPTION_BILLING_ENABLED is unset, and only "true" turns it on', () => {
         const prev = process.env.SUBSCRIPTION_BILLING_ENABLED;

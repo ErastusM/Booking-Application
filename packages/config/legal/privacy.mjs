@@ -72,7 +72,7 @@ const businessesAsControllers = (audience) => ({
         ],
 });
 
-const collectedTable = (audience, W, P) => {
+const collectedTable = (audience, W, P, S = false) => {
     const rows = [
         ['Account details', 'Name, email address, phone number, password (stored only as a one-way hash), profile photo, and whether you are a client, business owner or team member. If you sign in with Google: your Google account ID, name, email address and profile photo.', 'You'],
         ['Sign-up choices', 'When you accepted the Terms and this policy, your confirmation that you are 16 or older, and whether you agreed to marketing emails.', 'You'],
@@ -107,6 +107,13 @@ const collectedTable = (audience, W, P) => {
                 ['Your balance with Bookplus', 'Online payments for your bookings, fees, refunds, payouts, refund requests and chargeback cases (including evidence Bookplus gathers).', 'Bookplus and PayGate'],
             );
         }
+        if (S) {
+            // Subscription (card summary, vaultId) and SubscriptionPayment;
+            // subscriptionBilling.sanitizeNotify keeps no card data.
+            rows.splice(rows.findIndex(([type]) => type === 'Team data') + 1, 0,
+                ['Your Bookplus plan', 'Your plan, its trial dates and prices, your plan payments and their results (PayGate’s transaction reference, the result and the card type), and, for the card you pay with, PayGate’s reference to the saved card (a token) and the card’s brand, last 4 digits and expiry date. Your card number and security code are entered on PayGate’s page and never reach us.', 'You and PayGate'],
+            );
+        }
     }
     return {
         id: 'what-we-collect',
@@ -114,13 +121,13 @@ const collectedTable = (audience, W, P) => {
         blocks: [
             { table: { head: ['Type', 'What it includes', 'Where it comes from'], rows } },
             audience === 'business' && P
-                ? 'We do not ask for your date of birth or card details. We ask for an ID number and a bank account only if you apply to take online payments. Please do not put more health details in comments or forms than the business needs.'
-                : `We do not ask for your date of birth, ID number, card details or bank account number${P ? ' (card details are entered on PayGate’s page, not ours)' : ''}. Please do not put more health details in comments or forms than the business needs.`,
+                ? `We do not ask for your date of birth or card details${S ? ' (the card for your plan is entered on PayGate’s page, not ours)' : ''}. We ask for an ID number and a bank account only if you apply to take online payments. Please do not put more health details in comments or forms than the business needs.`
+                : `We do not ask for your date of birth, ID number, card details or bank account number${P || S ? ' (card details are entered on PayGate’s page, not ours)' : ''}. Please do not put more health details in comments or forms than the business needs.`,
         ],
     };
 };
 
-const purposes = (audience, W, P) => ({
+const purposes = (audience, W, P, S = false) => ({
     id: 'why',
     title: 'Why we use it, and our legal basis',
     blocks: [
@@ -133,6 +140,7 @@ const purposes = (audience, W, P) => ({
                 ['Let a business keep client notes and forms it needs to serve you safely', 'Allergy notes, intake form answers', 'Your explicit consent when you give the information to the business, and the business’s own legal basis; we act for the business'],
                 ...(W ? [['Run the prepaid wallet: top-ups, reservations, refunds, expiry reminders', 'Wallet data, proofs of payment', 'Performing our contract with you']] : []),
                 ...(P ? [['Take online payments for bookings, refund them, and answer card disputes', 'Bookings, online payment records, your name and email address (shared with PayGate)', 'Performing our contract with you; legal obligation to keep financial records']] : []),
+                ...(S ? [['Charge your Bookplus plan: the first payment, the monthly payments from your saved card, and receipts', 'Your plan and plan payments, PayGate’s reference to your saved card, your name and email address (shared with PayGate)', 'Performing our contract with you; legal obligation to keep financial records']] : []),
                 ...(P && audience === 'business' ? [['Check businesses that apply to take online payments, pay them out, and prevent fraud', 'Application details and documents, payout bank account, your balance with Bookplus', 'Performing our contract with you; our legitimate interest in preventing fraud; legal obligation to keep financial records']] : []),
                 ['Find businesses near you', 'Your location (only when you tap “Near me”)', 'Your consent (your browser asks first)'],
                 ['Show reviews from real bookings', 'Reviews', 'Our legitimate interest in honest reviews, and yours in reading them'],
@@ -146,7 +154,7 @@ const purposes = (audience, W, P) => ({
     ],
 });
 
-const sharing = (audience, W, P) => ({
+const sharing = (audience, W, P, S = false) => ({
     id: 'sharing',
     title: 'Who we share it with',
     blocks: [
@@ -158,7 +166,7 @@ const sharing = (audience, W, P) => ({
             head: ['Provider', 'What they do', 'Where'],
             rows: [
                 ['DigitalOcean, LLC', 'Hosts our servers and database, and the database backups', 'Data centre outside Namibia (company in the USA)'],
-                ...(P ? [['PayGate (Pty) Ltd', 'Processes online card payments on its own secure page. Receives your name, email address, the amount and our payment reference; sends us the result. Card details go to PayGate only', 'South Africa']] : []),
+                ...(P || S ? [['PayGate (Pty) Ltd', `Processes ${P ? 'online card payments' : 'card payments for your Bookplus plan'} on its own secure page${S ? `${P ? ', and for your Bookplus plan saves your card' : ' and saves your card'} so we can charge it each month` : ''}. Receives your name, email address, the amount and our payment reference; sends us the result. Card details go to PayGate only`, 'South Africa']] : []),
                 ['Cloudinary Ltd.', W || (P && audience === 'business')
                     ? `Stores and delivers photos and uploaded files${W ? ', including proofs of payment' : ''}${P && audience === 'business' ? ', including online payments documents' : ''} (kept private)`
                     : 'Stores and delivers photos', 'USA'],
@@ -172,7 +180,9 @@ const sharing = (audience, W, P) => ({
         } },
         P
             ? 'If you dispute an online payment with your bank (a chargeback), the card company and the banks involved receive the booking details needed to decide it.'
-            : 'Card payments through PayGate are coming soon; when they go live PayGate will process card details directly and we will update this policy first.',
+            : S
+                ? 'If you dispute a plan payment with your bank (a chargeback), the card company and the banks involved receive the payment details needed to decide it.'
+                : 'Card payments through PayGate are coming soon; when they go live PayGate will process card details directly and we will update this policy first.',
         'We may also disclose information when the law requires it, to protect people’s safety, or to a buyer if Bookplus is ever sold (who must keep to this policy). **We do not sell your personal information** and we do not share it for advertising.',
     ],
 });
@@ -186,7 +196,7 @@ const transfers = () => ({
     ],
 });
 
-const retention = (audience, W, P) => ({
+const retention = (audience, W, P, S = false) => ({
     id: 'retention',
     title: 'How long we keep it',
     blocks: [
@@ -201,6 +211,11 @@ const retention = (audience, W, P) => ({
                 ...(P && audience === 'business' ? [
                     ['Online payments application documents (ID, company registration, bank letter)', 'Deleted when the application is rejected or you delete your account; otherwise kept while your business can take online payments'],
                     ['Payout bank account and the owner’s ID number', 'Until you change them or delete your account'],
+                ] : []),
+                ...(S ? [
+                    ['Plan payments', 'Kept as financial records for as long as the law requires. When you delete your account, your name and email are removed from them'],
+                    // DECISION (subscriptions step 3 must build it): delete the vault card at PayGate.
+                    ['PayGate’s reference to your saved card, and its brand, last 4 digits and expiry', 'Until you cancel your plan, replace the card or delete your account; we then also ask PayGate to delete the saved card'],
                 ] : []),
                 ['Allergy notes, client notes and form answers', 'Until the business deletes them, or you delete your account'],
                 ['Messages', 'Until you delete your account'],
@@ -277,11 +292,11 @@ const children = () => ({
     ],
 });
 
-const security = (audience, W, P) => ({
+const security = (audience, W, P, S = false) => ({
     id: 'security',
     title: 'Security',
     blocks: [
-        `We protect your information with measures that include: encrypted connections (HTTPS with HSTS) for all traffic; passwords stored only as bcrypt hashes; short-lived sign-in tokens that are revoked when you change your password; rate limits on sign-in; ${W ? 'access to proofs of payment only through private, time-limited links; ' : ''}role-based access for team members and staff; ${P ? `card details entered only on PayGate’s secure page; Bookplus staff who handle money sign in with a second step (an authenticator app)${audience === 'business' ? ', and see online payments documents only through private links that expire after 5 minutes, with every viewing logged' : ''}; ` : ''}and daily backups.`,
+        `We protect your information with measures that include: encrypted connections (HTTPS with HSTS) for all traffic; passwords stored only as bcrypt hashes; short-lived sign-in tokens that are revoked when you change your password; rate limits on sign-in; ${W ? 'access to proofs of payment only through private, time-limited links; ' : ''}role-based access for team members and staff; ${S && !P ? 'card details entered only on PayGate’s secure page; ' : ''}${P ? `card details entered only on PayGate’s secure page; Bookplus staff who handle money sign in with a second step (an authenticator app)${audience === 'business' ? ', and see online payments documents only through private links that expire after 5 minutes, with every viewing logged' : ''}; ` : ''}and daily backups.`,
         'No system is perfectly secure. If a breach affects your information and puts you at risk, we will tell you and the relevant regulator as the law requires.',
     ],
 });
@@ -305,22 +320,25 @@ const changes = () => ({
 // ── The document ────────────────────────────────────────────────────────────
 
 // `features` defaults to the shared switches; tests pass { walletEnabled: true }
-// or { paymentsEnabled: true } to check the wording kept for switching them on.
+// { paymentsEnabled: true } or { subscriptionBillingEnabled: true } to check
+// the wording kept for switching them on.
 export const privacyPolicy = (audience = 'customer', features = FEATURES, cookieList = null) => {
     const W = !!features.walletEnabled;
     const P = !!features.paymentsEnabled;
+    // Card payments for Bookplus plans: business owners only.
+    const BS = audience === 'business' && !!features.subscriptionBillingEnabled;
     const sections = [
         whoWeAre(audience),
         businessesAsControllers(audience),
-        collectedTable(audience, W, P),
-        purposes(audience, W, P),
-        sharing(audience, W, P),
+        collectedTable(audience, W, P, BS),
+        purposes(audience, W, P, BS),
+        sharing(audience, W, P, BS),
         transfers(),
-        retention(audience, W, P),
+        retention(audience, W, P, BS),
         rights(audience),
         cookies(cookieList),
         children(),
-        security(audience, W, P),
+        security(audience, W, P, BS),
         contact(),
         changes(),
     ];
@@ -329,7 +347,7 @@ export const privacyPolicy = (audience = 'customer', features = FEATURES, cookie
         updated: PRIVACY_LAST_UPDATED,
         intro: [
             `This policy explains what personal information ${op} collects when you use Bookplus, why, who receives it, how long we keep it and your rights. It should be read with our [Terms of Service](/terms).`,
-            { note: `In short: we collect what is needed to run bookings${W ? ' and wallets' : ''}${P ? ' and online payments (card details go only to PayGate)' : ''}; the business you book with sees your booking details; allergy notes and intake forms can contain health information and are shown only to that business; analytics is off until you allow it; we never sell your data; you can export or delete it at any time.` },
+            { note: `In short: we collect what is needed to run bookings${W ? ' and wallets' : ''}${P ? ' and online payments (card details go only to PayGate)' : BS ? ' and your Bookplus plan (card details go only to PayGate)' : ''}; the business you book with sees your booking details; allergy notes and intake forms can contain health information and are shown only to that business; analytics is off until you allow it; we never sell your data; you can export or delete it at any time.` },
         ],
         sections,
     };
