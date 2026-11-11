@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { authService, reviewService, myProfileService, myStatsService, providerMarketService } from '../services';
+import { authService, reviewService, myProfileService, myStatsService, providerMarketService, subscriptionService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
@@ -10,6 +10,7 @@ import { openConsentSettings } from '@bookplus/api-client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
 import OnlinePaymentsSection from '../components/OnlinePaymentsSection';
+import PlanSection from '../components/PlanSection';
 import { PAYMENTS_VISIBLE } from '../utils/onlinePayment';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
@@ -138,7 +139,16 @@ export const EmailConfirmedRow = ({ user }) => {
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
     const isStaff = user?.role === 'staff';
-    const sidebarItems = ALL_SECTIONS.filter((i) => !(isStaff && i.ownerOnly));
+    // The owner's Bookplus plan: a section only once Bookplus shows plans to businesses.
+    const [plan, setPlan] = useState(null);
+    useEffect(() => {
+        if (isStaff || !user) return;
+        subscriptionService.mine().then((r) => setPlan(r.data.data)).catch(() => setPlan(null));
+    }, [isStaff, user]);
+    const sidebarItems = [
+        ...ALL_SECTIONS,
+        ...(plan?.visible ? [{ id: 'plan', label: 'Your plan', ownerOnly: true }] : []),
+    ].filter((i) => !(isStaff && i.ownerOnly));
     // A member's profile is their roster row (the name, photo and title clients
     // see when choosing who to book), edited through /team/mine/profile.
     const [memberProfile, setMemberProfile] = useState(null);
@@ -164,7 +174,7 @@ const ProviderAccount = () => {
     };
     const [section, setSection] = useState(sectionFromUrl);
     useEffect(() => { setSection(sectionFromUrl()); // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.search]);
+    }, [location.search, plan?.visible]);
 
     // Login & security
     const [settingsOpen, setSettingsOpen] = useState(null); // 'security' | 'appearance' | 'calendar'
@@ -632,6 +642,8 @@ const ProviderAccount = () => {
                         {section === 'locations' && <LocationsManager />}
 
                         {section === 'payments' && <OnlinePaymentsSection />}
+
+                        {section === 'plan' && <PlanSection plan={plan} />}
 
                         {section === 'reviews' && (
                             <div>

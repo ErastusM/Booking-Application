@@ -513,6 +513,9 @@ jobs:
             # migrations above this one must NEVER fail the deploy — the script
             # always exits 0, and the `|| echo` covers exec itself failing.
             docker compose exec -T server node scripts/migrate_private_proofs.js || echo "WARNING: migrate_private_proofs.js did not run — proofs of payment left as they were (non-fatal)"
+            # Business subscriptions: when they started, and every business from
+            # before kept free until moved (idempotent; no money involved).
+            docker compose exec -T server node scripts/migrate_subscriptions.js || { echo "DEPLOY FAILED: migrate_subscriptions.js exited non-zero" >&2; exit 1; }
             # Double bookings: how many upcoming pending/confirmed bookings overlap
             # another booking of the same person, per business id — counts only,
             # no names or contact details. READ-ONLY (changes nothing) and it must

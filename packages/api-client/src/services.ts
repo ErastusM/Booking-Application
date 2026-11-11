@@ -115,6 +115,16 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getCosts: (month: string) => API.get('/admin/finance/costs', { params: { month } }),
         putCosts: (month: string, items: { category: string; label?: string; amountCents: number }[], reason: string) =>
             API.put(`/admin/finance/costs/${month}`, { items, reason }),
+        // Business subscriptions: who is kept free or on a trial (no billing yet).
+        subscriptions: () => API.get('/admin/finance/subscriptions'),
+        subscriptionTrial: (providerId: string, reason: string) => API.post(`/admin/finance/subscriptions/${providerId}/trial`, { reason }),
+        subscriptionKeepFree: (providerId: string, reason: string) => API.post(`/admin/finance/subscriptions/${providerId}/keep-free`, { reason }),
+        subscriptionVisibility: (show: boolean, reason: string) => API.put('/admin/finance/subscriptions/visibility', { show, reason }),
+    },
+
+    // A business owner's own Bookplus plan ({ visible: false } until shown to businesses).
+    subscriptionService: {
+        mine: () => API.get('/subscriptions/me'),
     },
 
     // Paying online for a booking (customer side; all 404 while online payments

@@ -73,6 +73,14 @@ const platformSettingsSchema = new mongoose.Schema({
         // specification; every two weeks was also discussed).
         payoutScheduleConfirmed: { at: { type: Date, default: null }, by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, note: { type: String, default: '' } },
     },
+    // Business subscriptions (services/subscriptions.js). startedAt: businesses
+    // created before it are kept free until moved; set once, on the first deploy
+    // with subscriptions. showToBusinesses: the "Your plan" page in the business
+    // app; off until the owner decides who pays.
+    subscriptions: {
+        startedAt: { type: Date, default: null },
+        showToBusinesses: { type: Boolean, default: false },
+    },
     version: { type: Number, default: 1 },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
