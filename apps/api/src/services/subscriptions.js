@@ -50,6 +50,9 @@ const describe = (sub, now = new Date()) => {
         paidMonths: sub.paidMonths || 0,
         introMonthsLeft: introLeft,
         nextPriceCents: status === 'exempt' ? 0 : nextPriceCents,
+        paidThrough: sub.paidThrough || null,
+        // What the owner is shown about their saved card (never the vault token).
+        card: sub.card?.last4 ? { brand: sub.card.brand || null, last4: sub.card.last4, expMonth: sub.card.expMonth || null, expYear: sub.card.expYear || null } : null,
     };
 };
 

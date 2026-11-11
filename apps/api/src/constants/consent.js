@@ -9,4 +9,13 @@
  */
 const MIN_SIGNUP_AGE = 16;
 
-module.exports = { MIN_SIGNUP_AGE };
+/**
+ * PLAN_TERMS_VERSION — the version of the Business Terms a business owner
+ * agrees to when they tick "I agree" on Add card and start plan: the terms'
+ * "last updated" date (TERMS_LAST_UPDATED in packages/config/legal/terms.mjs;
+ * a unit test keeps the two equal). It is recorded with the agreement, which
+ * is the business's authority for the monthly charges on its saved card.
+ */
+const PLAN_TERMS_VERSION = '27 September 2026';
+
+module.exports = { MIN_SIGNUP_AGE, PLAN_TERMS_VERSION };

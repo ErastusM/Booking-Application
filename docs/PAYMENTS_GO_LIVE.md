@@ -147,6 +147,36 @@ clauses in the legal pages.
 - At least two admins with the money roles (a director cannot approve their
   own requests), each with two-step sign-in on.
 
+## Plans: adding a card (subscriptions, step 2)
+
+Separate from booking payments. A business on its free trial (or whose trial
+has ended) can press **Account → Your plan → Add card and start plan**: it pays
+its first month on PayGate's page with terminal 1 ("One time and
+tokenization", the `PAYGATE_*` settings above, 3D Secure), and PayGate saves
+the card in its vault for the monthly charges. Adding a card early never
+shortens the trial: the paid month starts when the trial ends. Bookplus keeps
+PayGate's card token and the brand, last 4 digits and expiry; never the card
+number. Monthly charges on the saved card (the NON3DS terminal) are not built
+yet; keep that terminal's details off the server until they are.
+
+It is offered only when all of these are true:
+
+1. `SUBSCRIPTION_BILLING_ENABLED=true` in `/app/.env.production` (default off;
+   while off, every card route for plans answers 404).
+2. Plans are shown to businesses (admin console → Money → Subscriptions).
+3. `PAYGATE_ID` and `PAYGATE_PASSWORD` are set.
+4. The vault wire format is filled in, in `apps/api/src/services/paygate.js`
+   (the "vault (saving the card)" section), from PayGate's PayHost
+   documentation and checked against the test gateway with the public test
+   credentials. Until then nothing offers to save a card.
+
+PayGate's callbacks for plans go to `/api/subscriptions/paygate/notify` and
+`/return` on `PAYGATE_CALLBACK_BASE_URL`. Each one is checked by its checksum
+and then by asking PayGate, and applying a payment twice changes nothing.
+Every start, payment and failure is in the financial audit log
+(`subscription.checkout_start`, `subscription.first_payment`,
+`subscription.payment_failed`).
+
 ## Switching off again
 
 Set `PAYMENTS_ENABLED=false` (and `paymentsEnabled: false` if the screens should
