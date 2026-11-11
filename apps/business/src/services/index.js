@@ -41,6 +41,7 @@ export const {
     suggestionService,
     pushService,
     uploadService,
+    subscriptionService,
     walletService,
     giftCardService,
     providerWalletService,

@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { PaymentsView, PayoutsView, DisputesView } from './MoneyOperations';
 import { DashboardView, CostsView } from './FinanceDashboard';
 import PaygateCheck from './PaygateCheck';
+import SubscriptionsView from './SubscriptionsView';
 import { TWO_STEP_EVENT } from './AdminTwoStep';
 import { panel as card, h3, muted, input, label, errBox, th, td, Status } from './admin/ui';
 
@@ -588,6 +589,7 @@ const ACTION_LABELS = {
     'adjustment.request': 'Asked for an adjustment', 'adjustment.approve': 'Approved an adjustment', 'adjustment.reject': 'Rejected an adjustment',
     'adjustment.execute': 'Adjusted a balance', 'adjustment.fail': 'Adjustment failed', 'payout.record': 'Recorded a payout',
     'roles.update': 'Changed money roles', 'security.mfa_enabled': 'Turned on two-step sign-in', 'security.mfa_reset': 'Reset two-step sign-in', 'security.admin_locked': 'Suspended an admin (server)', 'security.role_change': 'Changed an account\'s role',
+    'subscription.trial_start': 'Started a business\'s free trial', 'subscription.keep_free': 'Kept a business free', 'subscription.visibility': 'Showed or hid plans for businesses',
     'payment.sync': 'Asked PayGate about a payment', 'refund.retry': 'Sent a refund again', 'refund.retry_fail': 'Refund still not taken',
     'payout.prepare': 'Prepared a payout', 'payout.paid': 'Marked a payout paid', 'payout.failed': 'Payout returned by the bank',
     'payout.bank_file': 'Downloaded the payout bank file', 'dispute.open': 'Opened a case', 'dispute.evidence': 'Added evidence to a case',
@@ -760,6 +762,7 @@ const MoneyPanel = ({ view = 'dashboard', onOpen = () => {}, openCase = null }) 
             )}
             {view === 'dashboard' && <DashboardView launch={data.launch} onLocked={onLocked} onOpenSettings={() => onOpen('go-live')} />}
             {view === 'costs' && <CostsView isDirector={isDirector} onLocked={onLocked} />}
+            {view === 'subscriptions' && <SubscriptionsView isDirector={isDirector} onLocked={onLocked} />}
             {view === 'payments' && <PaymentsView onLocked={onLocked} onCaseOpened={(id) => onOpen('disputes', id)} />}
             {view === 'payouts' && <PayoutsView onLocked={onLocked} />}
             {view === 'disputes' && <DisputesView onLocked={onLocked} openId={openCase} />}
