@@ -2,7 +2,8 @@ const User = require('../models/User');
 const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const Category = require('../models/Category');
 const { SHAPES, cleanEdits, fitEdit } = require('../utils/photoEdits');
-const { generateToken, generateRefreshToken, tokenRevoked } = require('../utils/helpers');
+const { generateToken, generateRefreshToken } = require('../utils/helpers');
+const { tokenVersionMatches } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -836,7 +837,7 @@ exports.refresh = async (req, res) => {
             }
 
             // Revoked by a logout / password reset since this refresh token was issued
-            if (tokenRevoked(decoded, user)) {
+            if (!tokenVersionMatches(decoded, user)) {
                 failure = { status: 401, body: { success: false, message: 'Refresh token has been revoked' } };
                 continue;
             }

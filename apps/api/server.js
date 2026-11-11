@@ -13,6 +13,7 @@ const pinoHttp = require('pino-http');
 const { scrubPath } = require('./src/utils/redact');
 const mongoose = require('mongoose');
 const connectDB = require('./src/utils/database');
+const { envProblems } = require('./src/utils/envCheck');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 
 // Routes
@@ -40,6 +41,8 @@ const timeClockRoutes = require('./src/routes/timeClockRoutes');
 const suggestionRoutes = require('./src/routes/suggestionRoutes');
 const formRoutes = require('./src/routes/formRoutes');
 const pushRoutes = require('./src/routes/pushRoutes');
+const uploadRoutes = require('./src/routes/uploadRoutes');
+const subscriptionRoutes = require('./src/routes/subscriptionRoutes');
 const walletRoutes = require('./src/routes/walletRoutes');
 const giftCardRoutes = require('./src/routes/giftCardRoutes');
 const providerWalletRoutes = require('./src/routes/providerWalletRoutes');
@@ -79,22 +82,13 @@ async function seedAdmin() {
     logger.info('Admin user seeded');
 }
 
-// Fail fast at boot if anything required for secure operation is missing.
+// Fail fast at boot if anything required for secure operation is missing or
+// wrong (utils/envCheck); warn about keys still derived from JWT_SECRET.
 function assertRequiredEnv() {
-    const required = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET', 'MONGODB_URI'];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length) {
-        logger.fatal({ missing }, 'Missing required environment variables — refusing to start');
-        process.exit(1);
-    }
-    // One key for both would let a 30-day refresh token pass as a session token.
-    if (process.env.JWT_SECRET === process.env.REFRESH_TOKEN_SECRET) {
-        logger.fatal('JWT_SECRET and REFRESH_TOKEN_SECRET must be different — refusing to start');
-        process.exit(1);
-    }
-    const weak = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET'].filter((k) => (process.env[k] || '').length < 32);
-    if (weak.length && process.env.NODE_ENV === 'production') {
-        logger.fatal({ weak }, 'Token secrets are too short for production (need >= 32 chars)');
+    const { fatal, warn } = envProblems();
+    for (const w of warn) logger.warn(w);
+    if (fatal.length) {
+        for (const f of fatal) logger.fatal(`${f} — refusing to start`);
         process.exit(1);
     }
 }
@@ -284,6 +278,8 @@ app.use('/api/timeclock', readOrWrite, timeClockRoutes);
 app.use('/api/suggestions', readOrWrite, suggestionRoutes);
 app.use('/api/forms', readOrWrite, formRoutes);
 app.use('/api/push', readOrWrite, pushRoutes);
+app.use('/api/uploads', uploadRoutes);
+app.use('/api/subscriptions', readLimiter, subscriptionRoutes);
 app.use('/api/wallet', readOrWrite, walletRoutes);
 app.use('/api/giftcards', readOrWrite, giftCardRoutes);
 app.use('/api/provider-wallet', readOrWrite, providerWalletRoutes);

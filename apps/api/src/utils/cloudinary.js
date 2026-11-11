@@ -1,8 +1,10 @@
 /**
  * Server-side Cloudinary access for PRIVATE files (bank proof-of-payment).
  *
- * The apps upload avatars and portfolio photos unsigned to public URLs — fine for
- * pictures meant to be seen. A proof of payment is a bank document: it must never
+ * Public pictures (avatars, portfolio and team photos) are uploaded with a
+ * signature from this server too (photoUploadParams): images only, in the
+ * uploader's own folder, shrunk on arrival, so nobody can use the account as
+ * free storage. A proof of payment is a bank document: it must never
  * sit at a guessable public URL. So proofs are uploaded as `type: authenticated`
  * (no public delivery at all) with a signature only this server can make, and
  * are shown through short-lived signed download links minted per request, only
@@ -26,6 +28,11 @@ const VERIFY_FORMATS = ['jpg', 'jpeg', 'png', 'pdf'];
 // Evidence for a card dispute or complaint, one folder per dispute.
 const DISPUTE_FOLDER = 'bookplus/disputes';
 const PROOF_TYPE = 'authenticated';
+// Public pictures: one folder per account, images only, stored at most 2000 px
+// on the long side (an incoming transformation, so originals are not kept).
+const PHOTO_FOLDER = 'bookplus/photos';
+const PHOTO_FORMATS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+const PHOTO_INCOMING = 'c_limit,w_2000,h_2000';
 // How long a signed proof link works. Long enough to open it, short enough that a
 // forwarded or logged link is dead almost at once.
 const PROOF_LINK_SECONDS = 5 * 60;
@@ -78,6 +85,29 @@ const privateUploadParams = (userId, root = PROOF_FOLDER, formats = PROOF_FORMAT
         cloudName: c.cloudName,
         apiKey: c.apiKey,
         uploadUrl: `https://api.cloudinary.com/v1_1/${c.cloudName}/auto/upload`,
+        ...params,
+        signature: signParams(params, c.apiSecret),
+    };
+};
+
+/**
+ * Parameters for ONE public picture upload (avatar, portfolio, team photo),
+ * signed so the folder, the allowed formats and the resize cannot be changed
+ * by the browser. Replaces the old unsigned preset, which let anyone upload
+ * anything to the account.
+ */
+const photoUploadParams = (userId) => {
+    const c = config();
+    const params = {
+        timestamp: nowSeconds(),
+        folder: `${PHOTO_FOLDER}/${userId}`,
+        allowed_formats: PHOTO_FORMATS.join(','),
+        transformation: PHOTO_INCOMING,
+    };
+    return {
+        cloudName: c.cloudName,
+        apiKey: c.apiKey,
+        uploadUrl: `https://api.cloudinary.com/v1_1/${c.cloudName}/image/upload`,
         ...params,
         signature: signParams(params, c.apiSecret),
     };
@@ -218,6 +248,9 @@ const destroy = ({ publicId, resourceType = 'image', type = 'upload' }) =>
     signedPost(`${resourceType}/destroy`, { public_id: publicId, type, invalidate: 'true' });
 
 module.exports = {
+    PHOTO_FOLDER,
+    PHOTO_FORMATS,
+    photoUploadParams,
     PROOF_FOLDER,
     PROOF_FORMATS,
     PROOF_TYPE,
