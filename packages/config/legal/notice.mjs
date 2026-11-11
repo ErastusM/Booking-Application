@@ -8,10 +8,12 @@ import { FEATURES } from '../features.mjs';
 export const NOTICE_LAST_UPDATED = '27 September 2026';
 
 // `features` defaults to the shared switches; tests pass { paymentsEnabled: true }
-// to check what is shown once online payments are on.
+// or { subscriptionBillingEnabled: true } to check what is shown once they are on.
 export const legalNotice = (audience = 'customer', features = FEATURES) => {
     const W = !!features.walletEnabled;
     const P = !!features.paymentsEnabled;
+    // Card payments for Bookplus plans: shown to business owners only.
+    const S = audience === 'business' && !!features.subscriptionBillingEnabled;
     const op = operatorName(COMPANY);
     // companyValue: a missing or placeholder value is left out, never shown.
     const email = companyValue('email');
@@ -49,9 +51,18 @@ export const legalNotice = (audience = 'customer', features = FEATURES) => {
                     'Delivery: nothing is shipped. The service is provided in person by the business, at the time and place you booked, and confirmed by email.',
                 ] },
             ] }] : []),
+            ...(S ? [{ id: 'plan-payments', title: 'Paying for your Bookplus plan', blocks: [
+                { list: [
+                    `Businesses pay **${op}** a monthly subscription for Bookplus, by card. The prices are shown in Account, Your plan before you add a card.`,
+                    'Payments are processed by **PayGate** on its own secure page, with your bank’s 3D Secure check. PayGate saves your card for the monthly payments; Bookplus never sees or stores your card number.',
+                    'Plan payments are charged in **Namibian Dollars (N$)**. Bookplus is based in **Namibia**.',
+                    'Monthly payments, cancelling and refunds: see [Business Terms of Service](/terms#plan). You can cancel at any time.',
+                    'Delivery: nothing is shipped. Bookplus is software you use online, available as soon as your plan starts.',
+                ] },
+            ] }] : []),
             { id: 'legal-documents', title: 'Terms, privacy and complaints', blocks: [
                 { list: [
-                    `[${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms): how bookings, cancellations${W ? ', wallets' : ''}${P ? ', online payments and refunds' : ''} and reviews work, and how to raise a complaint.`,
+                    `[${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms): how bookings, cancellations${W ? ', wallets' : ''}${P ? ', online payments and refunds' : ''}${S ? ', your plan and its payments' : ''} and reviews work, and how to raise a complaint.`,
                     `[Privacy Policy](/privacy-policy): what we collect, why, who receives it and your rights.`,
                 ] },
                 'These documents can be saved or printed from their pages. Bookings are confirmed by email.',

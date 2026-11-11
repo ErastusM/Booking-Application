@@ -22,10 +22,19 @@
 // app shows payment settings, a pay step or earnings from online payments, and
 // the API's /api/payments routes answer 404. To switch it on: set this to true
 // AND PAYMENTS_ENABLED=true (plus the PAYGATE_* settings) for the API.
+//
+// subscriptionBillingEnabled — businesses paying for their Bookplus plan by
+// card (Basic: a free trial, then monthly payments on a card saved with
+// PayGate). OFF until the owner switches card payments for plans on. While off,
+// the legal text has no plan or card clauses (only the promise to tell
+// businesses about any fee before it applies). Switch it on together with the
+// API's SUBSCRIPTION_BILLING_ENABLED=true, once the lawyer has approved the
+// plan clauses in legal/terms.mjs and legal/privacy.mjs.
 export const FEATURES = {
     walletEnabled: false,
     membershipsEnabled: false,
     paymentsEnabled: false,
+    subscriptionBillingEnabled: false,
 };
 
 export const WALLET_COMING_SOON_LINE = 'Pay at your appointment for now.';

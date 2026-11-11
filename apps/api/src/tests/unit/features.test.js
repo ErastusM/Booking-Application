@@ -70,3 +70,10 @@ describe('payments feature switch', () => {
         }
     });
 });
+
+describe('card payments for plans: the apps\' switch', () => {
+    it('defaults to off (it also decides whether the plan clauses are in the legal text)', () => {
+        const src = fs.readFileSync(path.resolve(__dirname, '../../../../../packages/config/features.mjs'), 'utf8');
+        expect(src).toMatch(/subscriptionBillingEnabled:\s*false/);
+    });
+});

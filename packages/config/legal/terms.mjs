@@ -6,7 +6,8 @@
 // rule each clause rests on is noted beside it. Not legal advice; have it
 // reviewed by counsel.
 //
-// W = wallet switched on, P = online payments switched on (FEATURES). With a
+// W = wallet switched on, P = online payments switched on, S = card payments
+// for Bookplus plans switched on (FEATURES; S is business terms only). With a
 // switch off, its clauses are left out entirely.
 
 import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
@@ -152,7 +153,7 @@ const customerSections = (W, P) => [
 
 // ── Business terms ─────────────────────────────────────────────────────────
 
-const businessSections = (W, P) => [
+const businessSections = (W, P, S) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
         'These Terms apply when you use Bookplus for Business to take bookings, manage your calendar, team and clients, and be listed on the Bookplus marketplace. You accept them by ticking the box when you register (by email or with Google), or, for team members, by accepting an invitation. Please also read our [Privacy Policy](/privacy-policy).',
@@ -217,7 +218,39 @@ const businessSections = (W, P) => [
             '**Switching off.** Bookplus may switch off online payments for your business, or hold a payout, while it looks into suspected fraud, repeated complaints or chargebacks, or a breach of these Terms. Where we reasonably can, we tell you why first.',
         ] },
     ] } : null,
-    { id: 'fees', title: 'Fees', blocks: P
+    // The Bookplus plan (S). Rests on: Subscription / services/subscriptions.js
+    // (kept free, trials, prices snapshotted at the trial's start, introductory
+    // months), services/subscriptionBilling.js (the first payment on PayGate's
+    // hosted page with 3D Secure, the card saved in PayGate's vault, the paid
+    // month starting at the trial's end), and PlatformSettings
+    // plans.basic.priceChangeNoticeDays (14 by default: keep the number below
+    // in step). The clauses marked DECISION describe behaviour the monthly
+    // charges (subscriptions step 3) must build exactly as written; confirm
+    // them with the owner and the lawyer before switching S on.
+    S ? { id: 'plan', title: 'Your Bookplus plan', blocks: [
+        'Bookplus for Business is paid for with a monthly subscription, the **Basic plan**, paid by card. Your plan, its prices and its dates are always shown in Account, Your plan.',
+        { list: [
+            '**Businesses kept free.** A business that used Bookplus before subscriptions started is kept free until we tell you otherwise. We tell you in advance, by email and in the app, and you then start a free trial like a new business.',
+            '**Free trial.** A new business starts a free trial when it registers, for the number of days shown in Account, Your plan. Nothing is charged during the trial, and you do not need a card to start it.',
+            '**Prices.** The Basic plan has an introductory monthly price for its first months, then the standard monthly price. The prices that apply to you are fixed when your trial starts and shown in Account, Your plan; a later change to our price list does not change them without notice (see “Price changes” below). Prices are in **Namibian Dollars (N$)**.',
+            '**Starting your plan.** You start the plan by adding a card in Account, Your plan and paying your first month. You enter your card on **PayGate**’s secure page, with your bank’s 3D Secure check; Bookplus never sees or stores your card number or security code. If you add a card during your free trial, your first paid month starts when the trial ends, so your trial is not shortened.',
+            '**Monthly payments from your saved card.** By adding your card **you authorise Bookplus to charge it every month**, when your paid month renews, for the monthly price of your plan that applies at the time, until you cancel. PayGate keeps your card for these payments; Bookplus keeps only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date. Each payment is shown in Account, Your plan.',
+            // DECISION: the retry window and what pausing means.
+            '**If a payment does not go through,** we tell you by email and in the app, and try again over the next 7 days. You can add another card in that time. If the month is still unpaid after 7 days, your plan is paused: your business is no longer shown on the marketplace and clients cannot make new bookings until the plan is paid. Your existing bookings, clients and other information are kept.',
+            '**Price changes.** We tell you at least 14 days in advance, by email and in the app, before the price you pay goes up, including when your introductory price ends. If you do not accept a new price, you can cancel before it applies.',
+            // DECISION: cancelling takes effect at the end of the paid month; no part-month refunds.
+            '**Cancelling.** You can cancel your plan at any time in Account, Your plan. Your card is not charged again, and your plan stays active until the end of the month you have already paid for. We do not refund part of a month already paid, unless the law requires it.',
+            '**Charged in error.** If we charge you more than we should, or after you cancelled, we refund the difference to the card that was charged. Please contact us before disputing a plan payment with your bank: most problems are solved faster that way.',
+            // DECISION: deleting the saved card at PayGate when the plan ends.
+            '**Your saved card.** When you cancel your plan or delete your account, we ask PayGate to delete your saved card.',
+        ] },
+    ] } : null,
+    { id: 'fees', title: 'Fees', blocks: S
+        ? [
+            'You pay Bookplus for your plan as set out in “Your Bookplus plan” above. There is no booking fee, and nothing is charged to your clients by Bookplus.',
+            ...(P ? ['If you also take online payments for bookings, Bookplus’s commission and any card processing fee on them are shown in Account, Online payments before you apply and at any time after. We tell you in advance, by email and in the app, before a fee goes up; you can switch online payments off or close your account if you do not accept it.'] : []),
+        ]
+        : P
         ? [
             'Using Bookplus without online payments has no fee. If you take online payments, you choose a plan when you apply:',
             { list: [
@@ -250,7 +283,7 @@ const businessSections = (W, P) => [
         'You provide your services to your clients; Bookplus does not (see “Our role” above). Nothing in these Terms takes away any right that the law gives you.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
-        `You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling any client balances${P ? ', and once your online payments balance is settled (nothing owed either way, and no refunds or payouts on their way)' : ''}. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.`,
+        `You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling any client balances${P ? ', and once your online payments balance is settled (nothing owed either way, and no refunds or payouts on their way)' : ''}.${S ? ' Closing your account cancels your plan.' : ''} We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.`,
     ] },
     { id: 'disputes', title: 'Disputes', blocks: [
         'Disputes with your clients are between you and them. If you have a complaint about Bookplus, contact us at ' + mail + '; we aim to resolve it within 30 days.',
@@ -260,15 +293,17 @@ const businessSections = (W, P) => [
     ] },
 ];
 
-// `features` defaults to the shared switches; tests pass { walletEnabled: true }
-// or { paymentsEnabled: true } to check the terms kept for switching them on.
+// `features` defaults to the shared switches; tests pass { walletEnabled: true },
+// { paymentsEnabled: true } or { subscriptionBillingEnabled: true } to check
+// the terms kept for switching them on.
 export const termsOfService = (audience = 'customer', features = FEATURES) => {
     const W = !!features.walletEnabled;
     const P = !!features.paymentsEnabled;
+    const S = !!features.subscriptionBillingEnabled;
     return {
         title: audience === 'business' ? 'Business Terms of Service' : 'Terms of Service',
         updated: TERMS_LAST_UPDATED,
         intro: [],
-        sections: (audience === 'business' ? businessSections(W, P) : customerSections(W, P)).filter(Boolean),
+        sections: (audience === 'business' ? businessSections(W, P, S) : customerSections(W, P)).filter(Boolean),
     };
 };

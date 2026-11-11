@@ -68,6 +68,30 @@ For the lawyer to confirm or change:
 - the liability, indemnity and governing-law clauses were removed in
   September 2026 pending legal advice: the lawyer decides whether to add any.
 
+### Plan clauses (business owners paying for Bookplus)
+
+Separate switch: `subscriptionBillingEnabled` in `packages/config/features.mjs`
+(off). While off, the business terms keep only "we will tell you about any
+fee before it applies". When on, they add:
+
+- `terms.mjs`: business terms "Your Bookplus plan" (kept free, the trial,
+  prices fixed at the trial, the first payment with 3D Secure, **the authority
+  to charge the saved card every month until cancelled**, failed payments,
+  14 days' notice of a price rise, cancelling, refunds of errors, deleting the
+  saved card), and "Fees" pointing at it;
+- `privacy.mjs` (business): the plan and the saved-card token, why, PayGate,
+  how long;
+- `notice.mjs` (business): "Paying for your Bookplus plan".
+
+Decisions marked `DECISION` in `terms.mjs` and `privacy.mjs` describe what the
+monthly charges must build: the 7-day retry window and pausing the listing
+after it, cancelling at the end of the paid month with no part-month refunds,
+and deleting the saved card at PayGate when the plan ends. For the lawyer: the
+recurring-charge authority, no part-month refunds, pausing for non-payment,
+and VAT on the plan price. Switch on together with the API's
+`SUBSCRIPTION_BILLING_ENABLED`, and only once the monthly charges, cancelling
+and replacing a card are built.
+
 After the review, update the "last updated" dates (`TERMS_LAST_UPDATED`,
 `PRIVACY_LAST_UPDATED`, `NOTICE_LAST_UPDATED`).
 
