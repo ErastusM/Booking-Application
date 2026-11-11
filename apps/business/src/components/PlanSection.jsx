@@ -82,15 +82,18 @@ const ResultNote = ({ result }) => {
 const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    // "I agree" must be ticked each time; it is the authority for the monthly payments.
+    const [agreed, setAgreed] = useState(false);
     const result = useCheckoutResult(checkoutRef, onChanged);
     if (!plan) return <p style={p}>Loading…</p>;
     const t = plan.terms || {};
 
     const addCard = async () => {
+        if (!agreed) return;
         setBusy(true);
         setError('');
         try {
-            const r = await subscriptionService.startCheckout();
+            const r = await subscriptionService.startCheckout(true);
             goToPayGate(r.data.data);
             // The browser is leaving for PayGate; keep the button disabled.
         } catch (err) {
@@ -170,8 +173,22 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                         {' '}You enter your card on the secure page of PayGate, our payment provider, and it is saved there for the monthly
                         payments. Bookplus never sees your card number.
                     </p>
+                    <label style={{ ...p, display: 'flex', gap: '0.6rem', alignItems: 'flex-start', marginTop: '0.9rem', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={agreed}
+                            disabled={busy}
+                            onChange={(e) => setAgreed(e.target.checked)}
+                            style={{ marginTop: '0.25rem', flexShrink: 0 }}
+                        />
+                        <span>
+                            I agree to the <a href="/terms#plan" target="_blank" rel="noopener noreferrer">plan terms</a> and
+                            authorise Bookplus to charge my card {nad(plan.nextPriceCents)} now and every month after that, at
+                            the price of my plan at the time, until I cancel. I can cancel at any time in Your plan.
+                        </span>
+                    </label>
                     {error && <p style={{ ...p, color: 'var(--danger-fg)', marginTop: '0.6rem' }} role="alert">{error}</p>}
-                    <button type="button" className="btn-primary" style={{ marginTop: '0.9rem' }} disabled={busy} onClick={addCard}>
+                    <button type="button" className="btn-primary" style={{ marginTop: '0.9rem' }} disabled={busy || !agreed} onClick={addCard}>
                         {busy ? 'Opening PayGate…' : 'Add card and start plan'}
                     </button>
                 </div>

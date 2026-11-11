@@ -58,14 +58,35 @@ describe('add card and start plan', () => {
         expect(screen.getByText(/starts when your free trial ends on 23 November 2026\. Your trial is not shortened/)).toBeInTheDocument();
         expect(screen.getByText(/Bookplus never sees your card number/)).toBeInTheDocument();
 
+        await userEvent.click(screen.getByRole('checkbox', { name: /I agree to the plan terms/ }));
         await userEvent.click(screen.getByRole('button', { name: 'Add card and start plan' }));
+        expect(svc.subscriptionService.startCheckout).toHaveBeenCalledWith(true);
         await waitFor(() => expect(pay.goToPayGate).toHaveBeenCalledWith(checkout));
         expect(screen.getByRole('button', { name: 'Opening PayGate…' })).toBeDisabled();
+    });
+
+    it('the button stays off until the owner agrees to the plan terms and the monthly payments', async () => {
+        render(<PlanSection plan={{ ...trial, canAddCard: true }} />);
+        const box = screen.getByRole('checkbox', { name: /I agree to the plan terms/ });
+        expect(box).not.toBeChecked();
+        const label = box.closest('label');
+        expect(label).toHaveTextContent('authorise Bookplus to charge my card N$69.99 now and every month after that');
+        expect(label).toHaveTextContent('until I cancel');
+        expect(screen.getByRole('link', { name: 'plan terms' })).toHaveAttribute('href', '/terms#plan');
+        const button = screen.getByRole('button', { name: 'Add card and start plan' });
+        expect(button).toBeDisabled();
+        await userEvent.click(button);
+        expect(svc.subscriptionService.startCheckout).not.toHaveBeenCalled();
+        await userEvent.click(box);
+        expect(button).toBeEnabled();
+        await userEvent.click(box);
+        expect(button).toBeDisabled();
     });
 
     it('shows the API\'s message when the payment cannot be started, and lets the owner try again', async () => {
         svc.subscriptionService.startCheckout.mockRejectedValue({ response: { status: 429, data: { message: 'Too many card attempts today. Please try again tomorrow.' } } });
         render(<PlanSection plan={{ ...trial, canAddCard: true }} />);
+        await userEvent.click(screen.getByRole('checkbox', { name: /I agree to the plan terms/ }));
         await userEvent.click(screen.getByRole('button', { name: 'Add card and start plan' }));
         expect(await screen.findByRole('alert')).toHaveTextContent('Too many card attempts today');
         expect(screen.getByRole('button', { name: 'Add card and start plan' })).toBeEnabled();

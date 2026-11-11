@@ -87,3 +87,13 @@ describe('subscription billing switch (adding a card to start a plan)', () => {
         }
     });
 });
+
+describe('plan terms version', () => {
+    it('is the Business Terms\' "last updated" date, so the recorded agreement names the text the owner saw', () => {
+        const { PLAN_TERMS_VERSION } = require('../../constants/consent');
+        const src = fs.readFileSync(path.resolve(__dirname, '../../../../../packages/config/legal/terms.mjs'), 'utf8');
+        const m = src.match(/export const TERMS_LAST_UPDATED = '([^']+)'/);
+        expect(m).not.toBeNull();
+        expect(PLAN_TERMS_VERSION).toBe(m[1]);
+    });
+});

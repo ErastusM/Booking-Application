@@ -15,6 +15,7 @@ const SubscriptionPayment = require('../../models/SubscriptionPayment');
 const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const subs = require('../../services/subscriptions');
 const billing = require('../../services/subscriptionBilling');
+const { PLAN_TERMS_VERSION } = require('../../constants/consent');
 const pricing = require('../../services/pricing');
 
 const gw = createFakePaygate();
@@ -53,7 +54,7 @@ const trialOwner = async () => {
     await subs.forProvider(owner);
     return owner;
 };
-const startCheckout = (owner) => request(app).post('/api/subscriptions/me/checkout').set(authHeader(owner));
+const startCheckout = (owner, body = { acceptTerms: true }) => request(app).post('/api/subscriptions/me/checkout').set(authHeader(owner)).send(body);
 const notify = (body) => request(app).post('/api/subscriptions/paygate/notify').type('form').send(body);
 const back = (body) => request(app).post('/api/subscriptions/paygate/return').type('form').send(body);
 
@@ -113,6 +114,37 @@ describe('add card and start plan', () => {
         const log = await FinancialAuditLog.find({ action: 'subscription.checkout_start' }).lean();
         expect(log).toHaveLength(1);
         expect(log[0]).toMatchObject({ amountCents: 6999, reference: res.body.data.reference, actorRole: 'provider' });
+    });
+
+    it('refused unless the owner agrees to the plan terms: nothing is opened at PayGate', async () => {
+        const owner = await trialOwner();
+        for (const body of [{}, { acceptTerms: false }, { acceptTerms: 'true' }, { acceptTerms: 1 }]) {
+            const res = await startCheckout(owner, body);
+            expect(res.status).toBe(400);
+            expect(res.body.code).toBe('terms_required');
+        }
+        expect(gw.calls).toHaveLength(0);
+        expect(await SubscriptionPayment.countDocuments({ provider: owner._id })).toBe(0);
+        expect(await FinancialAuditLog.countDocuments({ action: /^subscription\./ })).toBe(0);
+    });
+
+    it('records which terms the owner agreed to, when, on the payment, the audit entries and the plan', async () => {
+        const owner = await trialOwner();
+        const { reference } = (await startCheckout(owner)).body.data;
+        const payment = await SubscriptionPayment.findOne({ reference }).lean();
+        expect(payment).toMatchObject({ termsVersion: PLAN_TERMS_VERSION, termsAcceptedAt: expect.any(Date) });
+        expect(String(payment.termsAcceptedBy)).toBe(String(owner._id));
+        const start = await FinancialAuditLog.findOne({ action: 'subscription.checkout_start' }).lean();
+        expect(start.details).toMatchObject({ termsVersion: PLAN_TERMS_VERSION });
+
+        gw.setStatus(reference, 1);
+        await notify(gw.notifyBody(reference)).expect(200);
+        const sub = await Subscription.findOne({ provider: owner._id }).lean();
+        expect(sub.termsAccepted).toMatchObject({ version: PLAN_TERMS_VERSION, paymentRef: reference });
+        expect(new Date(sub.termsAccepted.at).getTime()).toBe(new Date(payment.termsAcceptedAt).getTime());
+        expect(String(sub.termsAccepted.by)).toBe(String(owner._id));
+        const paid = await FinancialAuditLog.findOne({ action: 'subscription.first_payment' }).lean();
+        expect(paid.details).toMatchObject({ termsVersion: PLAN_TERMS_VERSION });
     });
 
     it('approved: the notify starts the plan once, saves the card summary and the token; the return lands on Your plan', async () => {

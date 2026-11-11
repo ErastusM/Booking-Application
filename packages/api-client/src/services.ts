@@ -127,7 +127,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         mine: () => API.get('/subscriptions/me'),
         // Add card and start plan: where to send the browser (PayGate's own
         // page, by a form POST of `fields`), then the result by reference.
-        startCheckout: () => API.post('/subscriptions/me/checkout'),
+        // acceptTerms: the owner ticked "I agree" to the plan terms and the
+        // monthly payments; the API refuses without it.
+        startCheckout: (acceptTerms: boolean) => API.post('/subscriptions/me/checkout', { acceptTerms }),
         checkoutStatus: (reference: string) => API.get(`/subscriptions/me/checkout/${encodeURIComponent(reference)}`),
     },
 

@@ -25,6 +25,7 @@ const subs = require('./subscriptions');
 const { subscriptionBillingEnabled } = require('../constants/features');
 const { businessOrigin } = require('../utils/origins');
 const { recordFinance } = require('../utils/financeAudit');
+const { PLAN_TERMS_VERSION } = require('../constants/consent');
 const { sendAlert } = require('../utils/alerts');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -100,12 +101,17 @@ const REASON_TEXT = {
  * → { reference, amountCents, currency, redirectUrl, method: 'POST', fields }
  * Throws CheckoutError.
  */
-const startCheckout = async (owner, now = new Date()) => {
+const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date()) => {
     const sub = await subs.forProvider(owner, now);
     const e = await eligibility(sub, now);
     if (!e.ok) {
         const [message, status] = REASON_TEXT[e.reason] || ['Not possible.', 409];
         throw new CheckoutError(message, { status, code: e.reason });
+    }
+    // The owner must agree to the plan terms (the monthly charge authority)
+    // every time: what they agreed to is recorded with the payment.
+    if (acceptTerms !== true) {
+        throw new CheckoutError('Tick the box to agree to the plan terms and the monthly payments first.', { status: 400, code: 'terms_required' });
     }
     const recent = await SubscriptionPayment.countDocuments({ provider: owner._id, createdAt: { $gt: new Date(now.getTime() - DAY) } });
     if (recent >= MAX_ATTEMPTS_PER_DAY) {
@@ -119,12 +125,15 @@ const startCheckout = async (owner, now = new Date()) => {
         amountCents: e.amountCents,
         currency: CURRENCY,
         reference: newReference(),
+        termsVersion: PLAN_TERMS_VERSION,
+        termsAcceptedAt: now,
+        termsAcceptedBy: owner._id,
         statusHistory: [historyEntry('initiated', 'initiate')],
     });
     // A money action that cannot be recorded must not go ahead.
     await recordFinance({
         actor: owner, action: 'subscription.checkout_start', amountCents: e.amountCents, currency: CURRENCY,
-        provider: owner._id, reference: payment.reference, details: { subscription: String(sub._id), kind: 'first' },
+        provider: owner._id, reference: payment.reference, details: { subscription: String(sub._id), kind: 'first', termsVersion: PLAN_TERMS_VERSION, termsAcceptedAt: now },
     });
 
     let res;
@@ -192,6 +201,13 @@ const applyPaid = async (paymentId, card, now = new Date()) => {
         status: 'active',
         paidThrough: addMonth(start),
         lastPaymentRef: payment.reference,
+        // The agreement the owner gave for this payment becomes the plan's.
+        termsAccepted: {
+            version: payment.termsVersion || null,
+            at: payment.termsAcceptedAt || null,
+            by: payment.termsAcceptedBy || null,
+            paymentRef: payment.reference,
+        },
     };
     if (card) {
         Object.assign(set, {
@@ -268,7 +284,7 @@ const applyQueryResult = async (payment, q, source, now = new Date()) => {
             await recordFinance({
                 action: 'subscription.first_payment', amountCents: payment.amountCents, currency: payment.currency,
                 provider: payment.provider, reference: payment.reference,
-                details: { source, cardSaved: !!card, brand: card?.brand || null, last4: card?.last4 || null },
+                details: { source, cardSaved: !!card, brand: card?.brand || null, last4: card?.last4 || null, termsVersion: payment.termsVersion || null },
             });
             if (!card) alertSafe('Plan paid without a saved card', `Subscription payment ${payment._id}: PayGate approved it but returned no card token.`);
         } else {

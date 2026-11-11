@@ -91,7 +91,7 @@ exports.setVisibility = async (req, res) => {
 // browser: PayGate's hosted page, by a form POST of `fields`.
 exports.startCheckout = async (req, res) => {
     try {
-        const data = await billing.startCheckout(req.user);
+        const data = await billing.startCheckout(req.user, { acceptTerms: req.body?.acceptTerms === true });
         res.set('Cache-Control', 'no-store');
         res.status(201).json({ success: true, data });
     } catch (err) {

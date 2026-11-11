@@ -50,6 +50,15 @@ const subscriptionSchema = new mongoose.Schema({
     vaultId: { type: String, default: null, select: false, maxlength: 64 },
     // The end of the last month paid for.
     paidThrough: { type: Date, default: null },
+    // The owner's agreement to the plan terms, including the authority to
+    // charge the saved card every month until cancelled: which version of the
+    // Business Terms, when, and with which payment it was given.
+    termsAccepted: {
+        version: { type: String, default: null },
+        at: { type: Date, default: null },
+        by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        paymentRef: { type: String, default: null },
+    },
     // The last SubscriptionPayment applied to this record: applying a payment
     // twice (a notify and a return racing) is a no-op.
     lastPaymentRef: { type: String, default: null },

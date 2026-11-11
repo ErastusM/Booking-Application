@@ -36,6 +36,10 @@ const subscriptionPaymentSchema = new mongoose.Schema({
     // card saved): not applied, or applied and flagged for Bookplus to look at.
     flagged: { type: Boolean, default: false },
     flagReason: { type: String, default: null },
+    // The owner ticked "I agree" to these Business Terms before paying.
+    termsVersion: { type: String, default: null },
+    termsAcceptedAt: { type: Date, default: null },
+    termsAcceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     paidAt: { type: Date, default: null },
     appliedAt: { type: Date, default: null },
     lastQueriedAt: { type: Date, default: null },
