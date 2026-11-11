@@ -134,8 +134,28 @@ jobs:
           pnpm --filter "@bookplus/api-client" build
           pnpm --filter "@bookplus/ui" build
 
-      - name: Install Playwright browsers
-        run: pnpm --filter "@bookplus/customer" exec playwright install --with-deps chromium
+      # The browser itself comes from Playwright's CDN; the system packages come
+      # from Ubuntu's apt mirrors. They used to be one step (`--with-deps`), so
+      # a mirror outage (11 Nov 2026: "Temporary failure resolving
+      # archive.ubuntu.com" for ~an hour) failed e2e on every PR before a test
+      # ran. The runner image already has the libraries Chromium needs; what
+      # apt still fetches is fonts. So: the browser must install, the packages
+      # get three bounded tries and then a warning. This does not soften the
+      # gate: if something Chromium needs really is missing it will not launch,
+      # and the e2e steps below fail.
+      - name: Install Playwright browser
+        run: pnpm --filter "@bookplus/customer" exec playwright install chromium
+
+      - name: Install Playwright system packages (retried)
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 pnpm --filter "@bookplus/customer" exec playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "Attempt $attempt to install the system packages failed."
+            [ "$attempt" -lt 3 ] && sleep 30
+          done
+          echo "::warning title=Playwright system packages::apt could not install them after 3 tries (Ubuntu mirrors unreachable?). Running e2e with the runner image's packages."
 
       - name: Customer — e2e
         run: pnpm --filter "@bookplus/customer" test:e2e
