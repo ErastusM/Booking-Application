@@ -46,17 +46,92 @@ class PaygateError extends Error {
     }
 }
 
-const config = () => ({
-    endpoint: process.env.PAYGATE_ENDPOINT || DEFAULT_ENDPOINT,
-    paygateId: process.env.PAYGATE_ID || '',
-    password: process.env.PAYGATE_PASSWORD || '',
-    // The key PayGate signs callbacks and session fields with. The same as the
-    // password unless the terminal's Encryption Key differs from it.
-    checksumKey: process.env.PAYGATE_ENCRYPTION_KEY || process.env.PAYGATE_PASSWORD || '',
+// PayHost terminals, each with its own id, password and signing key. Only
+// terminal 1 is wired in: "One time and tokenization" (3D Secure), used for
+// payments where the payer is present (booking payments, and a business's
+// first plan payment, which also saves the card in PayHost's vault). It is the
+// PAYGATE_* variables (docs/PAYMENTS_GO_LIVE.md). The terminal that charges a
+// saved card each month ("NON3DS") is added here when monthly charges are
+// built, under its own name and variables; nothing here knows about it yet.
+const TERMINALS = Object.freeze({
+    tokenize: { id: 'PAYGATE_ID', password: 'PAYGATE_PASSWORD', key: 'PAYGATE_ENCRYPTION_KEY' },
 });
-const isConfigured = () => {
-    const c = config();
+const DEFAULT_TERMINAL = 'tokenize';
+const terminalVars = (terminal) => {
+    const t = TERMINALS[terminal];
+    if (!t) throw new PaygateError(`Unknown PayGate terminal "${terminal}"`, { code: 'BAD_TERMINAL' });
+    return t;
+};
+
+const config = (terminal = DEFAULT_TERMINAL) => {
+    const t = terminalVars(terminal);
+    return {
+        endpoint: process.env.PAYGATE_ENDPOINT || DEFAULT_ENDPOINT,
+        paygateId: process.env[t.id] || '',
+        password: process.env[t.password] || '',
+        // The key PayGate signs callbacks and session fields with. The same as the
+        // password unless the terminal's Encryption Key differs from it.
+        checksumKey: process.env[t.key] || process.env[t.password] || '',
+    };
+};
+const isConfigured = (terminal = DEFAULT_TERMINAL) => {
+    const c = config(terminal);
     return !!(c.paygateId && c.password);
+};
+
+/* ───────────────────────── vault (saving the card) ─────────────────────────
+ *
+ * NOT FILLED IN YET. PayHost can save the card used for a payment in its vault
+ * and return a token (a vault id) that later charges use instead of the card.
+ * The exact elements are to be taken from the PayHost documentation
+ * (docs.paygate.co.za, the vault / tokenization section) and checked against
+ * the test gateway before anything here is switched on:
+ *
+ *   requestXml  the element(s) in a WebPaymentRequest that ask PayHost to save
+ *               the card, and `after`: the element they follow (the schema's
+ *               order matters: Account, Customer, Redirect, Order)
+ *   extract     ({ status }) => { vaultId, brand, maskedCard, expiry } | null,
+ *               read from a QueryResponse's Status block (parsed XML)
+ *
+ * Until then `vaultReady()` is false, a request with `vault: true` is refused
+ * (VAULT_NOT_READY), and Bookplus never offers to save a card. Tests describe
+ * a wire format with setVaultWire() to exercise everything around it.
+ */
+const UNFILLED_VAULT_WIRE = Object.freeze({ ready: false, after: null, requestXml: null, extract: null });
+let vaultWire = UNFILLED_VAULT_WIRE;
+const vaultReady = () => vaultWire.ready === true;
+/** Tests only: describe the vault wire format. Pass nothing to restore the unfilled one. */
+const setVaultWire = (def) => { vaultWire = def ? { ready: true, ...def } : UNFILLED_VAULT_WIRE; };
+
+const VAULT_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+const digits = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+
+/**
+ * What Bookplus keeps about a saved card: the vault token and a summary to
+ * show the owner (brand, last 4 digits, expiry). Never the card number. Pure;
+ * null when the token is missing or not token-shaped.
+ */
+const cardSummary = (raw) => {
+    if (!raw || typeof raw !== 'object') return null;
+    const vaultId = String(raw.vaultId || '').trim();
+    if (!VAULT_ID_RE.test(vaultId)) return null;
+    const last = digits(raw.maskedCard).slice(-4);
+    // Expiry as PayGate gives it: MMYYYY, MMYY, MM/YY or MM/YYYY.
+    const exp = digits(raw.expiry);
+    let expMonth = null;
+    let expYear = null;
+    if (exp.length === 6 || exp.length === 4) {
+        expMonth = Number(exp.slice(0, 2));
+        expYear = exp.length === 6 ? Number(exp.slice(2)) : 2000 + Number(exp.slice(2));
+        if (expMonth < 1 || expMonth > 12) { expMonth = null; expYear = null; }
+    }
+    return {
+        vaultId,
+        brand: String(raw.brand || '').replace(/[^A-Za-z .-]/g, '').trim().slice(0, 30) || null,
+        last4: last.length === 4 ? last : null,
+        expMonth,
+        expYear,
+    };
 };
 
 /* ───────────────────────────── builders ───────────────────────────── */
@@ -94,18 +169,29 @@ const assertCents = (amountCents) => {
  */
 const buildWebPaymentRequest = ({
     paygateId, password, reference, amountCents, currency = 'NAD',
-    customer = {}, notifyUrl, returnUrl, country = 'NAM', locale = 'en',
+    customer = {}, notifyUrl, returnUrl, country = 'NAM', locale = 'en', vault = false,
 }) => {
     assertCents(amountCents);
+    if (vault && !vaultReady()) {
+        throw new PaygateError('Saving a card is not available yet', { code: 'VAULT_NOT_READY' });
+    }
     const customerXml = `<Customer>${el('FirstName', customer.firstName || '')}${el('LastName', customer.lastName || '')}${el('Email', customer.email || '')}</Customer>`;
+    const parts = [
+        ['Account', accountXml({ paygateId, password })],
+        ['Customer', customerXml],
+        ['Redirect', `<Redirect>${el('NotifyUrl', notifyUrl)}${el('ReturnUrl', returnUrl)}</Redirect>`],
+        ['Order', `<Order>${el('MerchantOrderId', reference)}${el('Currency', currency)}${el('Amount', amountCents)}`
+            + `<BillingDetails>${customerXml}<Address>${el('Country', country)}</Address></BillingDetails>`
+            + `${el('Locale', locale)}</Order>`],
+    ];
+    if (vault) {
+        const at = parts.findIndex(([name]) => name === vaultWire.after);
+        if (at < 0 || !vaultWire.requestXml) throw new PaygateError('Saving a card is not available yet', { code: 'VAULT_NOT_READY' });
+        parts.splice(at + 1, 0, ['Vault', vaultWire.requestXml]);
+    }
     return envelope(
         `<SinglePaymentRequest xmlns="${NS}"><WebPaymentRequest>`
-        + accountXml({ paygateId, password })
-        + customerXml
-        + `<Redirect>${el('NotifyUrl', notifyUrl)}${el('ReturnUrl', returnUrl)}</Redirect>`
-        + `<Order>${el('MerchantOrderId', reference)}${el('Currency', currency)}${el('Amount', amountCents)}`
-        + `<BillingDetails>${customerXml}<Address>${el('Country', country)}</Address></BillingDetails>`
-        + `${el('Locale', locale)}</Order>`
+        + parts.map(([, xml]) => xml).join('')
         + '</WebPaymentRequest></SinglePaymentRequest>'
     );
 };
@@ -261,7 +347,8 @@ const parseQueryResponse = (xml) => {
     const fault = faultOf(doc);
     if (fault) return { ok: false, error: { code: 'SOAP_FAULT', message: fault.message, resultCode: fault.code } };
     const resp = findKey(doc, 'QueryResponse') || findKey(doc, 'SingleFollowUpResponse');
-    const status = statusOf(findKey(resp || {}, 'Status'));
+    const statusNode = findKey(resp || {}, 'Status');
+    const status = statusOf(statusNode);
     if (!resp || (isErrorStatus(status) && status.transactionStatusCode == null)) {
         return {
             ok: false,
@@ -272,7 +359,12 @@ const parseQueryResponse = (xml) => {
             },
         };
     }
-    return { ok: true, ...status };
+    // The saved card, when the vault wire format is known (see the vault section).
+    let vault = null;
+    if (vaultReady() && typeof vaultWire.extract === 'function') {
+        try { vault = vaultWire.extract({ status: statusNode || {} }) || null; } catch (err) { vault = null; }
+    }
+    return { ok: true, ...status, vault };
 };
 
 /**
@@ -396,8 +488,8 @@ const send = async (soapAction, body) => {
     return res && typeof res.body === 'string' ? res.body : String(res?.body || '');
 };
 
-const requireConfig = () => {
-    const c = config();
+const requireConfig = (terminal = DEFAULT_TERMINAL) => {
+    const c = config(terminal);
     if (!c.paygateId || !c.password) {
         throw new PaygateError('Online payment is not configured', { code: 'NOT_CONFIGURED' });
     }
@@ -405,15 +497,15 @@ const requireConfig = () => {
 };
 
 /** Start a hosted-page session → parseWebPaymentResponse's shape. */
-const initiate = async ({ reference, amountCents, currency, customer, notifyUrl, returnUrl }) => {
-    const c = requireConfig();
-    const body = buildWebPaymentRequest({ ...c, reference, amountCents, currency, customer, notifyUrl, returnUrl });
+const initiate = async ({ reference, amountCents, currency, customer, notifyUrl, returnUrl, terminal = DEFAULT_TERMINAL, vault = false }) => {
+    const c = requireConfig(terminal);
+    const body = buildWebPaymentRequest({ ...c, reference, amountCents, currency, customer, notifyUrl, returnUrl, vault });
     return parseWebPaymentResponse(await send('WebPaymentRequest', body));
 };
 
 /** Query a transaction → parseQueryResponse's shape. */
-const query = async ({ payRequestId }) => {
-    const c = requireConfig();
+const query = async ({ payRequestId, terminal = DEFAULT_TERMINAL }) => {
+    const c = requireConfig(terminal);
     return parseQueryResponse(await send('SingleFollowUpRequest', buildQueryRequest({ ...c, payRequestId })));
 };
 
@@ -425,7 +517,8 @@ const refund = async ({ transactionId, amountCents }) => {
 
 module.exports = {
     NS, TX, DEFAULT_ENDPOINT, PaygateError,
-    config, isConfigured,
+    TERMINALS, DEFAULT_TERMINAL, config, isConfigured,
+    vaultReady, setVaultWire, cardSummary,
     xmlEscape, buildWebPaymentRequest, buildQueryRequest, buildRefundRequest,
     parseWebPaymentResponse, parseQueryResponse, parseRefundResponse,
     md5, verifyPostedChecksum, verifyReturnChecksum, verifySessionChecksum,

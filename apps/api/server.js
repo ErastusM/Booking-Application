@@ -199,6 +199,9 @@ app.use(helmet({
 // Both are public by design and verified by checksum + a server-side Query;
 // 404 while PAYMENTS_ENABLED is off. See src/routes/paymentRoutes.js.
 app.use('/api/payments/paygate', paymentRoutes.callbacks);
+// The same for a business's plan payments (adding a card to start the plan);
+// 404 while SUBSCRIPTION_BILLING_ENABLED is off. See src/routes/subscriptionRoutes.js.
+app.use('/api/subscriptions/paygate', subscriptionRoutes.callbacks);
 // Production allows only the apps' own addresses (comma-separated CLIENT_URL).
 // The local app ports (customer 3002 / business 3003) are for development: in
 // production they would let any page served on someone's own machine call the
@@ -279,7 +282,7 @@ app.use('/api/suggestions', readOrWrite, suggestionRoutes);
 app.use('/api/forms', readOrWrite, formRoutes);
 app.use('/api/push', readOrWrite, pushRoutes);
 app.use('/api/uploads', uploadRoutes);
-app.use('/api/subscriptions', readLimiter, subscriptionRoutes);
+app.use('/api/subscriptions', readOrWrite, subscriptionRoutes);
 app.use('/api/wallet', readOrWrite, walletRoutes);
 app.use('/api/giftcards', readOrWrite, giftCardRoutes);
 app.use('/api/provider-wallet', readOrWrite, providerWalletRoutes);

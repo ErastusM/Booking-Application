@@ -62,4 +62,18 @@ describe('SubscriptionsView', () => {
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
         expect(screen.getByText('Only a director can change these.')).toBeInTheDocument();
     });
+
+    it('a paying business shows its card (last 4 only) and paid-to date; the note follows the card switch', async () => {
+        const paying = {
+            provider: { _id: 'p3', name: 'Paid Spa', email: 'spa@x.na', createdAt: '2026-11-10T00:00:00Z' }, status: 'active', nextPriceCents: 6999,
+            trialEndsAt: '2026-12-10T00:00:00Z', paidThrough: '2027-01-10T00:00:00Z', card: { brand: 'Visa', last4: '0002', expMonth: 12, expYear: 2030 },
+        };
+        svc.financeService.subscriptions.mockResolvedValue({ data: { data: { rows: [paying], counts: { active: 1 }, showToBusinesses: true, startedAt: '2026-11-11T00:00:00Z', cardsOn: true } } });
+        render(<SubscriptionsView isDirector onLocked={vi.fn()} />);
+        const [row] = await screen.findAllByTestId('subscription-row');
+        expect(row).toHaveTextContent('Paying');
+        expect(row).toHaveTextContent('Visa ending 0002, paid to 10 Jan 2027');
+        expect(screen.getByText(/can add a card to start their plan/)).toBeInTheDocument();
+        expect(screen.queryByText(/Billing is not switched on yet/)).not.toBeInTheDocument();
+    });
 });
