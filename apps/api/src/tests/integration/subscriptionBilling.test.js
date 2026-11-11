@@ -125,7 +125,8 @@ describe('add card and start plan', () => {
         }
         expect(gw.calls).toHaveLength(0);
         expect(await SubscriptionPayment.countDocuments({ provider: owner._id })).toBe(0);
-        expect(await FinancialAuditLog.countDocuments({ action: /^subscription\./ })).toBe(0);
+        // (Showing plans to businesses wrote its own subscription.visibility entry.)
+        expect(await FinancialAuditLog.countDocuments({ action: { $in: ['subscription.checkout_start', 'subscription.first_payment', 'subscription.payment_failed'] } })).toBe(0);
     });
 
     it('records which terms the owner agreed to, when, on the payment, the audit entries and the plan', async () => {
