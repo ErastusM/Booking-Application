@@ -1,6 +1,6 @@
 const User = require('../models/User');
-const { removeBusinessData, keepClientNameOnBookings } = require('../utils/adminAccountRemoval');
 const { recordFinance } = require('../utils/financeAudit');
+const { removeBusinessData, keepClientNameOnBookings } = require('../utils/adminAccountRemoval');
 
 // The admin seeded from ADMIN_EMAIL at boot (server.js seedAdmin). Its admin
 // access can never be removed from the console.
@@ -203,9 +203,6 @@ exports.toggleFavorite = async (req, res) => {
  * admin (ADMIN_EMAIL) and for the last admin; it returns the account to its
  * recorded role, or — for an admin promoted before that was recorded — to
  * customer only (the console asks the admin to confirm that).
- *
- * Every change is written to the audit log (Settings → Audit log) as
- * 'security.role_change': who made it, for which account, old → new role.
  */
 exports.updateUserRole = async (req, res) => {
     try {
@@ -270,11 +267,11 @@ exports.updateUserRole = async (req, res) => {
             });
         }
 
-        // Recorded before the change (utils/financeAudit throws on failure): a
-        // role change that can't be audited doesn't happen.
+        // Recorded before it happens (Settings, Audit log), like every money action:
+        // a role change that cannot be recorded does not go ahead.
         await recordFinance({
             actor: req.user, action: 'security.role_change', reference: target.email,
-            reason: `${target.role} → ${role}`, details: { user: target._id, from: target.role, to: role },
+            reason: `${target.role} → ${role}`, details: { userId: String(target._id), from: target.role, to: role },
         });
 
         // Signed-in sessions of the account are ended: its access has changed.

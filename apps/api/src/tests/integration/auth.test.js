@@ -307,6 +307,15 @@ describe('POST /api/auth/refresh', () => {
         expect(evicted.body.message).toMatch(/revoked/i);
     });
 
+    it('rejects a validly-signed refresh token with no tokenVersion (it would survive every revocation)', async () => {
+        const { refreshToken } = await loginAndGetTokens();
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        const noVersion = jwt.sign({ id: decoded.id, jti: decoded.jti }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken: noVersion });
+        expect(res.status).toBe(401);
+        expect(res.body.message).toMatch(/revoked/i);
+    });
+
     it('rejects a validly-signed refresh token whose jti was never issued (forged)', async () => {
         // Logging in first makes the account tracked (it gets a jti list)
         const { refreshToken } = await loginAndGetTokens();

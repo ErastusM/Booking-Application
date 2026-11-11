@@ -7,7 +7,8 @@ const router = express.Router();
 
 // Public by design: an unsubscribe link must work without signing in. The token
 // is signed (utils/marketing), so it can only ever switch OFF (or undo) the
-// marketing email of the one recipient it was minted for.
+// marketing email of the one recipient it was minted for. A link signed with
+// the key from before JWT_SECRET was rotated can only switch it off.
 const limiter = rateLimit({
     windowMs: 60 * 1000,
     max: process.env.NODE_ENV === 'test' ? 10000 : 30,
@@ -17,10 +18,11 @@ const limiter = rateLimit({
 });
 
 const handle = (optIn) => async (req, res) => {
-    const subject = readUnsubscribeToken(req.params.token);
+    const subject = readUnsubscribeToken(req.params.token, { optOut: !optIn });
     if (!subject) return res.status(400).json({ success: false, message: 'This unsubscribe link is not valid.' });
+    const { legacy, ...who } = subject;
     try {
-        const r = await setMarketingFromToken(subject, optIn, optIn ? 'unsubscribe_link_undo' : 'unsubscribe_link');
+        const r = await setMarketingFromToken(who, optIn, optIn ? 'unsubscribe_link_undo' : 'unsubscribe_link');
         if (!r.ok && r.reason === 'never_opted_in') {
             return res.status(403).json({ success: false, code: 'never_opted_in', message: 'This link can only switch these emails back on if you turned them on yourself. You can opt in from your account settings.' });
         }
@@ -28,7 +30,8 @@ const handle = (optIn) => async (req, res) => {
         res.set('Cache-Control', 'no-store');
         return res.status(200).json({
             success: true,
-            data: { subscribed: optIn, kind: r.kind },
+            // An older link cannot undo; the page points to account settings instead.
+            data: { subscribed: optIn, kind: r.kind, canUndo: !legacy },
             message: optIn ? 'You’re subscribed again.' : 'You’re unsubscribed from Bookplus offers and rebooking reminders.',
         });
     } catch {

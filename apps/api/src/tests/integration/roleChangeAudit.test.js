@@ -1,10 +1,11 @@
 /**
- * Make admin / Remove admin (PUT /api/users/:id/role) are written to the audit
- * log as 'security.role_change': who made the change, for which account, and
- * old → new role. An admin granted with a forged session (the leaked
- * JWT_SECRET case in docs/ROTATING_SECRETS.md) then shows up in Settings →
- * Audit log. A refused change writes nothing, and a change that can't be
- * recorded doesn't happen.
+ * Role changes (PUT /api/users/:id/role) in the audit log, as
+ * 'security.role_change' — the cases adminPanel.test.js (4 · Make / Remove
+ * admin) doesn't cover: Settings → Audit log lists them with who did it, every
+ * role change is recorded (not only admin), no refusal writes an entry, and a
+ * change that can't be recorded doesn't happen. An admin granted with a forged
+ * session (the leaked JWT_SECRET case in docs/ROTATING_SECRETS.md) then shows
+ * up in the log.
  */
 const request = require('supertest');
 const app = require('../../../server');
@@ -22,44 +23,35 @@ afterEach(async () => { await testDb.clearDatabase(); jest.restoreAllMocks(); })
 const setRole = (actor, target, role) => request(app).put(`/api/users/${target._id}/role`).set(authHeader(actor)).send({ role });
 const roleChanges = () => FinancialAuditLog.find({ action: 'security.role_change' }).sort({ _id: 1 }).lean();
 
-describe('role changes are audited', () => {
-    it('Make admin and Remove admin each write one entry with the actor and the account', async () => {
+describe('role changes in the audit log', () => {
+    it('Settings → Audit log lists Make admin and Remove admin, newest first, with who did it', async () => {
         const director = await makeAdmin({ adminRoles: ['director'] });
         const provider = await makeProvider({ email: 'vido@barber.test' });
-
         expect((await setRole(director, provider, 'admin')).status).toBe(200);
-        let log = await roleChanges();
-        expect(log).toHaveLength(1);
-        expect(String(log[0].actor)).toBe(String(director._id));
-        expect(log[0]).toMatchObject({
-            actorRole: 'director', reference: 'vido@barber.test', reason: 'provider → admin',
-            details: { from: 'provider', to: 'admin' },
-        });
-        expect(String(log[0].details.user)).toBe(String(provider._id));
-
         expect((await setRole(director, provider, 'provider')).status).toBe(200);
-        log = await roleChanges();
-        expect(log).toHaveLength(2);
-        expect(String(log[1].actor)).toBe(String(director._id));
-        expect(log[1]).toMatchObject({ reference: 'vido@barber.test', reason: 'admin → provider' });
 
-        // Settings → Audit log lists them, newest first, with who did it.
         const list = await request(app).get('/api/admin/finance/audit').set(financeHeader(director));
         expect(list.status).toBe(200);
-        expect(list.body.data.map((r) => r.reason)).toEqual(['admin → provider', 'provider → admin']);
-        expect(list.body.data[0]).toMatchObject({ action: 'security.role_change', actor: { email: director.email } });
+        const rows = list.body.data.filter((r) => r.action === 'security.role_change');
+        expect(rows.map((r) => r.reason)).toEqual(['admin → provider', 'provider → admin']);
+        for (const r of rows) {
+            expect(r).toMatchObject({ actorRole: 'director', reference: 'vido@barber.test', actor: { email: director.email } });
+        }
     });
 
-    it('other role changes are recorded too', async () => {
+    it('a role change that isn\'t about admin is recorded too', async () => {
         const admin = await makeAdmin();
         const customer = await makeUser({ email: 'cara@client.test' });
         expect((await setRole(admin, customer, 'provider')).status).toBe(200);
         const log = await roleChanges();
         expect(log).toHaveLength(1);
-        expect(log[0]).toMatchObject({ reference: 'cara@client.test', reason: 'customer → provider' });
+        expect(log[0]).toMatchObject({
+            reference: 'cara@client.test', reason: 'customer → provider',
+            details: { userId: String(customer._id), from: 'customer', to: 'provider' },
+        });
     });
 
-    it('a refused change writes nothing', async () => {
+    it('no refusal writes an entry', async () => {
         const admin = await makeAdmin();
         const { _id: owner } = await makeProvider();
         const staff = await makeUser({ role: 'staff', staffOf: owner });

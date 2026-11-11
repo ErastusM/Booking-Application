@@ -16,10 +16,28 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 
-// A dedicated key derived from JWT_SECRET, so no new secret has to be configured
-// and an unsubscribe token can never be replayed as anything else.
-const key = () => crypto.createHash('sha256').update(`bookplus-unsubscribe:${process.env.JWT_SECRET || ''}`).digest();
+// Keys for unsubscribe links (a dedicated key either way, so an unsubscribe
+// token can never be replayed as anything else):
+//  - UNSUBSCRIBE_KEY (32 bytes as hex) signs and checks links. Unset, a key
+//    derived from JWT_SECRET is used, as it was before this setting existed.
+//  - UNSUBSCRIBE_KEY_LEGACY is the derived key from before JWT_SECRET was
+//    rotated (docs/ROTATING_SECRETS.md). Links emailed earlier never expire, so
+//    they keep working, but only to unsubscribe: the old JWT_SECRET may be
+//    public, so anyone could mint such a link, and it must never switch email
+//    back on.
+const HEX_KEY = /^[0-9a-f]{64}$/i;
+const hexKey = (raw) => (HEX_KEY.test(raw || '') ? Buffer.from(raw, 'hex') : null);
+const derivedKey = () => crypto.createHash('sha256').update(`bookplus-unsubscribe:${process.env.JWT_SECRET || ''}`).digest();
+const unsubscribeKey = () => hexKey(process.env.UNSUBSCRIBE_KEY) || derivedKey();
+const legacyKey = () => hexKey(process.env.UNSUBSCRIBE_KEY_LEGACY);
 const b64 = (buf) => Buffer.from(buf).toString('base64url');
+const sign = (k, body) => b64(crypto.createHmac('sha256', k).update(body).digest()).slice(0, 32);
+// Compared as bytes: a signature with non-ASCII characters is simply wrong.
+const signedWith = (k, body, sig) => {
+    const given = Buffer.from(sig);
+    const expected = Buffer.from(sign(k, body));
+    return given.length === expected.length && crypto.timingSafeEqual(given, expected);
+};
 
 /**
  * Token for one recipient: { k:'u', id } for an account, { k:'g', e } for a
@@ -28,20 +46,28 @@ const b64 = (buf) => Buffer.from(buf).toString('base64url');
 const makeUnsubscribeToken = (subject) => {
     const payload = subject.userId ? { k: 'u', id: String(subject.userId) } : { k: 'g', e: String(subject.email || '').toLowerCase() };
     const body = b64(JSON.stringify(payload));
-    const sig = b64(crypto.createHmac('sha256', key()).update(body).digest()).slice(0, 32);
-    return `${body}.${sig}`;
+    return `${body}.${sign(unsubscribeKey(), body)}`;
 };
 
-const readUnsubscribeToken = (token) => {
+/**
+ * The recipient a token names, or null. `optOut: true` (unsubscribing) also
+ * accepts links signed with UNSUBSCRIBE_KEY_LEGACY, and marks them `legacy`.
+ */
+const readUnsubscribeToken = (token, { optOut = false } = {}) => {
     if (typeof token !== 'string' || token.length > 600) return null;
     const [body, sig] = token.split('.');
     if (!body || !sig) return null;
-    const expected = b64(crypto.createHmac('sha256', key()).update(body).digest()).slice(0, 32);
-    if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    let legacy = false;
+    if (!signedWith(unsubscribeKey(), body, sig)) {
+        const old = optOut ? legacyKey() : null;
+        if (!old || !signedWith(old, body, sig)) return null;
+        legacy = true;
+    }
     try {
         const p = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-        if (p.k === 'u' && mongoose.isValidObjectId(p.id)) return { userId: p.id };
-        if (p.k === 'g' && typeof p.e === 'string' && p.e.includes('@')) return { email: p.e };
+        const mark = legacy ? { legacy: true } : {};
+        if (p.k === 'u' && mongoose.isValidObjectId(p.id)) return { userId: p.id, ...mark };
+        if (p.k === 'g' && typeof p.e === 'string' && p.e.includes('@')) return { email: p.e, ...mark };
     } catch { /* fall through */ }
     return null;
 };
@@ -116,6 +142,8 @@ const setMarketingFromToken = async (subject, optIn, source = 'unsubscribe_link'
 };
 
 module.exports = {
+    unsubscribeKey,
+    derivedKey,
     makeUnsubscribeToken,
     readUnsubscribeToken,
     marketingRecipientFor,

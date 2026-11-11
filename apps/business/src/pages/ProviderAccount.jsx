@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { authService, reviewService, myProfileService, myStatsService, providerMarketService } from '../services';
+import { authService, reviewService, myProfileService, myStatsService, providerMarketService, subscriptionService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
@@ -10,16 +10,16 @@ import { openConsentSettings } from '@bookplus/api-client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
 import OnlinePaymentsSection from '../components/OnlinePaymentsSection';
+import PlanSection from '../components/PlanSection';
 import { PAYMENTS_VISIBLE } from '../utils/onlinePayment';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
 import { Select, Field } from '@bookplus/ui';
 import { useToast } from '../components/Toast';
+import { uploadToCloudinary } from '../utils/uploadImage';
 import PortfolioPhotos, { MAX_PHOTOS } from '../components/PortfolioPhotos';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 
-const CLOUDINARY_CLOUD = 'dktit6s95';
-const CLOUDINARY_PRESET = 'bookplus';
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
 
 // Notice (in hours) a client must give to cancel or reschedule online.
@@ -62,19 +62,6 @@ const BookingLinkCard = ({ user, setUser }) => {
             )}
         </div>
     );
-};
-
-const uploadToCloudinary = async (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('upload_preset', CLOUDINARY_PRESET);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
-        method: 'POST',
-        body: fd,
-    });
-    if (!res.ok) throw new Error('Upload failed');
-    const data = await res.json();
-    return data.secure_url;
 };
 
 const Stars = ({ rating }) => (
@@ -152,7 +139,16 @@ export const EmailConfirmedRow = ({ user }) => {
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
     const isStaff = user?.role === 'staff';
-    const sidebarItems = ALL_SECTIONS.filter((i) => !(isStaff && i.ownerOnly));
+    // The owner's Bookplus plan: a section only once Bookplus shows plans to businesses.
+    const [plan, setPlan] = useState(null);
+    useEffect(() => {
+        if (isStaff || !user) return;
+        subscriptionService.mine().then((r) => setPlan(r.data.data)).catch(() => setPlan(null));
+    }, [isStaff, user]);
+    const sidebarItems = [
+        ...ALL_SECTIONS,
+        ...(plan?.visible ? [{ id: 'plan', label: 'Your plan', ownerOnly: true }] : []),
+    ].filter((i) => !(isStaff && i.ownerOnly));
     // A member's profile is their roster row (the name, photo and title clients
     // see when choosing who to book), edited through /team/mine/profile.
     const [memberProfile, setMemberProfile] = useState(null);
@@ -178,7 +174,7 @@ const ProviderAccount = () => {
     };
     const [section, setSection] = useState(sectionFromUrl);
     useEffect(() => { setSection(sectionFromUrl()); // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.search]);
+    }, [location.search, plan?.visible]);
 
     // Login & security
     const [settingsOpen, setSettingsOpen] = useState(null); // 'security' | 'appearance' | 'calendar'
@@ -646,6 +642,8 @@ const ProviderAccount = () => {
                         {section === 'locations' && <LocationsManager />}
 
                         {section === 'payments' && <OnlinePaymentsSection />}
+
+                        {section === 'plan' && <PlanSection plan={plan} />}
 
                         {section === 'reviews' && (
                             <div>

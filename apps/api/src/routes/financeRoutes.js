@@ -9,6 +9,7 @@ const express = require('express');
 const { auth } = require('../middleware/auth');
 const { requireFinance } = require('../utils/financeRoles');
 const c = require('../controllers/financeController');
+const subs = require('../controllers/subscriptionController');
 
 const router = express.Router();
 const finance = [auth, requireFinance('finance')];
@@ -21,6 +22,12 @@ router.get('/simulate', finance, c.simulate);
 router.post('/launch/:gate', director, c.setLaunchGate);
 // Do the server's PayGate settings work? (no money moves)
 router.post('/paygate-check', finance, c.paygateCheck);
+
+// Business subscriptions: who is kept free or on a trial (no billing yet).
+router.get('/subscriptions', finance, subs.list);
+router.put('/subscriptions/visibility', director, subs.setVisibility);
+router.post('/subscriptions/:id/trial', director, subs.move('trial'));
+router.post('/subscriptions/:id/keep-free', director, subs.move('keep-free'));
 
 // A business's plan and agreed rates.
 router.put('/businesses/:id/pricing', director, c.setBusinessPricing);

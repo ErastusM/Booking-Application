@@ -16,7 +16,14 @@ export const getPushState = async () => {
         const { data } = await pushService.getPublicKey();
         const reg = await navigator.serviceWorker.getRegistration();
         const sub = reg ? await reg.pushManager.getSubscription() : null;
-        return { supported: true, enabled: !!data.enabled, subscribed: !!sub, publicKey: data.publicKey };
+        // On only if the server has this device for the signed-in user: the
+        // browser keeps its subscription when the server forgets it (another
+        // account turned it on here, or the list was cleared after a key rotation).
+        let subscribed = !!sub;
+        if (sub) {
+            try { subscribed = !!(await pushService.status(sub.endpoint)).data.registered; } catch { /* keep the browser's view */ }
+        }
+        return { supported: true, enabled: !!data.enabled, subscribed, publicKey: data.publicKey };
     } catch {
         return { supported: true, enabled: false, subscribed: false };
     }

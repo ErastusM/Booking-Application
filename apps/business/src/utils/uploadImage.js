@@ -1,17 +1,25 @@
-// Unsigned Cloudinary upload for PUBLIC pictures (avatars, portfolio, team photos).
-// Proofs of payment use the private, signed uploadProof below — never this.
-import { walletService, onlinePaymentsService, financeService } from '../services';
-const CLOUDINARY_CLOUD = 'dktit6s95';
-const CLOUDINARY_PRESET = 'bookplus';
+// PUBLIC pictures (avatars, portfolio, team photos). The API signs each upload:
+// images only, into this account's own folder, shrunk on arrival. (There used to
+// be an unsigned preset here, which let anyone upload anything to the account.)
+// Proofs of payment use the private uploadProof below — never this.
+import { uploadService, walletService, onlinePaymentsService, financeService } from '../services';
+
+export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 
 export const uploadToCloudinary = async (file) => {
+    if (file.size > PHOTO_MAX_BYTES) throw new Error('That photo is over 10 MB.');
+    let params;
+    try {
+        params = (await uploadService.photoParams()).data.data;
+    } catch (err) {
+        throw new Error(err?.response?.data?.message || 'Upload failed');
+    }
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('upload_preset', CLOUDINARY_PRESET);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
-        method: 'POST',
-        body: fd,
-    });
+    for (const k of ['api_key', 'timestamp', 'signature', 'folder', 'allowed_formats', 'transformation']) {
+        fd.append(k, String(k === 'api_key' ? params.apiKey : params[k]));
+    }
+    const res = await fetch(params.uploadUrl, { method: 'POST', body: fd });
     if (!res.ok) throw new Error('Upload failed');
     const data = await res.json();
     return data.secure_url;

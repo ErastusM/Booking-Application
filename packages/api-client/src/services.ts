@@ -115,6 +115,16 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getCosts: (month: string) => API.get('/admin/finance/costs', { params: { month } }),
         putCosts: (month: string, items: { category: string; label?: string; amountCents: number }[], reason: string) =>
             API.put(`/admin/finance/costs/${month}`, { items, reason }),
+        // Business subscriptions: who is kept free or on a trial (no billing yet).
+        subscriptions: () => API.get('/admin/finance/subscriptions'),
+        subscriptionTrial: (providerId: string, reason: string) => API.post(`/admin/finance/subscriptions/${providerId}/trial`, { reason }),
+        subscriptionKeepFree: (providerId: string, reason: string) => API.post(`/admin/finance/subscriptions/${providerId}/keep-free`, { reason }),
+        subscriptionVisibility: (show: boolean, reason: string) => API.put('/admin/finance/subscriptions/visibility', { show, reason }),
+    },
+
+    // A business owner's own Bookplus plan ({ visible: false } until shown to businesses).
+    subscriptionService: {
+        mine: () => API.get('/subscriptions/me'),
     },
 
     // Paying online for a booking (customer side; all 404 while online payments
@@ -503,6 +513,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     pushService: {
         getPublicKey: () => API.get('/push/vapid-public-key'),
         subscribe: (subscription: any) => API.post('/push/subscribe', subscription),
+        // Is this device's subscription stored for the signed-in user?
+        status: (endpoint: string) => API.post('/push/status', { endpoint }),
         unsubscribe: (endpoint: string) => API.post('/push/unsubscribe', { endpoint }),
     },
 
@@ -513,6 +525,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         create: (data: any) => API.post('/giftcards', data),
         void: (id: string) => API.post(`/giftcards/${id}/void`),
         redeem: (code: string) => API.post('/giftcards/redeem', { code }),
+    },
+
+    // Signed parameters for ONE public picture upload (avatar, portfolio, team photo).
+    uploadService: {
+        photoParams: () => API.post('/uploads/photo'),
     },
 
     walletService: {

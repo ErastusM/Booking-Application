@@ -79,6 +79,7 @@ const NAV = [
         ['money/payouts', 'Payouts', (c) => ({ n: c?.payouts })],
         ['money/disputes', 'Disputes', (c) => ({ n: c?.cases })],
         ['money/approvals', 'Approvals', (c) => ({ n: (c?.applications ?? 0) + (c?.requests ?? 0), hot: true })],
+        ['money/subscriptions', 'Subscriptions'],
         ['money/costs', 'Costs'],
     ] },
     { group: 'Settings', money: true, items: [

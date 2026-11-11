@@ -1,24 +1,7 @@
-// Unsigned Cloudinary upload for PUBLIC pictures (avatars, portfolio, team photos).
-// Proofs of payment use the private, signed uploadProof below — never this.
 import { walletService } from '../services';
-const CLOUDINARY_CLOUD = 'dktit6s95';
-const CLOUDINARY_PRESET = 'bookplus';
-
-export const uploadToCloudinary = async (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('upload_preset', CLOUDINARY_PRESET);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
-        method: 'POST',
-        body: fd,
-    });
-    if (!res.ok) throw new Error('Upload failed');
-    const data = await res.json();
-    return data.secure_url;
-};
 
 // Proof-of-payment upload — images AND PDFs, PRIVATE. A bank proof must never
-// sit at a public URL, so it is not sent unsigned like the photos above: the API
+// sit at a public URL, so it is never uploaded unsigned: the API
 // signs ONE upload as a Cloudinary `authenticated` asset in this user's own
 // folder, the file goes straight to Cloudinary with that signature, and only its
 // reference comes back. Viewing it later goes through a short-lived signed link

@@ -13,6 +13,7 @@ const SECTIONS = {
     disputes: ['Money', 'Disputes', 'money/disputes'],
     approvals: ['Money', 'Approvals', 'money/approvals'],
     costs: ['Money', 'Running costs', 'money/costs'],
+    subscriptions: ['Money', 'Subscriptions', 'money/subscriptions'],
     prices: ['Settings', 'Prices and fees', 'settings/prices'],
     'go-live': ['Settings', 'Go-live checklist', 'settings/go-live'],
     admins: ['Settings', 'Admins and roles', 'settings/admins'],
