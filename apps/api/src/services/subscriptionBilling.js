@@ -1,24 +1,37 @@
 /**
- * Starting a business's Bookplus plan with a card (behind
+ * Paying for a business's Bookplus plan by card (behind
  * SUBSCRIPTION_BILLING_ENABLED, off by default).
  *
- * The owner presses "Add card and start plan": Bookplus opens a PayGate
- * session on terminal 1 ("One time and tokenization") for the first month's price, with the
- * card to be saved in PayGate's vault. The owner types the card on PayGate's
- * page (3D Secure); Bookplus never sees it. PayGate sends the browser back
- * (return) and tells our server (notify). Neither is trusted: each is checked
- * by its checksum and then the outcome is read with a server-side Query, and
- * applying it is idempotent, so a return and a notify racing (or arriving
- * twice) start the plan once.
+ * Three kinds of payment (models/SubscriptionPayment.js), one place that
+ * decides their outcome (applyQueryResult):
+ *
+ *   first    "Add card and start plan": a PayGate session on terminal 1
+ *            ("One time and tokenization", 3D Secure) for the first month,
+ *            saving the card in PayGate's vault. Adding a card during the
+ *            trial never shortens it: the paid month starts when it ends.
+ *   card     "Replace card" / "Pay with another card", once a plan has
+ *            started: the same hosted page, paying the next month with the
+ *            new card, which then replaces the saved one (the old one is
+ *            deleted at PayGate).
+ *   renewal  the monthly payment from the saved card on terminal 2 ("NON3DS",
+ *            nobody present), started by services/subscriptionRenewals.js.
+ *
+ * Callbacks (return, notify) are never trusted on their own: each is checked
+ * by its checksum and then the outcome is read with a server-side Query.
+ * Applying a payment is idempotent, and only applies while the plan is still
+ * paid to where it was when the payment started, so a notify and a return
+ * racing, or a renewal and a new card racing, never pay a month twice
+ * without it being flagged.
  *
  * What is kept about the card: the vault token (Subscription.vaultId, not
  * selected by default) and brand, last 4 digits and expiry for the owner.
- * The monthly charges on the saved card come later.
  */
 const crypto = require('crypto');
 const pino = require('pino');
 const Subscription = require('../models/Subscription');
 const SubscriptionPayment = require('../models/SubscriptionPayment');
+const User = require('../models/User');
+const VaultDeletion = require('../models/VaultDeletion');
 const paygate = require('./paygate');
 const pricing = require('./pricing');
 const subs = require('./subscriptions');
@@ -27,16 +40,26 @@ const { businessOrigin } = require('../utils/origins');
 const { recordFinance } = require('../utils/financeAudit');
 const { PLAN_TERMS_VERSION } = require('../constants/consent');
 const { sendAlert } = require('../utils/alerts');
+const { createNotification } = require('../utils/notificationhelper');
+const { sendPlanEmail } = require('../utils/emailService');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 const TERMINAL = 'tokenize';
+const RECURRING_TERMINAL = 'recurring';
 const CURRENCY = 'NAD';
 const { OPEN } = SubscriptionPayment;
 // At most this many card attempts per business per day (each one is a PayGate
 // session and, once the card is typed, a fee).
 const MAX_ATTEMPTS_PER_DAY = 6;
 const DAY = 24 * 60 * 60 * 1000;
+// A monthly payment that does not go through is tried again this many days
+// after the first failure, and the plan is paused GRACE_DAYS after it if the
+// month is still unpaid (Business Terms, "Your Bookplus plan").
+const RETRY_AFTER_DAYS = [1, 3, 5];
+const GRACE_DAYS = 7;
+// A new-card session older than this no longer holds back a renewal.
+const CARD_SESSION_MS = 60 * 60 * 1000;
 
 const newReference = () => `BS${crypto.randomBytes(15).toString('hex').toUpperCase()}`;
 const REFERENCE_RE = /^BS[0-9A-F]{30}$/;
@@ -58,20 +81,45 @@ const addMonth = (from) => {
     return d;
 };
 
+const nad = (cents) => `N$${(Number(cents || 0) / 100).toFixed(2)}`;
+const day = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Windhoek' });
+
+/** Every setting and both terminals needed for plan payments by card. */
+const cardsReady = () => paygate.isConfigured(TERMINAL) && paygate.isConfigured(RECURRING_TERMINAL) && paygate.recurringReady();
+
+const FIRST_FROM = ['trialing', 'trial_ended', 'cancelled'];
+const CARD_FROM = ['active', 'past_due', 'paused'];
+
 /**
- * Can this business add a card now? Every switch must be on, the business
- * must be on a trial (running or ended) and have no card yet.
- * → { ok: true, amountCents } or { ok: false, reason }
+ * The month a new card pays for: the one after the month paid to (the next
+ * one, or the overdue one while past due), or a month from today once the plan
+ * is paused (the business was not listed meanwhile).
+ */
+const cardPeriod = (sub, now) => ({
+    prevPaidThrough: sub.paidThrough || null,
+    periodStart: sub.status === 'paused' || !sub.paidThrough ? now : new Date(sub.paidThrough),
+});
+const sameTime = (a, b) => (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
+
+/**
+ * What a card payment would be for this business now.
+ * → { ok: true, kind: 'first' | 'card', amountCents, periodStart?, prevPaidThrough? }
+ * → { ok: false, reason }
  */
 const eligibility = async (sub, now = new Date()) => {
     if (!subscriptionBillingEnabled()) return { ok: false, reason: 'off' };
     const settings = await pricing.getSettings();
     if (!settings.subscriptions?.showToBusinesses) return { ok: false, reason: 'hidden' };
-    if (!paygate.isConfigured(TERMINAL) || !paygate.vaultReady()) return { ok: false, reason: 'unavailable' };
+    if (!cardsReady()) return { ok: false, reason: 'unavailable' };
     const d = subs.describe(sub, now);
-    if (!['trialing', 'trial_ended'].includes(d.status)) return { ok: false, reason: d.status === 'active' ? 'already_active' : 'not_billable' };
-    if (!Number.isInteger(d.nextPriceCents) || d.nextPriceCents <= 0) return { ok: false, reason: 'no_price' };
-    return { ok: true, amountCents: d.nextPriceCents };
+    if (!Number.isInteger(d.nextPriceCents) || d.nextPriceCents <= 0) return { ok: false, reason: d.status === 'exempt' ? 'not_billable' : 'no_price' };
+    if (FIRST_FROM.includes(d.status)) return { ok: true, kind: 'first', amountCents: d.nextPriceCents };
+    if (!CARD_FROM.includes(d.status)) return { ok: false, reason: 'not_billable' };
+    if (sub.cancelAtPeriodEnd) return { ok: false, reason: 'cancelling' };
+    // A monthly payment from the saved card is being taken right now.
+    const renewing = sub.chargingAt || await SubscriptionPayment.exists({ subscription: sub._id, kind: 'renewal', status: { $in: OPEN } });
+    if (renewing) return { ok: false, reason: 'busy' };
+    return { ok: true, kind: 'card', amountCents: d.nextPriceCents, ...cardPeriod(sub, now) };
 };
 
 const historyEntry = (status, source, note) => ({ status, at: new Date(), source, ...(note ? { note } : {}) });
@@ -91,14 +139,16 @@ const REASON_TEXT = {
     off: ['Adding a card is not available yet.', 404],
     hidden: ['Adding a card is not available yet.', 404],
     unavailable: ['Card payments for plans are unavailable right now. Please try again later.', 503],
-    already_active: ['Your plan has already started.', 409],
     not_billable: ['Your plan has nothing to pay.', 409],
     no_price: ['Your plan has nothing to pay.', 409],
+    cancelling: ['Your plan is cancelled and ends at the end of the month you paid for. Keep your plan first to change the card.', 409],
+    busy: ['Your monthly payment is being taken right now. Please try again in a few minutes.', 409],
 };
 
 /**
- * Open a PayGate session for the first month, saving the card.
- * → { reference, amountCents, currency, redirectUrl, method: 'POST', fields }
+ * Open a PayGate session (terminal 1, saving the card): the first month, or
+ * the next month with a new card.
+ * → { reference, kind, amountCents, currency, redirectUrl, method: 'POST', fields }
  * Throws CheckoutError.
  */
 const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date()) => {
@@ -113,7 +163,7 @@ const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date
     if (acceptTerms !== true) {
         throw new CheckoutError('Tick the box to agree to the plan terms and the monthly payments first.', { status: 400, code: 'terms_required' });
     }
-    const recent = await SubscriptionPayment.countDocuments({ provider: owner._id, createdAt: { $gt: new Date(now.getTime() - DAY) } });
+    const recent = await SubscriptionPayment.countDocuments({ provider: owner._id, kind: { $in: ['first', 'card'] }, createdAt: { $gt: new Date(now.getTime() - DAY) } });
     if (recent >= MAX_ATTEMPTS_PER_DAY) {
         throw new CheckoutError('Too many card attempts today. Please try again tomorrow.', { status: 429, code: 'too_many_attempts' });
     }
@@ -121,10 +171,12 @@ const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date
     const payment = await SubscriptionPayment.create({
         subscription: sub._id,
         provider: owner._id,
-        kind: 'first',
+        kind: e.kind,
+        terminal: TERMINAL,
         amountCents: e.amountCents,
         currency: CURRENCY,
         reference: newReference(),
+        ...(e.kind === 'card' ? { periodStart: e.periodStart, prevPaidThrough: e.prevPaidThrough } : {}),
         termsVersion: PLAN_TERMS_VERSION,
         termsAcceptedAt: now,
         termsAcceptedBy: owner._id,
@@ -133,7 +185,7 @@ const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date
     // A money action that cannot be recorded must not go ahead.
     await recordFinance({
         actor: owner, action: 'subscription.checkout_start', amountCents: e.amountCents, currency: CURRENCY,
-        provider: owner._id, reference: payment.reference, details: { subscription: String(sub._id), kind: 'first', termsVersion: PLAN_TERMS_VERSION, termsAcceptedAt: now },
+        provider: owner._id, reference: payment.reference, details: { subscription: String(sub._id), kind: e.kind, termsVersion: PLAN_TERMS_VERSION, termsAcceptedAt: now },
     });
 
     let res;
@@ -166,6 +218,7 @@ const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date
     await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { payRequestId: res.payRequestId } });
     return {
         reference: payment.reference,
+        kind: e.kind,
         amountCents: payment.amountCents,
         currency: payment.currency,
         redirectUrl: res.redirectUrl,
@@ -183,6 +236,35 @@ const STATUS_FOR_CODE = {
 
 const alertSafe = (title, body) => { sendAlert(title, body).catch(() => {}); };
 
+/** Tell the owner about their plan: in the app and by email. Never throws. */
+const tellOwner = async (providerId, { message, subject, heading, lines, rows }) => {
+    try {
+        await createNotification(providerId, message, 'system', '/account?section=plan');
+        const owner = await User.findById(providerId).select('name email').lean();
+        if (owner?.email) await sendPlanEmail(owner.email, { name: owner.name, subject, heading, lines: lines || [message], rows });
+    } catch (err) {
+        logger.warn({ err: err.message }, 'Telling the owner about their plan failed (non-fatal)');
+    }
+};
+
+/** Queue a saved card for deletion at PayGate (services/subscriptionRenewals.js runs the queue). */
+const queueVaultDeletion = async ({ provider, subscription, vaultId, last4, reason }) => {
+    if (!vaultId) return null;
+    return VaultDeletion.create({ provider, subscription, vaultId, last4: last4 || null, reason });
+};
+
+/** The plan is paid again: shown to clients and bookable, if it was paused. */
+const unpauseListing = (providerId) => User.updateOne({ _id: providerId, billingPausedAt: { $ne: null } }, { $set: { billingPausedAt: null } });
+
+const RESET_RETRY = { 'retry.firstFailedAt': null, 'retry.attempts': 0, 'retry.nextAttemptAt': null, 'retry.graceEndsAt': null, pausedAt: null };
+
+// Paid, but the plan moved meanwhile: not applied. Bookplus decides (a refund, or credit).
+const flagNotApplied = async (payment, fresh) => {
+    const why = fresh ? `Paid while the plan was ${fresh.status}${fresh.cancelAtPeriodEnd ? ' (cancelling)' : ''}; not applied` : 'Paid, but the plan was not found; not applied';
+    await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { flagged: true, flagReason: why } });
+    alertSafe('Plan payment not applied', `Subscription payment ${payment._id} (${payment.kind}): ${why}.`);
+};
+
 /**
  * Put a paid first payment into effect on the subscription. Idempotent: the
  * update only matches while the subscription has not had this payment applied
@@ -195,12 +277,17 @@ const applyPaid = async (paymentId, card, now = new Date()) => {
     if (!sub) return false;
     // The paid month starts when the trial would have ended, so adding a card
     // early never shortens the free trial.
-    const trialEnd = sub.trialEndsAt ? new Date(sub.trialEndsAt) : null;
+    const trialEnd = sub.status !== 'cancelled' && sub.trialEndsAt ? new Date(sub.trialEndsAt) : null;
     const start = trialEnd && trialEnd > (payment.paidAt || now) ? trialEnd : (payment.paidAt || now);
     const set = {
         status: 'active',
         paidThrough: addMonth(start),
         lastPaymentRef: payment.reference,
+        lastPriceCents: payment.amountCents,
+        cancelAtPeriodEnd: false,
+        cancelRequestedAt: null,
+        endedAt: null,
+        ...RESET_RETRY,
         // The agreement the owner gave for this payment becomes the plan's.
         termsAccepted: {
             version: payment.termsVersion || null,
@@ -216,7 +303,7 @@ const applyPaid = async (paymentId, card, now = new Date()) => {
         });
     }
     const r = await Subscription.updateOne(
-        { _id: sub._id, lastPaymentRef: { $ne: payment.reference }, status: { $in: ['trialing', 'trial_ended'] } },
+        { _id: sub._id, lastPaymentRef: { $ne: payment.reference }, status: { $in: FIRST_FROM } },
         {
             $set: set,
             $inc: { paidMonths: 1 },
@@ -224,21 +311,118 @@ const applyPaid = async (paymentId, card, now = new Date()) => {
         },
     );
     await SubscriptionPayment.updateOne({ _id: payment._id, appliedAt: null }, { $set: { appliedAt: now } });
-    if (!r.modifiedCount) {
-        const fresh = await Subscription.findById(sub._id).select('lastPaymentRef status').lean();
-        if (fresh && fresh.lastPaymentRef !== payment.reference) {
-            // Paid, but the subscription was moved meanwhile (e.g. kept free by
-            // a director). Not applied; Bookplus decides (a refund, or credit).
-            await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { flagged: true, flagReason: `Paid while the plan was ${fresh.status}; not applied` } });
-            alertSafe('Plan payment not applied', `Subscription payment ${payment._id} was paid while the plan was ${fresh.status}.`);
-        }
+    if (r.modifiedCount) {
+        await unpauseListing(payment.provider);
+    } else {
+        const fresh = await Subscription.findById(sub._id).select('lastPaymentRef status cancelAtPeriodEnd').lean();
+        if (!fresh || fresh.lastPaymentRef !== payment.reference) await flagNotApplied(payment, fresh);
     }
     return r.modifiedCount === 1;
 };
 
 /**
- * Apply a Query answer (paygate.query()'s shape) to a plan payment. The only
- * place its outcome is decided.
+ * A paid month on top of a started plan (a new card, or the saved card each
+ * month): the plan is paid to a month after periodStart, provided it is still
+ * paid to where it was when the payment started. Idempotent.
+ */
+const applyMonthPaid = async (paymentId, card, now = new Date()) => {
+    const payment = await SubscriptionPayment.findById(paymentId).lean();
+    if (!payment || payment.status !== 'paid') return false;
+    const before = await Subscription.findById(payment.subscription).select('+vaultId').lean();
+    if (!before) return false;
+    const set = {
+        status: 'active',
+        paidThrough: addMonth(payment.periodStart),
+        lastPaymentRef: payment.reference,
+        lastPriceCents: payment.amountCents,
+        ...RESET_RETRY,
+    };
+    if (payment.kind === 'card') {
+        set.termsAccepted = { version: payment.termsVersion || null, at: payment.termsAcceptedAt || null, by: payment.termsAcceptedBy || null, paymentRef: payment.reference };
+        if (card) {
+            Object.assign(set, { vaultId: card.vaultId, card: { brand: card.brand, last4: card.last4, expMonth: card.expMonth, expYear: card.expYear, savedAt: now } });
+        }
+    }
+    const event = payment.kind === 'renewal' ? 'renewed' : (card ? 'card_replaced' : 'paid_with_card');
+    const r = await Subscription.updateOne(
+        {
+            _id: before._id,
+            lastPaymentRef: { $ne: payment.reference },
+            status: { $in: CARD_FROM },
+            paidThrough: payment.prevPaidThrough,
+            // A renewal is only ever started for a plan that is not cancelling;
+            // a new card is refused once it is (eligibility).
+            cancelAtPeriodEnd: { $ne: true },
+        },
+        { $set: set, $inc: { paidMonths: 1 }, $push: { history: { at: now, event, note: `Payment ${payment.reference}` } } },
+    );
+    await SubscriptionPayment.updateOne({ _id: payment._id, appliedAt: null }, { $set: { appliedAt: now } });
+    if (!r.modifiedCount) {
+        const fresh = await Subscription.findById(before._id).select('lastPaymentRef status cancelAtPeriodEnd').lean();
+        if (!fresh || fresh.lastPaymentRef !== payment.reference) await flagNotApplied(payment, fresh);
+        return false;
+    }
+    await unpauseListing(payment.provider);
+    // The card it replaced is deleted at PayGate.
+    if (payment.kind === 'card' && card && before.vaultId && before.vaultId !== card.vaultId) {
+        await queueVaultDeletion({ provider: payment.provider, subscription: before._id, vaultId: before.vaultId, last4: before.card?.last4, reason: 'card_replaced' });
+    }
+    const paidThrough = set.paidThrough;
+    if (payment.kind === 'renewal') {
+        await tellOwner(payment.provider, {
+            message: `Your Bookplus plan payment of ${nad(payment.amountCents)} went through. Your plan is paid to ${day(paidThrough)}.`,
+            subject: 'Your Bookplus plan payment',
+            heading: 'your plan payment went through',
+            rows: [['Amount', nad(payment.amountCents)], ['Card', before.card?.last4 ? `ending ${before.card.last4}` : 'saved card'], ['Paid to', day(paidThrough)], ['Reference', payment.reference]],
+        });
+    } else if (before.status !== 'active') {
+        await tellOwner(payment.provider, {
+            message: `Thank you: your Bookplus plan is paid to ${day(paidThrough)}${before.status === 'paused' ? ' and your business is shown to clients again' : ''}.`,
+            subject: 'Your Bookplus plan is paid',
+            heading: 'your plan is paid',
+        });
+    }
+    return true;
+};
+
+/**
+ * A monthly payment from the saved card did not go through: the plan becomes
+ * past due (still listed), the next try is scheduled, and the owner is told.
+ * Only while the plan is still paid to where the payment started from.
+ */
+const applyRenewalFailed = async (payment, now = new Date()) => {
+    const sub = await Subscription.findById(payment.subscription).lean();
+    if (!sub || !['active', 'past_due'].includes(sub.status)) return;
+    if (!sameTime(sub.paidThrough, payment.prevPaidThrough)) return;
+    const first = sub.status === 'past_due' && sub.retry?.firstFailedAt ? new Date(sub.retry.firstFailedAt) : now;
+    const attempts = (sub.status === 'past_due' ? sub.retry?.attempts || 0 : 0) + 1;
+    const offset = RETRY_AFTER_DAYS[attempts - 1];
+    const graceEndsAt = sub.status === 'past_due' && sub.retry?.graceEndsAt ? new Date(sub.retry.graceEndsAt) : new Date(first.getTime() + GRACE_DAYS * DAY);
+    const nextAttemptAt = offset != null && first.getTime() + offset * DAY < graceEndsAt.getTime() ? new Date(first.getTime() + offset * DAY) : null;
+    const r = await Subscription.updateOne(
+        { _id: sub._id, status: { $in: ['active', 'past_due'] }, paidThrough: payment.prevPaidThrough },
+        {
+            $set: { status: 'past_due', 'retry.firstFailedAt': first, 'retry.attempts': attempts, 'retry.nextAttemptAt': nextAttemptAt, 'retry.graceEndsAt': graceEndsAt },
+            $push: { history: { at: now, event: 'payment_failed', note: `Payment ${payment.reference}, try ${attempts}` } },
+        },
+    );
+    if (!r.modifiedCount) return;
+    const lines = [
+        `Your Bookplus plan payment of ${nad(payment.amountCents)} from your saved card did not go through.`,
+        nextAttemptAt ? `We will try again on ${day(nextAttemptAt)}.` : 'We will not try this card again.',
+        `You can pay with another card in Account, Your plan. If the month is still unpaid on ${day(graceEndsAt)}, your plan is paused: your business is not shown to clients and they cannot make new bookings until it is paid. Your bookings, clients and information are kept.`,
+    ];
+    await tellOwner(payment.provider, {
+        message: lines.slice(0, 2).join(' '),
+        subject: 'Your Bookplus plan payment did not go through',
+        heading: 'your plan payment did not go through',
+        lines,
+    });
+};
+
+/**
+ * Apply a Query (or charge) answer, paygate.query()'s shape, to a plan
+ * payment. The only place its outcome is decided.
  */
 const applyQueryResult = async (payment, q, source, now = new Date()) => {
     if (!q || !q.ok) {
@@ -249,6 +433,7 @@ const applyQueryResult = async (payment, q, source, now = new Date()) => {
     const gatewayFields = {
         lastQueriedAt: now,
         transactionStatusCode: code,
+        ...(q.payRequestId && !payment.payRequestId ? { payRequestId: String(q.payRequestId).slice(0, 64) } : {}),
         ...(q.transactionId ? { transactionId: String(q.transactionId).slice(0, 64) } : {}),
         ...(q.resultCode ? { resultCode: String(q.resultCode).slice(0, 20) } : {}),
         ...(q.resultDescription || q.transactionStatusDescription ? { resultDesc: String(q.resultDescription || q.transactionStatusDescription).slice(0, 200) } : {}),
@@ -263,17 +448,19 @@ const applyQueryResult = async (payment, q, source, now = new Date()) => {
         if (problems.length) {
             const reason = `PayGate approved but ${problems.join(', ')} did not match`;
             await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { ...gatewayFields, flagged: true, flagReason: reason } });
-            logger.error({ subscriptionPaymentId: String(payment._id), mismatch: problems }, 'Plan payment mismatch — plan not started');
-            alertSafe('Plan payment mismatch — plan NOT started', `Subscription payment ${payment._id}: ${reason}`);
+            logger.error({ subscriptionPaymentId: String(payment._id), mismatch: problems }, 'Plan payment mismatch — not applied');
+            alertSafe('Plan payment mismatch — NOT applied', `Subscription payment ${payment._id} (${payment.kind}): ${reason}`);
             return SubscriptionPayment.findById(payment._id);
         }
-        const card = paygate.cardSummary(q.vault);
+        // A renewal charges the card already saved; the others save a new one.
+        const card = payment.kind === 'renewal' ? null : paygate.cardSummary(q.vault);
+        const noCard = payment.kind !== 'renewal' && !card;
         const claimed = await SubscriptionPayment.findOneAndUpdate(
             { _id: payment._id, status: { $in: [...OPEN, 'failed', 'cancelled', 'expired'] } },
             {
                 $set: {
                     ...gatewayFields, status: 'paid', paidAt: now,
-                    ...(card ? {} : { flagged: true, flagReason: 'Paid, but PayGate did not return a saved card' }),
+                    ...(noCard ? { flagged: true, flagReason: 'Paid, but PayGate did not return a saved card' } : {}),
                 },
                 $push: { statusHistory: historyEntry('paid', source) },
             },
@@ -281,18 +468,23 @@ const applyQueryResult = async (payment, q, source, now = new Date()) => {
         );
         if (claimed) {
             // Only the one call that moved it to paid writes the audit entry.
+            const action = { first: 'subscription.first_payment', card: 'subscription.card_payment', renewal: 'subscription.renewal_payment' }[payment.kind];
             await recordFinance({
-                action: 'subscription.first_payment', amountCents: payment.amountCents, currency: payment.currency,
+                action, amountCents: payment.amountCents, currency: payment.currency,
                 provider: payment.provider, reference: payment.reference,
-                details: { source, cardSaved: !!card, brand: card?.brand || null, last4: card?.last4 || null, termsVersion: payment.termsVersion || null },
+                details: {
+                    source, kind: payment.kind,
+                    ...(payment.kind === 'renewal' ? { attempt: payment.attempt, periodStart: payment.periodStart } : { cardSaved: !!card, brand: card?.brand || null, last4: card?.last4 || null, termsVersion: payment.termsVersion || null }),
+                },
             });
-            if (!card) alertSafe('Plan paid without a saved card', `Subscription payment ${payment._id}: PayGate approved it but returned no card token.`);
+            if (noCard) alertSafe('Plan paid without a saved card', `Subscription payment ${payment._id}: PayGate approved it but returned no card token.`);
         } else {
             await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { lastQueriedAt: now } });
         }
         // Whoever claimed it, or a re-run after a crash between the claim and
-        // applying it, makes sure it is applied; applyPaid is idempotent.
-        await applyPaid(payment._id, card, now);
+        // applying it, makes sure it is applied; applying is idempotent.
+        if (payment.kind === 'first') await applyPaid(payment._id, card, now);
+        else await applyMonthPaid(payment._id, card, now);
         return SubscriptionPayment.findById(payment._id);
     }
 
@@ -309,13 +501,15 @@ const applyQueryResult = async (payment, q, source, now = new Date()) => {
                 await recordFinance({
                     action: 'subscription.payment_failed', amountCents: payment.amountCents, currency: payment.currency,
                     provider: payment.provider, reference: payment.reference,
-                    details: { source, status: next, resultCode: gatewayFields.resultCode || null },
+                    details: { source, kind: payment.kind, status: next, resultCode: gatewayFields.resultCode || null, ...(payment.kind === 'renewal' ? { attempt: payment.attempt } : {}) },
                 });
+                if (payment.kind === 'renewal') await applyRenewalFailed(moved, now);
             }
             return moved;
         }
     }
-    await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { lastQueriedAt: now } });
+    // Still not settled (or already settled): keep PayGate's id so it can be asked again.
+    await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { lastQueriedAt: now, ...(gatewayFields.payRequestId ? { payRequestId: gatewayFields.payRequestId } : {}) } });
     return SubscriptionPayment.findById(payment._id);
 };
 
@@ -324,7 +518,7 @@ const syncCheckout = async (payment, source = 'query') => {
     if (!payment || !payment.payRequestId) return payment;
     let q;
     try {
-        q = await paygate.query({ payRequestId: payment.payRequestId, terminal: TERMINAL });
+        q = await paygate.query({ payRequestId: payment.payRequestId, terminal: payment.terminal || TERMINAL });
     } catch (err) {
         logger.warn({ subscriptionPaymentId: String(payment._id), code: err.code }, 'PayGate query for a plan payment failed');
         q = { ok: false };
@@ -335,10 +529,18 @@ const syncCheckout = async (payment, source = 'query') => {
 /** What the owner's result view shows about one of their plan payments. */
 const checkoutStatus = (payment) => ({
     reference: payment.reference,
+    kind: payment.kind,
     status: payment.status,
     amountCents: payment.amountCents,
     currency: payment.currency,
 });
+
+/** The owner's paid plan payments, newest first (Account -> Your plan). */
+const paymentHistory = async (providerId, limit = 24) => {
+    const rows = await SubscriptionPayment.find({ provider: providerId, status: 'paid' })
+        .sort({ paidAt: -1 }).limit(limit).select('reference kind amountCents currency paidAt periodStart').lean();
+    return rows.map((r) => ({ reference: r.reference, kind: r.kind, amountCents: r.amountCents, currency: r.currency, paidAt: r.paidAt }));
+};
 
 /** The owner's card on file, for Account -> Your plan (never the token). */
 const publicCard = (sub) => (sub?.card?.last4 ? {
@@ -361,8 +563,8 @@ const sanitizeNotify = (pairs) => {
 };
 
 module.exports = {
-    TERMINAL, REFERENCE_RE, MAX_ATTEMPTS_PER_DAY, CheckoutError,
-    notifyUrl, returnUrl, resultPageUrl, addMonth,
-    eligibility, startCheckout, applyQueryResult, applyPaid, syncCheckout,
-    checkoutStatus, publicCard, sanitizeNotify,
+    TERMINAL, RECURRING_TERMINAL, REFERENCE_RE, MAX_ATTEMPTS_PER_DAY, RETRY_AFTER_DAYS, GRACE_DAYS, CARD_SESSION_MS, CheckoutError,
+    notifyUrl, returnUrl, resultPageUrl, addMonth, nad, day, cardsReady,
+    eligibility, startCheckout, applyQueryResult, applyPaid, applyMonthPaid, applyRenewalFailed, syncCheckout,
+    checkoutStatus, paymentHistory, publicCard, sanitizeNotify, tellOwner, queueVaultDeletion, unpauseListing, newReference,
 };

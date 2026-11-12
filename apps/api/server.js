@@ -57,6 +57,7 @@ const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const startAutoCompleteJob = require('./src/utils/autoCompleteService');
 const startRetentionJob = require('./src/utils/dataRetentionService');
 const { startPaymentHoldJob } = require('./src/services/paymentService');
+const { startRenewalJob } = require('./src/services/subscriptionRenewals');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
 
@@ -369,6 +370,7 @@ if (require.main === module) {
             startAutoCompleteJob();
             startRetentionJob();
             startPaymentHoldJob();
+            startRenewalJob();
         });
 
         const shutdown = async (signal) => {

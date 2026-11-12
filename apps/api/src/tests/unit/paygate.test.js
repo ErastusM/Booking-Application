@@ -285,8 +285,91 @@ describe('terminals', () => {
         expect(paygate.isConfigured('tokenize')).toBe(true);
     });
 
+    it('terminal 2 ("NON3DS", monthly charges) has its own settings and is never terminal 1', () => {
+        process.env.PAYGATE_ID = '111';
+        process.env.PAYGATE_PASSWORD = 'pay';
+        delete process.env.PAYGATE_RECURRING_ID;
+        delete process.env.PAYGATE_RECURRING_PASSWORD;
+        expect(paygate.isConfigured('recurring')).toBe(false);
+        process.env.PAYGATE_RECURRING_ID = '222';
+        process.env.PAYGATE_RECURRING_PASSWORD = 'rec';
+        expect(paygate.config('recurring')).toMatchObject({ paygateId: '222', password: 'rec', checksumKey: 'rec' });
+        expect(paygate.config('tokenize')).toMatchObject({ paygateId: '111' });
+    });
+
     it('an unknown terminal is an error, never a silent fallback to another one', () => {
         expect(() => paygate.config('non3ds')).toThrow(/Unknown PayGate terminal/);
+    });
+});
+
+describe('charging and deleting a saved card', () => {
+    const saved = { ...process.env };
+    const sent = [];
+    beforeEach(() => {
+        process.env.PAYGATE_RECURRING_ID = '222';
+        process.env.PAYGATE_RECURRING_PASSWORD = 'rec';
+        process.env.PAYGATE_ID = '111';
+        process.env.PAYGATE_PASSWORD = 'pay';
+        sent.length = 0;
+    });
+    afterEach(() => {
+        process.env = { ...saved };
+        paygate.setWire('charge', null);
+        paygate.setWire('deleteVault', null);
+        paygate.setVaultWire(null);
+        paygate.setTransport();
+    });
+    const answer = (inner) => async ({ soapAction, body }) => { sent.push({ soapAction, body }); return { status: 200, body: `<Envelope><Body>${inner}</Body></Envelope>` }; };
+    const chargeWire = { soapAction: 'Charge', responseElement: 'ChargeResponse', build: ({ account, vaultId, reference, amountCents, el }) => `<Charge>${account}${el('V', vaultId)}${el('R', reference)}${el('A', amountCents)}</Charge>` };
+
+    it('not ready until all three formats (save, charge, delete) are filled in; nothing is sent', async () => {
+        expect(paygate.recurringReady()).toBe(false);
+        paygate.setTransport(answer(''));
+        await expect(paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BSX', amountCents: 100 })).rejects.toMatchObject({ code: 'VAULT_NOT_READY' });
+        await expect(paygate.deleteVault({ vaultId: 'abcdef1234' })).rejects.toMatchObject({ code: 'VAULT_NOT_READY' });
+        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: () => null });
+        paygate.setWire('charge', chargeWire);
+        expect(paygate.recurringReady()).toBe(false);
+        paygate.setWire('deleteVault', { build: () => '<D/>' });
+        expect(paygate.recurringReady()).toBe(true);
+        expect(sent).toHaveLength(0);
+        expect(() => paygate.setWire('other', {})).toThrow(/Unknown wire/);
+    });
+
+    it('charges on terminal 2 with the token, escaped, and reads the answer like a Query', async () => {
+        paygate.setWire('charge', chargeWire);
+        paygate.setTransport(answer('<ChargeResponse><Status><PayRequestId>PR1</PayRequestId><Reference>BSX</Reference><TransactionStatusCode>1</TransactionStatusCode><Amount>6999</Amount><Currency>NAD</Currency></Status></ChargeResponse>'));
+        const r = await paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BS<X>', amountCents: 6999 });
+        expect(r).toMatchObject({ ok: true, transactionStatusCode: 1, payRequestId: 'PR1', amountCents: 6999 });
+        expect(sent[0].soapAction).toBe('Charge');
+        expect(sent[0].body).toContain('<PayGateId>222</PayGateId><Password>rec</Password>');
+        expect(sent[0].body).toContain('<R>BS&lt;X&gt;</R>');
+    });
+
+    it('refuses without a token-shaped vault id, a positive amount, or terminal 2 settings', async () => {
+        paygate.setWire('charge', chargeWire);
+        paygate.setTransport(answer(''));
+        await expect(paygate.chargeVault({ vaultId: '<x>', reference: 'BSX', amountCents: 100 })).rejects.toMatchObject({ code: 'NO_VAULT' });
+        await expect(paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BSX', amountCents: 0 })).rejects.toMatchObject({ code: 'BAD_AMOUNT' });
+        delete process.env.PAYGATE_RECURRING_ID;
+        await expect(paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BSX', amountCents: 100 })).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
+        expect(sent).toHaveLength(0);
+    });
+
+    it('an answer with no transaction, or a fault, is a clean failure', () => {
+        paygate.setWire('charge', chargeWire);
+        expect(paygate.parseChargeResponse('<Envelope><Body><ChargeResponse><Status><StatusName>Error</StatusName><ResultDescription>Invalid vault</ResultDescription></Status></ChargeResponse></Body></Envelope>'))
+            .toMatchObject({ ok: false, error: { code: 'GATEWAY_ERROR', message: 'Invalid vault' } });
+        expect(paygate.parseChargeResponse('<Envelope><Body><Fault><faultcode>x</faultcode><faultstring>no</faultstring></Fault></Body></Envelope>')).toMatchObject({ ok: false, error: { code: 'SOAP_FAULT' } });
+        expect(paygate.parseChargeResponse('not xml <<<')).toMatchObject({ ok: false });
+    });
+
+    it('deletes a saved card on terminal 1; an Error status is a failure', async () => {
+        paygate.setWire('deleteVault', { soapAction: 'Del', build: ({ account, vaultId, el }) => `<Del>${account}${el('V', vaultId)}</Del>` });
+        paygate.setTransport(answer('<DelResponse><Status><StatusName>Completed</StatusName></Status></DelResponse>'));
+        expect(await paygate.deleteVault({ vaultId: 'abcdef1234' })).toEqual({ ok: true });
+        expect(sent[0].body).toContain('<PayGateId>111</PayGateId>');
+        expect(paygate.parseDeleteVaultResponse('<Envelope><Body><DelResponse><Status><StatusName>Error</StatusName></Status></DelResponse></Body></Envelope>')).toMatchObject({ ok: false });
     });
 });
 

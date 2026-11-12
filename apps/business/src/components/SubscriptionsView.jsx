@@ -17,6 +17,9 @@ export const STATUS = {
     trialing: ['Free trial', 'info'],
     trial_ended: ['Trial ended', 'warn'],
     active: ['Paying', 'ok'],
+    past_due: ['Payment failed', 'warn'],
+    paused: ['Paused: unpaid', 'bad'],
+    cancelled: ['Plan ended', undefined],
 };
 
 const SubscriptionsView = ({ isDirector, onLocked }) => {
@@ -54,7 +57,7 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
         <div style={list} data-testid="finance-subscriptions">
             <p style={muted}>
                 {data.cardsOn
-                    ? 'Businesses on a trial can add a card to start their plan; the first month is charged then. Monthly charges are not switched on yet.'
+                    ? 'Businesses add a card to start their plan (the first month is charged then), and the saved card is charged each month after that. A payment that does not go through is tried again for 7 days; then the plan is paused and the business is hidden from clients until it pays.'
                     : 'Billing is not switched on yet: nobody is charged.'}
                 {' '}Businesses from before {day(data.startedAt) || 'subscriptions started'} are
                 kept free until you move them; new businesses start a free trial when they sign up.
@@ -64,7 +67,15 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
                 { label: 'On a free trial', value: String(c.trialing || 0) },
                 { label: 'Trial ended', value: String(c.trial_ended || 0), sub: 'No card saved yet' },
                 { label: 'Paying', value: String(c.active || 0), sub: 'Card saved' },
+                { label: 'Payment failed', value: String(c.past_due || 0), sub: 'Being tried again' },
+                { label: 'Paused', value: String(c.paused || 0), sub: 'Hidden from clients' },
+                { label: 'Plan ended', value: String(c.cancelled || 0) },
             ]} />
+            {data.flagged > 0 && (
+                <p style={{ ...muted, color: 'var(--danger-fg)' }} role="alert" data-testid="plan-payments-flagged">
+                    {data.flagged} plan payment{data.flagged === 1 ? ' needs' : 's need'} checking at PayGate (flagged: paid but not applied, a mismatch, or no answer from PayGate). Look for flagged in SubscriptionPayment and check each one at PayGate before refunding or charging again.
+                </p>
+            )}
 
             <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -109,6 +120,8 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
                                     <td style={td}>
                                         <Status tone={tone}>{shown}</Status>
                                         {r.card && <div style={muted}>{r.card.brand || 'Card'} ending {r.card.last4}{r.status === 'active' && r.paidThrough ? `, paid to ${day(r.paidThrough)}` : ''}</div>}
+                                        {r.status === 'active' && r.cancelAtPeriodEnd && <div style={muted}>Cancelled: ends {day(r.paidThrough)}</div>}
+                                        {r.status === 'past_due' && <div style={muted}>{r.nextAttemptAt ? `Next try ${day(r.nextAttemptAt)}, ` : ''}paused on {day(r.graceEndsAt)} if unpaid</div>}
                                     </td>
                                     <td style={td}>{r.status === 'exempt' ? '' : day(r.trialEndsAt)}</td>
                                     <td style={td}>{r.status === 'exempt' ? 'Nothing' : `${nad(r.nextPriceCents)}/month`}</td>

@@ -50,6 +50,9 @@ const checkoutLimiter = rateLimit({
 router.get('/me', auth, owner, c.mine);
 router.post('/me/checkout', requireSubscriptionBilling, checkoutLimiter, auth, owner, c.startCheckout);
 router.get('/me/checkout/:reference', requireSubscriptionBilling, auth, owner, c.checkoutStatus);
+router.get('/me/payments', requireSubscriptionBilling, auth, owner, c.payments);
+router.post('/me/cancel', requireSubscriptionBilling, auth, owner, c.cancel);
+router.post('/me/keep', requireSubscriptionBilling, auth, owner, c.keep);
 
 module.exports = router;
 module.exports.callbacks = callbacks;

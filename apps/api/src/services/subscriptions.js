@@ -1,6 +1,7 @@
 /**
  * Business subscriptions (the payment specification, sections 10–12): who is
- * kept free, who is in a trial, and when it ends. No money moves here yet.
+ * kept free, who is in a trial, and when it ends. Payments are in
+ * services/subscriptionBilling.js and services/subscriptionRenewals.js.
  *
  *  - A business created before subscriptions started (settings
  *    subscriptions.startedAt) is kept free until a director moves it.
@@ -10,6 +11,7 @@
 const Subscription = require('../models/Subscription');
 const PlatformSettings = require('../models/PlatformSettings');
 const User = require('../models/User');
+const VaultDeletion = require('../models/VaultDeletion');
 const pricing = require('./pricing');
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -53,6 +55,14 @@ const describe = (sub, now = new Date()) => {
         paidThrough: sub.paidThrough || null,
         // What the owner is shown about their saved card (never the vault token).
         card: sub.card?.last4 ? { brand: sub.card.brand || null, last4: sub.card.last4, expMonth: sub.card.expMonth || null, expYear: sub.card.expYear || null } : null,
+        // The next monthly payment from the saved card (none once cancelled).
+        nextPaymentAt: status === 'active' && !sub.cancelAtPeriodEnd ? sub.paidThrough || null : null,
+        cancelAtPeriodEnd: status === 'active' && !!sub.cancelAtPeriodEnd,
+        endedAt: status === 'cancelled' ? sub.endedAt || null : null,
+        // A monthly payment that did not go through (past_due), or the plan paused.
+        nextAttemptAt: status === 'past_due' ? sub.retry?.nextAttemptAt || null : null,
+        graceEndsAt: status === 'past_due' ? sub.retry?.graceEndsAt || null : null,
+        pausedAt: status === 'paused' ? sub.pausedAt || null : null,
     };
 };
 
@@ -117,10 +127,21 @@ const keepFree = async (providerId, { by, note = '' } = {}, now = new Date()) =>
     if (!provider) return { ok: false, code: 'not_found' };
     const sub = await forProvider(provider, now);
     if (sub.status === 'exempt') return { ok: false, code: 'already_exempt' };
-    await Subscription.updateOne({ _id: sub._id }, {
-        $set: { status: 'exempt' },
+    if (sub.chargingAt) return { ok: false, code: 'busy' };
+    // Kept free: nothing more is charged, any pause is lifted, and a saved card
+    // is deleted at PayGate (services/subscriptionRenewals.js runs the queue).
+    const before = await Subscription.findOneAndUpdate({ _id: sub._id, chargingAt: null }, {
+        $set: {
+            status: 'exempt', vaultId: null, cancelAtPeriodEnd: false, pausedAt: null, 'retry.nextAttemptAt': null,
+            card: { brand: null, last4: null, expMonth: null, expYear: null, savedAt: null },
+        },
         $push: { history: { at: now, event: 'kept_free', by, note } },
-    });
+    }).select('+vaultId').lean();
+    if (!before) return { ok: false, code: 'busy' };
+    await User.updateOne({ _id: providerId }, { $set: { billingPausedAt: null } });
+    if (before.vaultId) {
+        await VaultDeletion.create({ provider: providerId, subscription: sub._id, vaultId: before.vaultId, last4: before.card?.last4 || null, reason: 'plan_ended' });
+    }
     return { ok: true, subscription: describe(await Subscription.findById(sub._id).lean(), now) };
 };
 

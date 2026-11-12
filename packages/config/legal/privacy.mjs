@@ -214,7 +214,7 @@ const retention = (audience, W, P, S = false) => ({
                 ] : []),
                 ...(S ? [
                     ['Plan payments', 'Kept as financial records for as long as the law requires. When you delete your account, your name and email are removed from them'],
-                    // DECISION (subscriptions step 3 must build it): delete the vault card at PayGate.
+                    // Built in subscriptions step 3: the saved card is deleted at PayGate then.
                     ['PayGate’s reference to your saved card, and its brand, last 4 digits and expiry', 'Until you cancel your plan, replace the card or delete your account; we then also ask PayGate to delete the saved card'],
                 ] : []),
                 ['Allergy notes, client notes and form answers', 'Until the business deletes them, or you delete your account'],

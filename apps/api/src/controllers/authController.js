@@ -1534,6 +1534,10 @@ const { ApptPhrase } = require('../utils/apptCopy');
             console.error('Account deletion cleanup failed:', cleanupErr.message);
         }
 
+        // A business's Bookplus plan ends now and PayGate is asked to delete the
+        // saved card (Business Terms, "Your Bookplus plan"). Never throws.
+        if (user.role === 'provider') await require('../services/subscriptionRenewals').onAccountClosed(user._id);
+
         // Remove / anonymise every personal record (see utils/accountData for
         // exactly what goes and what is kept anonymised for the other party).
         await require('../utils/accountData').purgeAccount(user);

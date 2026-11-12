@@ -73,7 +73,22 @@ describe('SubscriptionsView', () => {
         const [row] = await screen.findAllByTestId('subscription-row');
         expect(row).toHaveTextContent('Paying');
         expect(row).toHaveTextContent('Visa ending 0002, paid to 10 Jan 2027');
-        expect(screen.getByText(/can add a card to start their plan/)).toBeInTheDocument();
+        expect(screen.getByText(/add a card to start their plan/)).toBeInTheDocument();
         expect(screen.queryByText(/Billing is not switched on yet/)).not.toBeInTheDocument();
+    });
+
+    it('a payment that failed, a paused plan, and flagged payments to check', async () => {
+        const base = { createdAt: '2026-11-10T00:00:00Z' };
+        const rows = [
+            { provider: { _id: 'p4', name: 'Late Salon', email: 'l@x.na', ...base }, status: 'past_due', nextPriceCents: 6999, nextAttemptAt: '2027-01-11T00:00:00Z', graceEndsAt: '2027-01-17T00:00:00Z' },
+            { provider: { _id: 'p5', name: 'Hidden Barber', email: 'h@x.na', ...base }, status: 'paused', nextPriceCents: 6999 },
+        ];
+        svc.financeService.subscriptions.mockResolvedValue({ data: { data: { rows, counts: { past_due: 1, paused: 1 }, showToBusinesses: true, cardsOn: true, flagged: 2 } } });
+        render(<SubscriptionsView isDirector onLocked={vi.fn()} />);
+        const [late, hidden] = await screen.findAllByTestId('subscription-row');
+        expect(late).toHaveTextContent('Payment failed');
+        expect(late).toHaveTextContent('Next try 11 Jan 2027, paused on 17 Jan 2027 if unpaid');
+        expect(hidden).toHaveTextContent('Paused: unpaid');
+        expect(screen.getByTestId('plan-payments-flagged')).toHaveTextContent('2 plan payments need checking at PayGate');
     });
 });

@@ -131,6 +131,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // monthly payments; the API refuses without it.
         startCheckout: (acceptTerms: boolean) => API.post('/subscriptions/me/checkout', { acceptTerms }),
         checkoutStatus: (reference: string) => API.get(`/subscriptions/me/checkout/${encodeURIComponent(reference)}`),
+        // The plan payments made (paid only, newest first).
+        payments: () => API.get('/subscriptions/me/payments'),
+        // Cancel: nothing more is charged; the plan runs to the end of the paid
+        // month (ends at once while a month is unpaid). Keep: undo it before then.
+        cancel: () => API.post('/subscriptions/me/cancel'),
+        keep: () => API.post('/subscriptions/me/keep'),
     },
 
     // Paying online for a booking (customer side; all 404 while online payments
