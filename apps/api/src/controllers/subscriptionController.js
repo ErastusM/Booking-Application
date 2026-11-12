@@ -1,11 +1,13 @@
 /**
- * Business subscriptions (services/subscriptions.js). No money moves yet:
- * this shows who is kept free or in a trial, and lets a director move a
- * business. Every change is written to the audit log.
+ * Business subscriptions (services/subscriptions.js): who is kept free, on a
+ * trial or paying, a director moving a business, and the owner's own plan:
+ * paying by card (services/subscriptionBilling.js), cancelling and keeping it
+ * (services/subscriptionRenewals.js). Every change is written to the audit log.
  */
 const pino = require('pino');
 const subs = require('../services/subscriptions');
 const billing = require('../services/subscriptionBilling');
+const renewals = require('../services/subscriptionRenewals');
 const paygate = require('../services/paygate');
 const SubscriptionPayment = require('../models/SubscriptionPayment');
 const { subscriptionBillingEnabled } = require('../constants/features');
@@ -24,8 +26,25 @@ exports.mine = async (req, res) => {
         const settings = await pricing.getSettings();
         if (!settings.subscriptions?.showToBusinesses) return res.json({ success: true, data: { visible: false } });
         const sub = await subs.forProvider(req.user);
+        const d = subs.describe(sub);
         const e = await billing.eligibility(sub);
-        res.json({ success: true, data: { visible: true, ...subs.describe(sub), canAddCard: e.ok } });
+        // What paying with a card would do now: start the plan (first), or pay
+        // the next month with a new card that replaces the saved one (card).
+        const checkout = e.ok ? {
+            kind: e.kind,
+            amountCents: e.amountCents,
+            ...(e.kind === 'card' ? { paidThroughAfter: billing.addMonth(e.periodStart) } : {}),
+        } : null;
+        res.json({
+            success: true,
+            data: {
+                visible: true, ...d,
+                canAddCard: e.ok && e.kind === 'first',
+                canChangeCard: e.ok && e.kind === 'card',
+                checkout,
+                canCancel: subscriptionBillingEnabled() && (['past_due', 'paused'].includes(d.status) || (d.status === 'active' && !d.cancelAtPeriodEnd)),
+            },
+        });
     } catch {
         fail(res, 500, 'Internal server error');
     }
@@ -38,8 +57,9 @@ exports.list = async (req, res) => {
         const rows = await subs.listAll();
         const counts = rows.reduce((m, r) => ({ ...m, [r.status]: (m[r.status] || 0) + 1 }), {});
         // Can businesses add a card (and pay the first month) right now?
-        const cardsOn = subscriptionBillingEnabled() && paygate.isConfigured(billing.TERMINAL) && paygate.vaultReady();
-        res.json({ success: true, data: { rows, counts, showToBusinesses: !!settings.subscriptions?.showToBusinesses, startedAt: settings.subscriptions?.startedAt || null, cardsOn } });
+        const cardsOn = subscriptionBillingEnabled() && billing.cardsReady();
+        const flagged = await SubscriptionPayment.countDocuments({ flagged: true });
+        res.json({ success: true, data: { rows, counts, showToBusinesses: !!settings.subscriptions?.showToBusinesses, startedAt: settings.subscriptions?.startedAt || null, cardsOn, flagged } });
     } catch {
         fail(res, 500, 'Internal server error');
     }
@@ -47,7 +67,7 @@ exports.list = async (req, res) => {
 
 const MOVES = {
     trial: { run: subs.startTrial, action: 'subscription.trial_start', errors: { not_exempt: 'This business is not kept free, so it is already on a trial or a plan.' } },
-    'keep-free': { run: subs.keepFree, action: 'subscription.keep_free', errors: { already_exempt: 'This business is already kept free.' } },
+    'keep-free': { run: subs.keepFree, action: 'subscription.keep_free', errors: { already_exempt: 'This business is already kept free.', busy: 'A monthly payment for this business is being taken right now. Try again in a few minutes.' } },
 };
 
 // POST /api/admin/finance/subscriptions/:id/trial | /keep-free { reason } (director)
@@ -117,6 +137,39 @@ exports.checkoutStatus = async (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.json({ success: true, data: billing.checkoutStatus(payment) });
     } catch {
+        fail(res, 500, 'Internal server error');
+    }
+};
+
+// GET /api/subscriptions/me/payments (business owner): the plan payments made.
+exports.payments = async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, data: await billing.paymentHistory(req.user._id) });
+    } catch {
+        fail(res, 500, 'Internal server error');
+    }
+};
+
+// POST /api/subscriptions/me/cancel (business owner)
+exports.cancel = async (req, res) => {
+    try {
+        const r = await renewals.cancel(req.user);
+        res.json({ success: true, data: r });
+    } catch (err) {
+        if (err instanceof renewals.PlanError) return fail(res, err.status, err.message, err.code);
+        logger.error({ err: err.message }, 'Cancelling a plan failed');
+        fail(res, 500, 'Internal server error');
+    }
+};
+
+// POST /api/subscriptions/me/keep (business owner): undo a cancel before the paid month ends
+exports.keep = async (req, res) => {
+    try {
+        res.json({ success: true, data: await renewals.keep(req.user) });
+    } catch (err) {
+        if (err instanceof renewals.PlanError) return fail(res, err.status, err.message, err.code);
+        logger.error({ err: err.message }, 'Keeping a plan failed');
         fail(res, 500, 'Internal server error');
     }
 };

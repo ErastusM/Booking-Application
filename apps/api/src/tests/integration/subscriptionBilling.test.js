@@ -1,7 +1,8 @@
 /**
  * Adding a card to start the Bookplus plan (SUBSCRIPTION_BILLING_ENABLED):
  * the first payment on PayGate's terminal 1 ("One time and tokenization"), which also saves the
- * card in PayGate's vault. PayGate is a fake transport; its vault wire format
+ * card in PayGate's vault. The monthly payments, cancelling and replacing the
+ * card are in subscriptionRenewals.test.js. PayGate is a fake transport; its vault wire format
  * is a made-up one (helpers/fakePaygate TEST_VAULT_WIRE) until PayHost's real
  * elements are filled in.
  */
@@ -77,7 +78,7 @@ describe('behind the switch', () => {
         expect((await startCheckout(owner)).status).toBe(404);
     });
 
-    it('on, but the vault wire format is not filled in (or the terminal not configured): unavailable', async () => {
+    it('on, but the vault wire formats are not filled in (or a terminal not configured): unavailable', async () => {
         const owner = await trialOwner();
         gw.useVault(false);
         let me = await request(app).get('/api/subscriptions/me').set(authHeader(owner)).expect(200);
@@ -85,6 +86,9 @@ describe('behind the switch', () => {
         expect((await startCheckout(owner)).status).toBe(503);
 
         gw.useVault();
+        delete process.env.PAYGATE_RECURRING_ID; // terminal 2, for the monthly payments
+        expect((await startCheckout(owner)).status).toBe(503);
+        process.env.PAYGATE_RECURRING_ID = '10011099999';
         delete process.env.PAYGATE_ID;
         expect((await startCheckout(owner)).status).toBe(503);
         expect(gw.calls).toHaveLength(0);
@@ -179,7 +183,8 @@ describe('add card and start plan', () => {
         const me = await request(app).get('/api/subscriptions/me').set(authHeader(owner)).expect(200);
         expect(me.body.data).toMatchObject({ status: 'active', canAddCard: false, card: { brand: 'Visa', last4: '0002', expMonth: 12, expYear: 2030 } });
         expect(JSON.stringify(me.body)).not.toContain('a1b2c3d4-e5f6');
-        expect((await startCheckout(owner)).status).toBe(409);
+        // What it can do now is replace the card (subscriptionRenewals.test.js).
+        expect(me.body.data).toMatchObject({ canChangeCard: true, checkout: { kind: 'card' } });
     });
 
     it('a notify and a return racing apply the payment once', async () => {

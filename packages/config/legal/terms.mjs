@@ -235,14 +235,18 @@ const businessSections = (W, P, S) => [
             '**Prices.** The Basic plan has an introductory monthly price for its first months, then the standard monthly price. The prices that apply to you are fixed when your trial starts and shown in Account, Your plan; a later change to our price list does not change them without notice (see “Price changes” below). Prices are in **Namibian Dollars (N$)**.',
             '**Starting your plan.** You start the plan by adding a card in Account, Your plan and paying your first month. You enter your card on **PayGate**’s secure page, with your bank’s 3D Secure check; Bookplus never sees or stores your card number or security code. If you add a card during your free trial, your first paid month starts when the trial ends, so your trial is not shortened.',
             '**Monthly payments from your saved card.** By adding your card **you authorise Bookplus to charge it every month**, when your paid month renews, for the monthly price of your plan that applies at the time, until you cancel. PayGate keeps your card for these payments; Bookplus keeps only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date. Each payment is shown in Account, Your plan.',
-            // DECISION: the retry window and what pausing means.
-            '**If a payment does not go through,** we tell you by email and in the app, and try again over the next 7 days. You can add another card in that time. If the month is still unpaid after 7 days, your plan is paused: your business is no longer shown on the marketplace and clients cannot make new bookings until the plan is paid. Your existing bookings, clients and other information are kept.',
+            // DECISION: the retry window and what pausing means. Built as written
+            // (services/subscriptionRenewals.js): tries 1, 3 and 5 days after.
+            '**If a payment does not go through,** we tell you by email and in the app, and try again over the next 7 days. You can pay with another card in that time. If the month is still unpaid after 7 days, your plan is paused: your business is no longer shown on the marketplace and clients cannot make new bookings until the plan is paid. Your existing bookings, clients and other information are kept.',
             '**Price changes.** We tell you at least 14 days in advance, by email and in the app, before the price you pay goes up, including when your introductory price ends. If you do not accept a new price, you can cancel before it applies.',
-            // DECISION: cancelling takes effect at the end of the paid month; no part-month refunds.
+            // DECISION: cancelling takes effect at the end of the paid month; no
+            // part-month refunds. Built as written; cancelling with a month unpaid
+            // ends the plan at once.
             '**Cancelling.** You can cancel your plan at any time in Account, Your plan. Your card is not charged again, and your plan stays active until the end of the month you have already paid for. We do not refund part of a month already paid, unless the law requires it.',
             '**Charged in error.** If we charge you more than we should, or after you cancelled, we refund the difference to the card that was charged. Please contact us before disputing a plan payment with your bank: most problems are solved faster that way.',
             // DECISION: deleting the saved card at PayGate when the plan ends.
-            '**Your saved card.** When you cancel your plan or delete your account, we ask PayGate to delete your saved card.',
+            // Built as written, and also when a card is replaced.
+            '**Your saved card.** You can replace it at any time in Account, Your plan: you pay your next month with the new card, and it is used from then on. When your plan ends, you replace your card or you delete your account, we ask PayGate to delete the saved card.',
         ] },
     ] } : null,
     { id: 'fees', title: 'Fees', blocks: S

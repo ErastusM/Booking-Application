@@ -14,6 +14,11 @@
  * (self-deactivation, deactivatedAt set) is left as before — that is the owner's
  * own, reversible choice and not what the admin switch controls.
  *
+ * A business whose Bookplus plan is paused for non-payment (billingPausedAt,
+ * set and cleared only by services/subscriptionRenewals.js and a director's
+ * "keep free") is hidden and takes no new bookings in exactly the same way;
+ * its existing bookings, clients and data are untouched.
+ *
  * A service whose provider account no longer exists at all (hard-deleted before
  * the admin delete cleaned up after itself) is never public either: callers
  * treat "no public provider row" as hidden, never as "global".
@@ -23,11 +28,14 @@ const User = require('../models/User');
 // Mongo condition that is TRUE for a suspended (or closed) account.
 const SUSPENDED = { isActive: false, deactivatedAt: null };
 
-/** A User filter for providers clients may see, merged with `extra`. */
-const publicProviderFilter = (extra = {}) => ({ ...extra, role: 'provider', $nor: [SUSPENDED] });
+// Mongo condition that is TRUE for a business whose plan is paused for non-payment.
+const PLAN_PAUSED = { billingPausedAt: { $type: 'date' } };
 
-/** Is this loaded provider doc visible to clients? (needs role, isActive, deactivatedAt) */
-const isPublicProvider = (u) => !!u && u.role === 'provider' && !(u.isActive === false && !u.deactivatedAt);
+/** A User filter for providers clients may see, merged with `extra`. */
+const publicProviderFilter = (extra = {}) => ({ ...extra, role: 'provider', $nor: [SUSPENDED, PLAN_PAUSED] });
+
+/** Is this loaded provider doc visible to clients? (needs role, isActive, deactivatedAt, billingPausedAt) */
+const isPublicProvider = (u) => !!u && u.role === 'provider' && !(u.isActive === false && !u.deactivatedAt) && !u.billingPausedAt;
 
 /** Set of string ids (out of `ids`) that belong to public providers — one query. */
 async function publicProviderIds(ids) {
@@ -57,13 +65,14 @@ const UNAVAILABLE_MESSAGE = 'This business isn’t taking bookings on Bookplus r
  */
 async function providerBookingBlock(providerId) {
     if (!providerId) return null; // a global (admin) service has no business behind it
-    const u = await User.findById(providerId).select('role isActive deactivatedAt').lean();
+    const u = await User.findById(providerId).select('role isActive deactivatedAt billingPausedAt').lean();
     if (isPublicProvider(u)) return null;
     return { status: 403, code: 'provider_unavailable', message: UNAVAILABLE_MESSAGE };
 }
 
 module.exports = {
     SUSPENDED,
+    PLAN_PAUSED,
     publicProviderFilter,
     isPublicProvider,
     publicProviderIds,

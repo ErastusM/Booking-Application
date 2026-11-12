@@ -18,4 +18,20 @@ describe('subscriptions.describe', () => {
         expect(subs.describe({ status: 'exempt', terms }, now)).toMatchObject({ status: 'exempt', nextPriceCents: 0, trialDaysLeft: 0 });
     });
 
+    it('describe: the next payment, cancelling, a payment that did not go through, paused, ended', () => {
+        const now = new Date('2026-11-11T12:00:00Z');
+        const terms = { trialDays: 30, introMonths: 6, introPriceCents: 6999, priceCents: 14999 };
+        const paidThrough = new Date('2026-12-11T12:00:00Z');
+        expect(subs.describe({ status: 'active', terms, paidMonths: 2, paidThrough }, now))
+            .toMatchObject({ status: 'active', nextPaymentAt: paidThrough, cancelAtPeriodEnd: false, nextPriceCents: 6999, introMonthsLeft: 4 });
+        expect(subs.describe({ status: 'active', terms, paidMonths: 2, paidThrough, cancelAtPeriodEnd: true }, now))
+            .toMatchObject({ nextPaymentAt: null, cancelAtPeriodEnd: true });
+        const retry = { nextAttemptAt: new Date('2026-11-12T12:00:00Z'), graceEndsAt: new Date('2026-11-18T12:00:00Z') };
+        expect(subs.describe({ status: 'past_due', terms, paidMonths: 2, paidThrough, retry }, now))
+            .toMatchObject({ status: 'past_due', nextPaymentAt: null, nextAttemptAt: retry.nextAttemptAt, graceEndsAt: retry.graceEndsAt });
+        const pausedAt = new Date('2026-11-18T12:00:00Z');
+        expect(subs.describe({ status: 'paused', terms, paidMonths: 2, retry, pausedAt }, now)).toMatchObject({ status: 'paused', pausedAt, nextAttemptAt: null });
+        const endedAt = new Date('2026-11-01T12:00:00Z');
+        expect(subs.describe({ status: 'cancelled', terms, paidMonths: 2, endedAt }, now)).toMatchObject({ status: 'cancelled', endedAt, nextPriceCents: 6999 });
+    });
 });

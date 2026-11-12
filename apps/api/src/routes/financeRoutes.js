@@ -23,7 +23,7 @@ router.post('/launch/:gate', director, c.setLaunchGate);
 // Do the server's PayGate settings work? (no money moves)
 router.post('/paygate-check', finance, c.paygateCheck);
 
-// Business subscriptions: who is kept free or on a trial (no billing yet).
+// Business subscriptions: who is kept free, on a trial or paying.
 router.get('/subscriptions', finance, subs.list);
 router.put('/subscriptions/visibility', director, subs.setVisibility);
 router.post('/subscriptions/:id/trial', director, subs.move('trial'));

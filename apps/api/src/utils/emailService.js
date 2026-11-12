@@ -599,3 +599,23 @@ exports.sendStaffInviteOwnerReceipt = async (ownerEmail, memberName, memberEmail
         }),
     });
 };
+
+// The business owner's Bookplus plan: a monthly payment taken, one that did
+// not go through, the plan paused, cancelled or ended
+// (services/subscriptionRenewals.js). `lines` are plain sentences (escaped
+// here); `rows` are [label, value] pairs for the details card.
+exports.sendPlanEmail = async (email, { name, subject, heading, lines = [], rows = [] }) => {
+    if (!email) return { skipped: true };
+    const href = `${businessOrigin() || '#'}/account?section=plan`;
+    return safeSend({
+        from: FROM, to: email, subject,
+        html: shell({
+            footer: FOOTER_ACCOUNT,
+            heading: `Hi ${escapeHtml(name || 'there')}, ${escapeHtml(heading)}`,
+            preheader: lines[0] || subject,
+            inner: `${lines.map((l) => p(escapeHtml(l))).join('')}
+                ${rows.length ? detailsCard(rows.map(([l, v]) => [escapeHtml(l), escapeHtml(v)])) : ''}
+                <div style="margin:24px 0;">${primaryButton(href, 'Open Your plan')}</div>`,
+        }),
+    });
+};

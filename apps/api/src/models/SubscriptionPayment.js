@@ -2,8 +2,15 @@ const mongoose = require('mongoose');
 
 /**
  * One card payment for a business's Bookplus plan (models/Subscription.js).
- * For now only the first one: the owner adds a card on PayGate's hosted page
- * (terminal "tokenize"), pays the first month, and PayGate saves the card.
+ *
+ * kind:
+ *   first    the owner adds a card on PayGate's hosted page (terminal
+ *            "tokenize", 3D Secure), pays the first month, and PayGate saves
+ *            the card
+ *   card     the same, with a plan already started: a new card, which pays the
+ *            next month (replacing a card, or paying an overdue month)
+ *   renewal  the monthly payment from the saved card (terminal "recurring",
+ *            nobody present), for the month starting at periodStart
  *
  * status: initiated → pending → paid | failed | cancelled | expired
  * The outcome is only ever decided from a server-side Query to PayGate, never
@@ -21,7 +28,13 @@ const historySchema = new mongoose.Schema({
 const subscriptionPaymentSchema = new mongoose.Schema({
     subscription: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription', required: true },
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    kind: { type: String, enum: ['first'], default: 'first' },
+    kind: { type: String, enum: ['first', 'card', 'renewal'], default: 'first' },
+    terminal: { type: String, enum: ['tokenize', 'recurring'], default: 'tokenize' },
+    // The month paid for starts here, and the plan was paid to prevPaidThrough
+    // when the payment started (applying it requires that still to be true).
+    periodStart: { type: Date, default: null },
+    prevPaidThrough: { type: Date, default: null },
+    attempt: { type: Number, default: 1 },
     amountCents: { type: Number, required: true, min: 1 },
     currency: { type: String, default: 'NAD' },
     reference: { type: String, required: true, unique: true },
@@ -49,6 +62,7 @@ const subscriptionPaymentSchema = new mongoose.Schema({
 
 subscriptionPaymentSchema.index({ payRequestId: 1 }, { unique: true, partialFilterExpression: { payRequestId: { $type: 'string' } } });
 subscriptionPaymentSchema.index({ provider: 1, createdAt: -1 });
+subscriptionPaymentSchema.index({ subscription: 1, status: 1 });
 
 subscriptionPaymentSchema.statics.OPEN = OPEN;
 
