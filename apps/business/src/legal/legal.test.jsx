@@ -209,82 +209,26 @@ describe('no wallet in the legal text while it is switched off', () => {
     });
 });
 
-describe('online payments in the legal text', () => {
-    const P = { ...FEATURES, paymentsEnabled: true };
-
-    it('while switched off, nothing about paying online; the coming-soon line names PayGate, not DPO', () => {
-        expect(FEATURES.paymentsEnabled).toBe(false);
+describe('clients never pay by card through Bookplus', () => {
+    it('no booking payments switch, and no clause about paying online, payouts or commission', () => {
+        expect(FEATURES).not.toHaveProperty('paymentsEnabled');
         for (const audience of ['customer', 'business']) {
-            for (const doc of [termsOfService(audience), privacyPolicy(audience), legalNotice(audience)]) {
-                expect(textOf(doc)).not.toMatch(/pay online|online payments? (are|is) |PayGate \(Pty\)|chargeback|payout/i);
-                expect(textOf(doc)).not.toMatch(/DPO/);
+            for (const f of [FEATURES, { ...FEATURES, subscriptionBillingEnabled: true }, { ...FEATURES, paymentsEnabled: true }]) {
+                for (const doc of [termsOfService(audience, f), privacyPolicy(audience, f), legalNotice(audience, f)]) {
+                    expect(textOf(doc)).not.toMatch(/pay online|online payments? (are|is) |paying online|payout|commission on|chargeback cases/i);
+                    expect(textOf(doc)).not.toMatch(/DPO/);
+                }
+                expect(termsOfService(audience, f).sections.map((x) => x.id)).not.toEqual(expect.arrayContaining(['paying-online']));
+                expect(termsOfService(audience, f).sections.map((x) => x.id)).not.toContain('online-payments');
             }
             expect(textOf(privacyPolicy(audience))).toMatch(/Card payments through PayGate are coming soon/);
         }
     });
 
-    it('client terms: how paying online works, and every refund rule the platform applies', () => {
-        const terms = termsOfService('customer', P);
-        expect(terms.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['paying-online', 'refunds']));
-        const t = textOf(terms);
-        expect(t).toMatch(/Bookplus never sees or stores your card number/);
-        expect(t).toMatch(/Namibian Dollars \(N\$\)/);
-        expect(t).toMatch(/Bookplus collects online payments on behalf of the business/);
-        expect(t).toMatch(/If you cancel before the business’s cancellation notice starts, everything you paid online is refunded/);
-        expect(t).toMatch(/The business cancels.*Everything you paid online is refunded/);
-        expect(t).toMatch(/not refunded, because the business kept the time for you, unless the business agrees/);
-        expect(t).toMatch(/Always to the card you paid with/);
-        expect(t).toMatch(/if money is still taken after that, we refund it to your card automatically/);
-        expect(t).toMatch(/Before you dispute a payment with your bank/);
-    });
-
-    it('business terms: approval, payouts, refunds up to the balance, chargebacks once, plans, and settling before deleting', () => {
-        const terms = termsOfService('business', P);
-        expect(terms.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['online-payments', 'fees']));
-        const t = textOf(terms);
-        expect(t).toMatch(/Bookplus decides whether to approve you/);
-        expect(t).toMatch(/A new or changed bank account is checked before we pay into it/);
-        expect(t).toMatch(/A payout your bank returns goes back on your balance/);
-        expect(t).toMatch(/up to your balance; a larger refund, or one above Bookplus’s approval limit, is approved by Bookplus first/);
-        expect(t).toMatch(/the card processing fee is not returned/);
-        expect(t).toMatch(/It is taken once, after a second Bookplus person approves it/);
-        expect(t).toMatch(/\*\*Basic\*\*.*\*\*Standard\*\*/);
-        expect(t).toMatch(/once your online payments balance is settled/);
-    });
-
-    it('privacy: PayGate as a processor, the application documents and bank account, how long they are kept', () => {
-        const c = textOf(privacyPolicy('customer', P));
-        expect(c).toMatch(/PayGate \(Pty\) Ltd/);
-        expect(c).toMatch(/Your card number and security code are entered on PayGate’s page and never reach us/);
-        expect(c).toMatch(/Online payment records, refunds, payouts and chargeback cases/);
-        expect(c).toMatch(/Kept as financial records for as long as the law requires/);
-        expect(c).not.toMatch(/5 years|five years/i);
-        expect(c).not.toMatch(/owner’s ID number/);
-        const b = textOf(privacyPolicy('business', P));
-        expect(b).toMatch(/owner’s full name and ID or passport number/);
-        expect(b).toMatch(/Payout bank account/);
-        expect(b).toMatch(/Deleted when the application is rejected or you delete your account/);
-        expect(b).toMatch(/expire after 5 minutes, with every viewing logged/);
-        expect(b).toMatch(/We ask for an ID number and a bank account only if you apply to take online payments/);
-    });
-
-    it('the legal notice gives what the card processor checks, and its links point at real sections', () => {
-        for (const audience of ['customer', 'business']) {
-            const notice = legalNotice(audience, P);
-            const t = textOf(notice);
-            expect(t).toMatch(/Namibian Dollars \(N\$\)/);
-            expect(t).toMatch(/based in \*\*Namibia\*\*/);
-            expect(t).toMatch(/Bookplus never sees or stores them/);
-            const anchor = t.match(/\(\/terms#([a-z-]+)\)/)[1];
-            expect(termsOfService(audience, P).sections.map((x) => x.id)).toContain(anchor);
-        }
-    });
-
-    it('switching payments on adds no liability cap, exclusion or governing-law clause', () => {
-        for (const audience of ['customer', 'business']) {
-            const t = textOf(termsOfService(audience, P));
-            expect(t).not.toMatch(/not liable|as is|indirect or consequential|not responsible for|governed by|jurisdiction|compensate bookplus|indemnif/i);
-        }
+    it('clients pay the business directly; Bookplus takes no commission', () => {
+        expect(textOf(termsOfService('customer'))).toMatch(/You pay the business directly at your appointment/);
+        expect(textOf(legalNotice('customer'))).toMatch(/You pay the business at your appointment\./);
+        expect(textOf(termsOfService('business', { ...FEATURES, subscriptionBillingEnabled: true }))).toMatch(/There is no booking fee and no commission/);
     });
 });
 
@@ -296,7 +240,7 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         expect(FEATURES.subscriptionBillingEnabled).toBe(false);
         const t = textOf(termsOfService('business'));
         expect(termsOfService('business').sections.map((x) => x.id)).not.toContain('plan');
-        expect(t).toMatch(/We will tell you about any subscription, commission or other fee, and its amount, before it applies to you/);
+        expect(t).toMatch(/We will tell you about any subscription or other fee, and its amount, before it applies to you/);
         for (const doc of docs('business')) expect(textOf(doc)).not.toMatch(/saved card|authorise Bookplus to charge|Your Bookplus plan/i);
     });
 
@@ -383,14 +327,6 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         expect(t).toMatch(/based in \*\*Namibia\*\*/);
         expect(t).toMatch(/\(\/terms#plan\)/);
         expect(termsOfService('business', S).sections.map((x) => x.id)).toContain('plan');
-    });
-
-    it('with booking payments on as well, both sets of clauses appear and the fees section covers both', () => {
-        const both = { ...S, paymentsEnabled: true };
-        const terms = termsOfService('business', both);
-        expect(terms.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['online-payments', 'plan', 'fees']));
-        expect(textOf(terms)).toMatch(/If you also take online payments for bookings/);
-        expect(textOf(privacyPolicy('business', both))).toMatch(/Processes online card payments on its own secure page, and for your Bookplus plan saves your card/);
     });
 });
 

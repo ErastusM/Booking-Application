@@ -38,31 +38,6 @@ const clean = (doc) => {
 const EXPORT_VERSION = 1;
 const MESSAGE_DELETED = '[message deleted]';
 
-/**
- * What a business gave to apply for online payments, and its payout bank
- * account (read explicitly: both are kept out of every other payload). The
- * documents are listed by kind, name and date; the files themselves stay in
- * private storage.
- */
-async function onlinePaymentsExport(userId) {
-    const u = await M('User').findById(userId).select('+paymentsApproval +payoutAccount').lean();
-    const a = u?.paymentsApproval;
-    const acct = u?.payoutAccount;
-    if (!a && !acct) return null;
-    return {
-        application: a ? {
-            status: a.status, plan: a.plan || null, legal: a.legal || {},
-            documents: (a.documents || []).map((d) => ({ kind: d.kind, name: d.name || '', uploadedAt: d.uploadedAt || null })),
-            submittedAt: a.submittedAt || null, decidedAt: a.decidedAt || null, decisionNote: a.decisionNote || '',
-            onlinePaymentsSwitchedOn: !!a.switchOn,
-        } : null,
-        payoutAccount: acct ? {
-            accountHolder: acct.accountHolder || '', bankName: acct.bankName || '', branchCode: acct.branchCode || '',
-            accountNumber: acct.accountNumber || '', updatedAt: acct.updatedAt || null,
-        } : null,
-    };
-}
-
 /** Build the "Download my data" document for one user id. */
 async function exportAccount(userId) {
     const user = await M('User').findById(userId).lean();
@@ -105,7 +80,6 @@ async function exportAccount(userId) {
         services: await M('Service').find({ provider: user._id }).lean(),
         locations: await M('Location').find({ provider: user._id }).lean(),
         bookingsReceived: await M('Appointment').countDocuments({ provider: user._id }),
-        onlinePayments: await onlinePaymentsExport(user._id),
         note: 'Your clients’ details and their bookings with you are your business records; view or export them from the Clients screen.',
     } : undefined;
 
@@ -165,18 +139,6 @@ async function destroyPrivateFiles(docs) {
     return n;
 }
 
-/**
- * Remove every verification document a business sent (the ones on record and
- * any uploaded but never attached): its whole private verification folder.
- */
-async function destroyVerificationFiles(userId, docs = []) {
-    const cloudinary = require('./cloudinary');
-    if (!cloudinary.isConfigured()) return 0;
-    const n = await destroyPrivateFiles(docs);
-    await cloudinary.destroyByPrefix(`${cloudinary.VERIFY_FOLDER}/${userId}/`);
-    return n;
-}
-
 const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@deleted.bookplus`;
 
 /**
@@ -199,8 +161,6 @@ const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@delete
  *     their intake-form answers;
  *   - guest bookings made with their (verified) email: guest name/email/phone;
  *   - their avatar / portfolio / team photos on Cloudinary (when configured);
- *   - their payout bank account, and their online payments application with
- *     the identity and company documents sent with it.
  * A BUSINESS owner additionally loses: business profile, address and map pin,
  * booking link, portfolio, payment instructions, services (deactivated),
  * locations (deactivated, address cleared), team roster and time-clock
@@ -209,10 +169,6 @@ const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@delete
  */
 async function purgeAccount(user) {
     const id = user._id;
-    // Documents sent to apply for online payments go too (read before the
-    // record is cleared below).
-    const approval = await M('User').findById(id).select('+paymentsApproval').lean();
-    const privateDocs = approval?.paymentsApproval?.documents || [];
     const images = [user.avatar, ...((user.portfolio && user.portfolio.images) || [])].filter(Boolean);
     const ownsEmail = user.isVerified === true || !!user.googleId;
     const isOwner = user.role === 'provider';
@@ -261,12 +217,6 @@ async function purgeAccount(user) {
             { guestEmail: String(user.email).toLowerCase() },
             { $set: { guestName: 'Deleted guest', guestEmail: null, guestPhone: null, notes: '', 'guestMarketing.optIn': false } },
         ));
-        // Online payments made as a guest with this email stay as financial
-        // records, without the name and email.
-        tasks.push(M('Payment').updateMany(
-            { guestEmail: String(user.email).toLowerCase() },
-            { $set: { guestName: 'Deleted guest', guestEmail: null } },
-        ));
     }
     if (isOwner) {
         const roster = await M('TeamMember').find({ provider: id }).select('photoUrl');
@@ -286,7 +236,6 @@ async function purgeAccount(user) {
     await Promise.all(tasks);
     // Images last and without blocking the response on Cloudinary latency.
     destroyImages(images).catch(() => {});
-    destroyVerificationFiles(id, privateDocs).catch(() => {});
 }
 
-module.exports = { exportAccount, purgeAccount, destroyImages, destroyPrivateFiles, destroyVerificationFiles, EXPORT_VERSION, MESSAGE_DELETED };
+module.exports = { exportAccount, purgeAccount, destroyImages, destroyPrivateFiles, EXPORT_VERSION, MESSAGE_DELETED };

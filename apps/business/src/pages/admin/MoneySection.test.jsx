@@ -21,7 +21,7 @@ const renderAt = (path) => render(
                     <Where />
                     <Routes>
                         <Route index element={<p>Overview</p>} />
-                        <Route path="money" element={<MoneySection view="dashboard" />} />
+                        <Route path="money" element={<MoneySection view="subscriptions" />} />
                         <Route path="money/:view" element={<MoneySection />} />
                         <Route path="settings/:view" element={<MoneySection />} />
                     </Routes>
@@ -33,26 +33,34 @@ const renderAt = (path) => render(
 
 describe('MoneySection', () => {
     it('shows the view in the address under its group', () => {
-        renderAt('/bkplus-command/money/payouts');
-        expect(screen.getByRole('heading', { name: 'Payouts' })).toBeInTheDocument();
-        expect(screen.getByText('Panel payouts')).toBeInTheDocument();
+        renderAt('/bkplus-command/money/subscriptions');
+        expect(screen.getByRole('heading', { name: 'Subscriptions' })).toBeInTheDocument();
+        expect(screen.getByText('Panel subscriptions')).toBeInTheDocument();
     });
 
-    it('the dashboard sits at /money', () => {
+    it('subscriptions sit at /money', () => {
         renderAt('/bkplus-command/money');
-        expect(screen.getByText('Panel dashboard')).toBeInTheDocument();
+        expect(screen.getByText('Panel subscriptions')).toBeInTheDocument();
     });
 
     it('a settings view under Money moves to Settings', () => {
         renderAt('/bkplus-command/money/prices');
         expect(screen.getByTestId('where')).toHaveTextContent('/bkplus-command/settings/prices');
-        expect(screen.getByRole('heading', { name: 'Prices and fees' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Plan prices' })).toBeInTheDocument();
     });
 
     it('a money view under Settings moves to Money', () => {
-        renderAt('/bkplus-command/settings/payments');
-        expect(screen.getByTestId('where')).toHaveTextContent('/bkplus-command/money/payments');
-        expect(screen.getByText('Panel payments')).toBeInTheDocument();
+        renderAt('/bkplus-command/settings/subscriptions');
+        expect(screen.getByTestId('where')).toHaveTextContent('/bkplus-command/money/subscriptions');
+        expect(screen.getByText('Panel subscriptions')).toBeInTheDocument();
+    });
+
+    it('the removed booking-payment views go to the overview', () => {
+        for (const gone of ['payments', 'payouts', 'disputes', 'approvals', 'costs', 'dashboard']) {
+            const { unmount } = renderAt(`/bkplus-command/money/${gone}`);
+            expect(screen.getByTestId('where')).toHaveTextContent(/^\/bkplus-command$/);
+            unmount();
+        }
     });
 
     it('an unknown view goes to the overview', () => {

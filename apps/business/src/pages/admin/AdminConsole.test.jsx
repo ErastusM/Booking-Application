@@ -32,11 +32,6 @@ const ok = (data, extra = {}) => Promise.resolve({ data: { data, ...extra } });
 
 beforeEach(() => {
     svc.financeService = {
-        payments: vi.fn(() => ok([], { total: 2 })),
-        payoutsDue: vi.fn(() => ok([{ payable: true, amountCents: 5000 }, { payable: false, amountCents: 100 }], { totalPayableCents: 5000, schedule: {} })),
-        listApprovals: vi.fn(() => ok([{ _id: 'a', submittedAt: '2026-10-10T00:00:00Z' }])),
-        listRequests: vi.fn(() => ok([{ _id: 'r' }, { _id: 's' }])),
-        disputes: vi.fn(() => ok([])),
         getSettings: vi.fn(() => ok({ launch: { ready: false, items: [] }, me: { roles: ['director', 'finance'] } })),
     };
     svc.providerWalletService = { getAdminSummary: vi.fn(() => ok({ pendingTopUps: 1 })) };
@@ -61,19 +56,20 @@ describe('AdminConsole', () => {
         const nav = screen.getByRole('navigation', { name: 'Admin' });
         expect(screen.getByText('Overview section')).toBeInTheDocument();
         expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveClass('active');
-        // Payments to look at 2, payouts due 1, approvals 1 application + 2 requests, top-ups 1.
-        expect(await within(nav).findByRole('link', { name: 'Payments 2 waiting' })).toBeInTheDocument();
-        expect(within(nav).getByRole('link', { name: 'Payouts 1 waiting' })).toBeInTheDocument();
-        expect(within(nav).getByRole('link', { name: 'Approvals 3 waiting' })).toBeInTheDocument();
-        expect(within(nav).getByRole('link', { name: 'Wallets 1 waiting' })).toBeInTheDocument();
-        expect(within(nav).getByRole('link', { name: 'Disputes' })).toBeInTheDocument();
-        expect(screen.getByText('Director and finance')).toBeInTheDocument();
+        // Top-ups 1. Money is plan subscriptions only: no payments, payouts or disputes.
+        expect(await within(nav).findByRole('link', { name: 'Wallets 1 waiting' })).toBeInTheDocument();
+        expect(within(nav).getByRole('link', { name: 'Subscriptions' })).toBeInTheDocument();
+        expect(within(nav).getByRole('link', { name: 'Plan prices' })).toBeInTheDocument();
+        for (const gone of [/Payments/, /Payouts/, /Disputes/, /Approvals/, /Dashboard/, /Costs/]) {
+            expect(within(nav).queryByRole('link', { name: gone })).not.toBeInTheDocument();
+        }
+        expect(await screen.findByText('Director and finance')).toBeInTheDocument();
     });
 
     it('opens the section in the address; money sections get their view', async () => {
-        renderAt('/bkplus-command/money/payouts');
+        renderAt('/bkplus-command/money/subscriptions');
         expect(screen.getByText('Money section')).toBeInTheDocument();
-        expect(await screen.findByRole('link', { name: 'Payouts 1 waiting' })).toHaveClass('active');
+        expect(await screen.findByRole('link', { name: 'Subscriptions' })).toHaveClass('active');
         await userEvent.click(screen.getByRole('link', { name: 'Users' }));
         expect(screen.getByText('Users section')).toBeInTheDocument();
     });
@@ -82,8 +78,8 @@ describe('AdminConsole', () => {
         for (const k of Object.keys(svc.financeService)) svc.financeService[k] = vi.fn(refuse(403, 'finance_role_required'));
         renderAt('/bkplus-command');
         const nav = screen.getByRole('navigation', { name: 'Admin' });
-        await vi.waitFor(() => expect(within(nav).queryByRole('link', { name: /Payouts/ })).not.toBeInTheDocument());
-        expect(within(nav).queryByRole('link', { name: 'Prices and fees' })).not.toBeInTheDocument();
+        await vi.waitFor(() => expect(within(nav).queryByRole('link', { name: 'Subscriptions' })).not.toBeInTheDocument());
+        expect(within(nav).queryByRole('link', { name: 'Plan prices' })).not.toBeInTheDocument();
         expect(within(nav).getByRole('link', { name: 'Users' })).toBeInTheDocument();
     });
 
@@ -91,13 +87,15 @@ describe('AdminConsole', () => {
         svc.financeService.getSettings = vi.fn(refuse(500));
         renderAt('/bkplus-command');
         const nav = screen.getByRole('navigation', { name: 'Admin' });
-        expect(await within(nav).findByRole('link', { name: 'Payouts 1 waiting' })).toBeInTheDocument();
-        expect(within(nav).getByRole('link', { name: 'Prices and fees' })).toBeInTheDocument();
+        expect(await within(nav).findByRole('link', { name: 'Wallets 1 waiting' })).toBeInTheDocument();
+        expect(within(nav).getByRole('link', { name: 'Subscriptions' })).toBeInTheDocument();
+        expect(within(nav).getByRole('link', { name: 'Plan prices' })).toBeInTheDocument();
     });
 
     it('one count failing is an error, not an all-clear', async () => {
-        svc.financeService.listApprovals = vi.fn(refuse(500));
-        expect(await loadCounts(null)).toMatchObject({ money: true, error: true, applications: null, payments: 2 });
+        svc.providerWalletService.getAdminSummary = vi.fn(refuse(500));
+        expect(await loadCounts(null)).toMatchObject({ money: true, error: true, topUps: null });
+        svc.providerWalletService.getAdminSummary = vi.fn(() => ok({ pendingTopUps: 1 }));
         // Without a money role only the wallet count is theirs; it failing is an error too.
         for (const k of Object.keys(svc.financeService)) svc.financeService[k] = vi.fn(refuse(403, 'finance_role_required'));
         expect(await loadCounts(null)).toMatchObject({ money: false, error: false });
@@ -107,11 +105,11 @@ describe('AdminConsole', () => {
 
     it('a failed poll keeps the last good counts', async () => {
         const first = await loadCounts(null);
-        expect(first).toMatchObject({ money: true, error: false, payments: 2, payouts: 1, applications: 1, requests: 2, topUps: 1 });
+        expect(first).toMatchObject({ money: true, error: false, topUps: 1 });
         for (const k of Object.keys(svc.financeService)) svc.financeService[k] = vi.fn(refuse(502));
         svc.providerWalletService.getAdminSummary = vi.fn(refuse(502));
         const next = await loadCounts(first);
-        expect(next).toMatchObject({ money: true, error: true, payments: 2, payouts: 1, applications: 1, requests: 2, topUps: 1, roles: ['director', 'finance'] });
+        expect(next).toMatchObject({ money: true, error: true, topUps: 1, roles: ['director', 'finance'] });
     });
 
     it('the menu button opens the drawer; Close menu, Escape or choosing a section closes it', async () => {

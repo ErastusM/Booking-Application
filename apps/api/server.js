@@ -50,13 +50,11 @@ const sitemapRoutes = require('./src/routes/sitemapRoutes');
 const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
 const marketingRoutes = require('./src/routes/marketingRoutes');
-const paymentRoutes = require('./src/routes/paymentRoutes');
 const financeRoutes = require('./src/routes/financeRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const startAutoCompleteJob = require('./src/utils/autoCompleteService');
 const startRetentionJob = require('./src/utils/dataRetentionService');
-const { startPaymentHoldJob } = require('./src/services/paymentService');
 const { startRenewalJob } = require('./src/services/subscriptionRenewals');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
@@ -194,13 +192,10 @@ app.use(helmet({
         },
     },
 }));
-// PayGate's callbacks (online booking payments) sit in front of CORS: the
-// return is the client's browser posting a form from PayGate's own page (a
+// PayGate's callbacks for a business's plan payments sit in front of CORS: the
+// return is the owner's browser posting a form from PayGate's own page (a
 // cross-site Origin the allowlist would reject), the notify is PayGate's server.
 // Both are public by design and verified by checksum + a server-side Query;
-// 404 while PAYMENTS_ENABLED is off. See src/routes/paymentRoutes.js.
-app.use('/api/payments/paygate', paymentRoutes.callbacks);
-// The same for a business's plan payments (adding a card to start the plan);
 // 404 while SUBSCRIPTION_BILLING_ENABLED is off. See src/routes/subscriptionRoutes.js.
 app.use('/api/subscriptions/paygate', subscriptionRoutes.callbacks);
 // Production allows only the apps' own addresses (comma-separated CLIENT_URL).
@@ -295,8 +290,6 @@ app.use('/api/client-errors', clientErrorRoutes);
 app.use('/api/events', eventRoutes);
 // Marketing-email unsubscribe (public, signed token; own rate limit inside).
 app.use('/api/marketing', marketingRoutes);
-// Online booking payments (PAYMENTS_ENABLED; every route 404s while off).
-app.use('/api/payments', readOrWrite, paymentRoutes);
 // Bookplus's own money controls (admin, two-step sign-in, finance roles).
 app.use('/api/admin/finance', readOrWrite, financeRoutes);
 
@@ -369,7 +362,6 @@ if (require.main === module) {
             startWalletExpiryJob();
             startAutoCompleteJob();
             startRetentionJob();
-            startPaymentHoldJob();
             startRenewalJob();
         });
 

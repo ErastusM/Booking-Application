@@ -42,7 +42,6 @@ async function listAdmins() {
  */
 async function lockAdmin(id, reason) {
     const User = require('../src/models/User');
-    const FinanceRequest = require('../src/models/FinanceRequest');
     const { recordFinance } = require('../src/utils/financeAudit');
     if (!/^[0-9a-f]{24}$/i.test(String(id || ''))) return { ok: false, message: 'Give the id from --list (24 characters).' };
     const admin = await User.findOne({ _id: id, role: 'admin' }).select('email').lean();
@@ -55,10 +54,7 @@ async function lockAdmin(id, reason) {
         { $set: { isActive: false, deactivatedAt: null, refreshTokenJtis: [] }, $inc: { tokenVersion: 1 } },
     );
     await recordFinance({ actor: null, action: 'security.admin_locked', reference: admin.email, reason: `Server script: ${reason}` });
-    // A request they prepared could still be approved by someone else.
-    const waiting = await FinanceRequest.countDocuments({ preparedBy: admin._id, status: 'pending' });
-    const note = waiting ? ` ${waiting} money request(s) they prepared are still waiting: reject them in the console (Money, Approvals).` : '';
-    return { ok: true, message: `Admin ${id} is suspended and signed out.${note}`, waiting };
+    return { ok: true, message: `Admin ${id} is suspended and signed out.` };
 }
 
 module.exports = { resetAdminMfa, listAdmins, lockAdmin };

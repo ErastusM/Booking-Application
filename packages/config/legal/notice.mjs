@@ -7,11 +7,10 @@ import { FEATURES } from '../features.mjs';
 
 export const NOTICE_LAST_UPDATED = '27 September 2026';
 
-// `features` defaults to the shared switches; tests pass { paymentsEnabled: true }
+// `features` defaults to the shared switches; tests pass { walletEnabled: true }
 // or { subscriptionBillingEnabled: true } to check what is shown once they are on.
 export const legalNotice = (audience = 'customer', features = FEATURES) => {
     const W = !!features.walletEnabled;
-    const P = !!features.paymentsEnabled;
     // Card payments for Bookplus plans: shown to business owners only.
     const S = audience === 'business' && !!features.subscriptionBillingEnabled;
     const op = operatorName(COMPANY);
@@ -37,20 +36,8 @@ export const legalNotice = (audience = 'customer', features = FEATURES) => {
             ] },
             { id: 'what-we-do', title: 'What Bookplus does', blocks: [
                 `Bookplus lets clients find local businesses, see their prices and availability, book appointments, ${W ? 'keep a prepaid wallet with a business, ' : ''}and message it. **The businesses provide the services; Bookplus does not.** Businesses list themselves; we do not vet, license or certify them. Reviews can only be left by clients who completed a booking.`,
-                `Bookplus does not charge clients a booking fee. Prices are set by each business, in the currency it chooses, and shown before you book.${W ? '' : P ? ' You pay the business at your appointment, or online by card when the business asks for a deposit or the full price.' : ' You pay the business at your appointment.'}`,
+                `Bookplus does not charge clients a booking fee. Prices are set by each business, in the currency it chooses, and shown before you book.${W ? '' : ' You pay the business at your appointment.'}`,
             ] },
-            // What a card processor checks on a merchant's site before going live:
-            // who collects, the currency, the country, card security, and where
-            // the refund and cancellation rules are.
-            ...(P ? [{ id: 'online-payments', title: 'Online payments', blocks: [
-                { list: [
-                    `Online card payments for bookings are collected by **${op}**, on behalf of the business you book with, and paid on to it.`,
-                    'Payments are processed by **PayGate** on its own secure page. Card details are entered there; Bookplus never sees or stores them.',
-                    'Online payments are charged in **Namibian Dollars (N$)**. Bookplus is based in **Namibia**.',
-                    `Refunds and cancellations: see [${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms#${audience === 'business' ? 'online-payments' : 'refunds'}). Refunds always go back to the card used.`,
-                    'Delivery: nothing is shipped. The service is provided in person by the business, at the time and place you booked, and confirmed by email.',
-                ] },
-            ] }] : []),
             ...(S ? [{ id: 'plan-payments', title: 'Paying for your Bookplus plan', blocks: [
                 { list: [
                     `Businesses pay **${op}** a monthly subscription for Bookplus, by card. The prices are shown in Account, Your plan before you add a card.`,
@@ -62,7 +49,7 @@ export const legalNotice = (audience = 'customer', features = FEATURES) => {
             ] }] : []),
             { id: 'legal-documents', title: 'Terms, privacy and complaints', blocks: [
                 { list: [
-                    `[${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms): how bookings, cancellations${W ? ', wallets' : ''}${P ? ', online payments and refunds' : ''}${S ? ', your plan and its payments' : ''} and reviews work, and how to raise a complaint.`,
+                    `[${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms): how bookings, cancellations${W ? ', wallets' : ''}${S ? ', your plan and its payments' : ''} and reviews work, and how to raise a complaint.`,
                     `[Privacy Policy](/privacy-policy): what we collect, why, who receives it and your rights.`,
                 ] },
                 'These documents can be saved or printed from their pages. Bookings are confirmed by email.',

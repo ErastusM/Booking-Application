@@ -119,7 +119,7 @@ not urgent) · **N/A** (doesn't apply at this size).
 | Locking / race conditions | OK | Per-person, per-day booking lock with a re-check inside it, conditional wallet updates, and serialized payouts. An overlap report runs on every deploy. |
 | Memory leaks / garbage collection / backpressure | OK | No long-lived timers or unbounded maps. Body size limits and container memory limits. |
 | Horizontal / vertical scaling / autoscaling | Not yet | One droplet. Cron and booking locks would survive a second instance; rate limits and the price cache are per instance. |
-| Feature flags | OK | `PAYMENTS_ENABLED`, `MEMBERSHIPS_ENABLED`, `WALLET_ENABLED`, plus app flags at build time. |
+| Feature flags | OK | `SUBSCRIPTION_BILLING_ENABLED`, `MEMBERSHIPS_ENABLED`, `WALLET_ENABLED`, plus app flags at build time. |
 | Blue-green / canary / rolling deploys / rollbacks | Partly | Images are pinned per commit and `ops/rollback.sh` exists. Deploys restart in place, with no automatic rollback. |
 | Health checks / liveness / readiness | OK | Health checks on every container. `/api/health` answers 503 when the database is down. The uptime check runs every 10 minutes. |
 | Monitoring / logging / alerting / tracing / metrics | Partly · Fixed | Logs are redacted, crashes and 5xx go to the alert webhook, and Sentry is ready once `SENTRY_DSN` is set. No metrics or tracing. |

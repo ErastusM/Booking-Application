@@ -1,8 +1,8 @@
 /**
- * /api/admin/finance — Bookplus's own money controls (payment specification,
- * sections 1, 2, 7 and 15): the pricing and fee settings, the pricing
- * simulator, the launch checklist, the financial audit log, finance roles, and
- * the second-person approvals for refunds and balance adjustments.
+ * /api/admin/finance — Bookplus's own money controls. Bookplus takes card
+ * payments only for business subscriptions (no booking payments, no
+ * commission): the plan's prices and VAT settings, the go-live checklist, the
+ * PayGate connection check, the financial audit log and finance roles.
  *
  * Every route needs an admin session that passed two-step sign-in
  * (utils/financeRoles.requireFinance). Every change is written to the audit log.
@@ -10,14 +10,9 @@
 const mongoose = require('mongoose');
 const pino = require('pino');
 const User = require('../models/User');
-const Payment = require('../models/Payment');
 const PlatformSettings = require('../models/PlatformSettings');
 const FinancialAuditLog = require('../models/FinancialAuditLog');
-const FinanceRequest = require('../models/FinanceRequest');
-const Dispute = require('../models/Dispute');
-const LedgerEntry = require('../models/LedgerEntry');
 const pricing = require('../services/pricing');
-const payments = require('../services/paymentService');
 const { recordFinance } = require('../utils/financeAudit');
 const { FINANCE_ROLES, financeRolesOf, hasFinanceRole } = require('../utils/financeRoles');
 
@@ -29,7 +24,6 @@ const fail = (res, status, message, code) => res.status(status).json({ success: 
 
 // Every editable setting: its path, and the check its value must pass.
 const int = (min, max) => (v) => Number.isInteger(v) && v >= min && v <= max;
-const intOrNull = (min, max) => (v) => v === null || int(min, max)(v);
 const EDITABLE = {
     'plans.basic.label': (v) => typeof v === 'string' && v.trim().length >= 1 && v.length <= 40,
     'plans.basic.trialDays': int(0, 365),
@@ -37,54 +31,28 @@ const EDITABLE = {
     'plans.basic.introPriceCents': int(0, 100000000),
     'plans.basic.priceCents': int(0, 100000000),
     'plans.basic.priceChangeNoticeDays': int(0, 90),
-    'plans.basic.commissionBps': int(0, 10000),
-    'plans.basic.fixedFeeCents': int(0, 10000000),
-    'plans.standard.label': (v) => typeof v === 'string' && v.trim().length >= 1 && v.length <= 40,
-    'plans.standard.priceCents': int(0, 100000000),
-    'plans.standard.commissionBps': int(0, 10000),
-    'plans.standard.fixedFeeCents': int(0, 10000000),
-    'processingFee.bps': intOrNull(0, 10000),
-    'processingFee.fixedCents': intOrNull(0, 10000000),
-    'processingFee.payer': (v) => ['business', 'bookplus'].includes(v),
-    chargebackFeeCents: intOrNull(0, 100000000),
-    minCommissionCents: int(0, 10000000),
-    minOnlineBookingCents: int(0, 100000000),
-    opsCostPerTxCents: int(0, 10000000),
-    'payout.frequency': (v) => ['weekly', 'biweekly', 'monthly'].includes(v),
-    'payout.weekday': int(0, 6),
-    'payout.minThresholdCents': int(0, 100000000),
     'vat.registered': (v) => typeof v === 'boolean',
     'vat.number': (v) => typeof v === 'string' && v.length <= 40,
     'vat.ratePct': (v) => typeof v === 'number' && v >= 0 && v <= 100,
-    'approvals.refundThresholdCents': int(0, 100000000),
-    'approvals.adjustmentsNeedApproval': (v) => typeof v === 'boolean',
 };
 const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 
-const LAUNCH_GATES = ['providerApproved', 'pricingApproved', 'legalCleared', 'termsReviewed', 'liveTestPassed', 'payoutScheduleConfirmed'];
+// What can only be confirmed by a person before plan billing is switched on.
+const LAUNCH_GATES = ['providerApproved', 'pricingApproved', 'legalCleared', 'termsReviewed', 'liveTestPassed'];
 
-/** What still stands between Bookplus and switching payments on. */
-const launchChecklist = (settings, sim) => {
-    const gates = LAUNCH_GATES.map((g) => ({
+/** What still stands between Bookplus and charging businesses for their plan. */
+const launchChecklist = (settings) => {
+    const items = LAUNCH_GATES.map((g) => ({
         key: g,
         done: !!settings.launch?.[g]?.at,
         at: settings.launch?.[g]?.at || null,
         by: settings.launch?.[g]?.by || null,
         note: settings.launch?.[g]?.note || '',
     }));
-    const automatic = [
-        { key: 'processingFeeEntered', done: sim.processingFeeKnown },
-        { key: 'chargebackFeeEntered', done: sim.chargebackFeeKnown },
-        { key: 'noNegativeMargin', done: !sim.anyNegative },
-    ];
-    const all = [...automatic, ...gates];
-    return { ready: all.every((i) => i.done), items: all };
+    return { ready: items.every((i) => i.done), items };
 };
 
-const settingsPayload = (settings, user) => {
-    const sim = pricing.simulate(settings);
-    return { settings, simulator: sim, launch: launchChecklist(settings, sim), me: { roles: financeRolesOf(user) } };
-};
+const settingsPayload = (settings, user) => ({ settings, launch: launchChecklist(settings), me: { roles: financeRolesOf(user) } });
 
 // POST /api/admin/finance/paygate-check — are the server's PayGate settings
 // right? Opens a test session that is never paid (services/paygateCheck).
@@ -113,7 +81,7 @@ exports.getSettings = async (req, res) => {
     }
 };
 
-// { plans: { basic: { commissionBps: 150 } } } → { 'plans.basic.commissionBps': 150 }.
+// { plans: { basic: { priceCents: 14999 } } } → { 'plans.basic.priceCents': 14999 }.
 // Requests carry nested objects: the request sanitizer drops dotted keys.
 const flatten = (obj, prefix = '', out = {}) => {
     for (const [k, v] of Object.entries(obj)) {
@@ -124,7 +92,7 @@ const flatten = (obj, prefix = '', out = {}) => {
     return out;
 };
 
-// PUT /api/admin/finance/settings { changes: { plans: { basic: { commissionBps: 150 } }, ... }, reason }
+// PUT /api/admin/finance/settings { changes: { plans: { basic: { priceCents: 14999 } }, ... }, reason }
 exports.updateSettings = async (req, res) => {
     try {
         const { reason } = req.body || {};
@@ -138,7 +106,7 @@ exports.updateSettings = async (req, res) => {
         for (const [path, value] of Object.entries(changes)) {
             const check = EDITABLE[path];
             if (!check) return fail(res, 400, `${path} can't be changed here`, 'unknown_setting');
-            const v = typeof value === 'string' && path !== 'vat.number' && !path.endsWith('.label') && !['processingFee.payer', 'payout.frequency'].includes(path) ? Number(value) : value;
+            const v = typeof value === 'string' && path !== 'vat.number' && !path.endsWith('.label') ? Number(value) : value;
             if (!check(v)) return fail(res, 400, `${path} has an invalid value`, 'bad_value');
             if (get(before, path) !== v) {
                 set[path] = typeof v === 'string' ? v.trim() : v;
@@ -180,15 +148,6 @@ exports.setLaunchGate = async (req, res) => {
         logger.error({ err: err.message }, 'launch gate update failed');
         fail(res, 500, 'Internal server error');
     }
-};
-
-// GET /api/admin/finance/simulate?values=5000,10000 — the simulator for other amounts
-exports.simulate = async (req, res) => {
-    try {
-        const settings = await pricing.getSettings();
-        const values = String(req.query.values || '').split(',').map((v) => parseInt(v, 10)).filter((v) => Number.isInteger(v) && v > 0 && v <= 100000000).slice(0, 20);
-        res.json({ success: true, data: pricing.simulate(settings, values.length ? values : undefined) });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
 /* ───────────────────────────── audit log ───────────────────────────── */
@@ -255,505 +214,4 @@ exports.resetAdminMfa = async (req, res) => {
     } catch (err) { fail(res, 500, 'Internal server error'); }
 };
 
-/* ───────────────────────────── a business's pricing ───────────────────────────── */
-
-// PUT /api/admin/finance/businesses/:id/pricing { plan, override: { commissionBps, fixedFeeCents } | null, migrate, reason }
-// `migrate: true` moves the business to the plan's CURRENT rates (an explicit
-// migration); otherwise the rates it agreed stay as they are.
-exports.setBusinessPricing = async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
-        const { plan, override, migrate, reason } = req.body || {};
-        if (!reason || !String(reason).trim()) return fail(res, 400, 'Say why', 'reason_required');
-        const business = await User.findOne({ _id: req.params.id, role: 'provider' }).select('pricing name').lean();
-        if (!business) return fail(res, 404, 'Business not found');
-        const settings = await pricing.getSettings();
-        const set = {};
-        if (plan !== undefined) {
-            if (!pricing.PLANS.includes(plan)) return fail(res, 400, 'plan must be basic or standard');
-            set['pricing.plan'] = plan;
-        }
-        const targetPlan = plan || business.pricing?.plan;
-        if (!targetPlan) return fail(res, 400, 'Choose a plan first');
-        if (migrate === true || plan !== undefined) {
-            const p = settings.plans[targetPlan];
-            set['pricing.rates'] = { commissionBps: p.commissionBps, fixedFeeCents: p.fixedFeeCents };
-            set['pricing.pricingVersion'] = settings.version;
-            set['pricing.planAssignedAt'] = new Date();
-        }
-        if (override !== undefined) {
-            if (override === null) set['pricing.override'] = null;
-            else {
-                const o = {};
-                if (override.commissionBps !== undefined && override.commissionBps !== null) {
-                    if (!int(0, 10000)(override.commissionBps)) return fail(res, 400, 'commissionBps must be 0 to 10 000');
-                    o.commissionBps = override.commissionBps;
-                }
-                if (override.fixedFeeCents !== undefined && override.fixedFeeCents !== null) {
-                    if (!int(0, 10000000)(override.fixedFeeCents)) return fail(res, 400, 'fixedFeeCents must be a whole number of cents');
-                    o.fixedFeeCents = override.fixedFeeCents;
-                }
-                set['pricing.override'] = Object.keys(o).length ? o : null;
-            }
-        }
-        await User.updateOne({ _id: business._id }, { $set: set });
-        const fresh = await User.findById(business._id).select('pricing').lean();
-        await recordFinance({
-            actor: req.user, action: 'business.pricing', provider: business._id, reason: String(reason).trim(),
-            details: { from: business.pricing || null, to: fresh.pricing },
-        });
-        res.json({ success: true, data: { pricing: fresh.pricing, rates: pricing.ratesFor(fresh, settings) } });
-    } catch (err) {
-        logger.error({ err: err.message }, 'business pricing update failed');
-        fail(res, 500, 'Internal server error');
-    }
-};
-
-/* ───────────────────────────── refunds and adjustments ───────────────────────────── */
-
-const requestRow = (r) => ({
-    _id: r._id, type: r.type, status: r.status, provider: r.provider, payment: r.payment, appointment: r.appointment,
-    amountCents: r.amountCents, currency: r.currency, reason: r.reason,
-    preparedBy: r.preparedBy, decidedBy: r.decidedBy, decidedAt: r.decidedAt, decisionNote: r.decisionNote,
-    requestedByBusiness: !!r.requestedByBusiness, balanceAtRequestCents: r.balanceAtRequestCents ?? null, overBalance: !!r.overBalance,
-    dispute: r.dispute || null, result: r.result, createdAt: r.createdAt,
-});
-
-/**
- * A business asks Bookplus to refund more than it may on its own (more than
- * its balance, or above the approval limit). It waits in the same queue as
- * finance's own requests, for a director to approve or reject. One open
- * request per payment. Call it holding the business's `payout:<id>` lock.
- */
-exports.requestRefundFromBusiness = async ({ owner, payment, amountCents, reason, availableCents = null }) => {
-    if (!reason) return { ok: false, status: 400, code: 'reason_required', error: 'Say why the client should get this refund, so Bookplus can decide.' };
-    const open = await FinanceRequest.exists({ payment: payment._id, type: 'refund', status: 'pending' });
-    if (open) return { ok: false, status: 409, code: 'request_pending', error: 'Bookplus is already looking at a refund for this payment.' };
-    const request = await FinanceRequest.create({
-        type: 'refund', provider: payment.provider, payment: payment._id, appointment: payment.appointment,
-        amountCents, currency: payment.currency, reason, preparedBy: owner._id, requestedByBusiness: true,
-        balanceAtRequestCents: availableCents, overBalance: availableCents !== null && amountCents > availableCents,
-    });
-    await recordFinance({
-        actor: owner, action: 'refund.request', amountCents, provider: payment.provider, appointment: payment.appointment,
-        payment: payment._id, reference: payment.reference, reason, approvalStatus: 'pending', request: request._id,
-        details: { requestedByBusiness: true },
-    });
-    return { ok: true, request: requestRow(request) };
-};
-
-/**
- * Finance prepares a refund. At or below the approval threshold it runs at
- * once; above it, it waits for a director who didn't prepare it. Returns
- * { status, body } for the response. `dispute` links it to a case.
- */
-const prepareRefundFor = async ({ actor, payment, amountCents, reason, dispute = null }) => {
-    if (!reason) return { status: 400, body: { success: false, code: 'reason_required', message: 'Say why the refund is being made' } };
-    const remaining = payment.amountCents - (payment.refundedCents || 0) - (payment.refundingCents || 0);
-    const amt = amountCents === undefined || amountCents === null ? remaining : amountCents;
-    if (!Number.isInteger(amt) || amt <= 0) return { status: 400, body: { success: false, code: 'bad_amount', message: 'amountCents must be a whole number of cents above 0' } };
-    if (amt > remaining) return { status: 409, body: { success: false, code: 'exceeds_refundable', message: 'More than is left to refund' } };
-    const settings = await pricing.getSettings();
-    const threshold = settings.approvals?.refundThresholdCents ?? 0;
-
-    if (amt <= threshold) {
-        await recordFinance({
-            actor, action: 'refund.execute', amountCents: amt, provider: payment.provider,
-            appointment: payment.appointment, payment: payment._id, reference: payment.reference, reason,
-            ...(dispute ? { details: { dispute } } : {}),
-        });
-        const r = await payments.requestRefund({ paymentId: payment._id, amountCents: amt, reason, by: actor._id, trigger: 'manual' });
-        if (!r.ok && r.code) return { status: r.code === 'exceeds_refundable' ? 409 : 400, body: { success: false, code: r.code, message: r.error } };
-        return {
-            status: r.ok ? 200 : 202,
-            ran: true,
-            body: { success: r.ok, code: r.ok ? 'refunded' : 'refund_pending', message: r.ok ? 'Refund sent' : 'Saved; PayGate did not take it yet. It can be retried.' },
-        };
-    }
-
-    const request = await FinanceRequest.create({
-        type: 'refund', provider: payment.provider, payment: payment._id, appointment: payment.appointment, dispute,
-        amountCents: amt, currency: payment.currency, reason, preparedBy: actor._id,
-    });
-    await recordFinance({
-        actor, action: 'refund.request', amountCents: amt, provider: payment.provider, appointment: payment.appointment,
-        payment: payment._id, reference: payment.reference, reason, approvalStatus: 'pending', request: request._id,
-    });
-    return { status: 202, request, body: { success: true, code: 'approval_required', message: 'Above the approval limit: a director must approve it.', data: requestRow(request) } };
-};
-exports.prepareRefundFor = prepareRefundFor;
-
-// POST /api/admin/finance/payments/:id/refund { amountCents?, reason }
-exports.prepareRefund = async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Payment not found');
-        const payment = await Payment.findById(req.params.id).lean();
-        if (!payment) return fail(res, 404, 'Payment not found');
-        const r = await prepareRefundFor({ actor: req.user, payment, amountCents: req.body?.amountCents, reason: String(req.body?.reason || '').trim() });
-        res.status(r.status).json(r.body);
-    } catch (err) {
-        logger.error({ err: err.message }, 'prepare refund failed');
-        fail(res, 500, 'Internal server error');
-    }
-};
-
-// POST /api/admin/finance/adjustments { providerId, amountCents (signed), reason }
-exports.prepareAdjustment = async (req, res) => {
-    try {
-        const { providerId, amountCents } = req.body || {};
-        const reason = String(req.body?.reason || '').trim();
-        if (!isId(providerId)) return fail(res, 400, 'Choose the business');
-        if (!Number.isInteger(amountCents) || amountCents === 0) return fail(res, 400, 'amountCents must be a whole, non-zero number of cents', 'bad_amount');
-        if (!reason) return fail(res, 400, 'Say why', 'reason_required');
-        const business = await User.findOne({ _id: providerId, role: 'provider' }).select('businessProfile.currency').lean();
-        if (!business) return fail(res, 404, 'Business not found');
-        const settings = await pricing.getSettings();
-        const request = await FinanceRequest.create({
-            type: 'adjustment', provider: business._id, amountCents, currency: business.businessProfile?.currency || 'NAD',
-            reason, preparedBy: req.user._id,
-        });
-        const needsApproval = settings.approvals?.adjustmentsNeedApproval !== false;
-        await recordFinance({
-            actor: req.user, action: 'adjustment.request', amountCents, provider: business._id, reason,
-            approvalStatus: needsApproval ? 'pending' : 'not_required', request: request._id,
-        });
-        if (!needsApproval) {
-            const done = await runRequest(request, req.user);
-            return res.json({ success: true, data: requestRow(done) });
-        }
-        res.status(202).json({ success: true, code: 'approval_required', message: 'A director must approve it.', data: requestRow(request) });
-    } catch (err) {
-        logger.error({ err: err.message }, 'prepare adjustment failed');
-        fail(res, 500, 'Internal server error');
-    }
-};
-
-// Carry out an approved request.
-const runRequest = async (request, actor) => {
-    try {
-        if (request.type === 'refund') {
-            const r = await payments.requestRefund({ paymentId: request.payment, amountCents: request.amountCents, reason: request.reason, by: actor._id, trigger: 'manual' });
-            request.status = r.ok || !r.code ? 'executed' : 'failed';
-            request.result = r.ok ? { refundId: r.refundId } : { error: r.error || 'PayGate did not take it yet', code: r.code || 'refund_pending', refundId: r.refundId || null };
-            if (request.dispute && request.status === 'executed') {
-                await Dispute.updateOne({ _id: request.dispute, status: 'open' }, { $set: { status: 'refunded', closedBy: actor._id, closedAt: new Date() } });
-            }
-        } else if (request.type === 'recovery') {
-            // Once per dispute: the ledger key is unique.
-            const key = `chargeback:${request.dispute}`;
-            const wrote = await payments.writeEntry({
-                provider: request.provider, type: 'chargeback', amountCents: -request.amountCents, currency: request.currency,
-                payment: request.payment, appointment: request.appointment, note: request.reason, createdBy: actor._id, key,
-            });
-            request.status = wrote ? 'executed' : 'failed';
-            request.result = wrote ? { ledgerKey: key } : { error: 'This chargeback was already recovered', code: 'already_recovered' };
-            await Dispute.updateOne({ _id: request.dispute }, { $set: { 'recovery.status': wrote ? 'done' : 'failed', 'recovery.at': new Date() } });
-            if (wrote) {
-                createNotification(request.provider, `Bookplus took N$${(request.amountCents / 100).toFixed(2)} from your balance for a card chargeback it lost: ${request.reason}`, 'system', '/account?section=payments').catch(() => {});
-            }
-        } else {
-            await LedgerEntry.create({
-                provider: request.provider, type: 'adjustment', amountCents: request.amountCents, currency: request.currency,
-                note: request.reason, createdBy: actor._id, key: `adjustment:${request._id}`,
-            });
-            request.status = 'executed';
-            request.result = { ledgerKey: `adjustment:${request._id}` };
-        }
-    } catch (err) {
-        request.status = 'failed';
-        request.result = { error: err.message };
-    }
-    await request.save();
-    await recordFinance({
-        actor, action: `${request.type}.${request.status === 'executed' ? 'execute' : 'fail'}`, amountCents: request.amountCents,
-        provider: request.provider, payment: request.payment, appointment: request.appointment, reason: request.reason,
-        approvalStatus: 'approved', request: request._id, details: request.result,
-    });
-    return request;
-};
-
-// GET /api/admin/finance/requests?status=pending
-exports.listRequests = async (req, res) => {
-    try {
-        const q = {};
-        if (['pending', 'approved', 'rejected', 'executed', 'failed'].includes(req.query.status)) q.status = req.query.status;
-        const rows = await FinanceRequest.find(q).sort({ createdAt: -1 }).limit(100)
-            .populate('preparedBy', 'name email').populate('decidedBy', 'name email')
-            .populate('provider', 'name businessProfile.businessName').lean();
-        // For a refund still waiting: what the business holds now, so a director
-        // sees whether Bookplus would be paying part of it.
-        const balances = new Map();
-        for (const r of rows.filter((x) => x.type === 'refund' && x.status === 'pending')) {
-            const pid = String(r.provider?._id || r.provider);
-            if (!balances.has(pid)) {
-                // eslint-disable-next-line no-await-in-loop
-                const { balanceOwedCents, refundsPendingCents } = await payments.balanceSummary(pid);
-                balances.set(pid, balanceOwedCents - refundsPendingCents);
-            }
-        }
-        res.json({
-            success: true,
-            data: rows.map((r) => ({ ...requestRow(r), balanceNowCents: balances.has(String(r.provider?._id || r.provider)) && r.status === 'pending' && r.type === 'refund' ? balances.get(String(r.provider?._id || r.provider)) : null })),
-        });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
-};
-
-// POST /api/admin/finance/requests/:id/approve { note } (director, not the preparer)
-// POST /api/admin/finance/requests/:id/reject  { note }
-const decide = (approve) => async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Request not found');
-        const note = String(req.body?.note || '').trim().slice(0, 1000);
-        if (!approve && !note) return fail(res, 400, 'Say why it is rejected', 'reason_required');
-        const request = await FinanceRequest.findById(req.params.id);
-        if (!request) return fail(res, 404, 'Request not found');
-        if (request.status !== 'pending') return fail(res, 409, 'This request was already decided', 'already_decided');
-        if (String(request.preparedBy) === String(req.user._id)) {
-            return fail(res, 403, 'Someone else must approve a request you prepared', 'same_person');
-        }
-        // Claim it atomically so two directors can't both act on it.
-        const claimed = await FinanceRequest.findOneAndUpdate(
-            { _id: request._id, status: 'pending' },
-            { $set: { status: approve ? 'approved' : 'rejected', decidedBy: req.user._id, decidedAt: new Date(), decisionNote: note } },
-            { new: true },
-        );
-        if (!claimed) return fail(res, 409, 'This request was already decided', 'already_decided');
-        await recordFinance({
-            actor: req.user, action: `${claimed.type}.${approve ? 'approve' : 'reject'}`, amountCents: claimed.amountCents,
-            provider: claimed.provider, payment: claimed.payment, appointment: claimed.appointment, reason: note || claimed.reason,
-            approvalStatus: approve ? 'approved' : 'rejected', request: claimed._id,
-        });
-        const done = approve ? await runRequest(claimed, req.user) : claimed;
-        if (!approve && done.type === 'recovery' && done.dispute) {
-            await Dispute.updateOne({ _id: done.dispute }, { $set: { 'recovery.status': 'rejected', 'recovery.at': new Date() } });
-        }
-        if (done.requestedByBusiness) {
-            const amount = `N$${(done.amountCents / 100).toFixed(2)}`;
-            // executed + no error: sent; executed + refund_pending: saved, PayGate
-            // did not take it yet (it is retried); failed: it could not be made.
-            const sent = done.status === 'executed' && !done.result?.error;
-            const message = !approve
-                ? `Bookplus did not approve the ${amount} refund you asked for: ${note}`
-                : sent
-                    ? `Bookplus approved the ${amount} refund you asked for. It is on its way back to your client's card.`
-                    : done.status === 'executed'
-                        ? `Bookplus approved the ${amount} refund you asked for, but the card processor did not take it yet. Send it again from Account, Online payments.`
-                        : `Bookplus approved the ${amount} refund you asked for, but it could not be made: ${done.result?.error || 'please contact Bookplus'}.`;
-            createNotification(done.provider, message, 'system', '/account?section=payments').catch(() => {});
-        }
-        res.json({ success: true, data: requestRow(done) });
-    } catch (err) {
-        logger.error({ err: err.message }, 'finance decision failed');
-        fail(res, 500, 'Internal server error');
-    }
-};
-exports.approveRequest = decide(true);
-exports.rejectRequest = decide(false);
-
-/* ───────────────────────────── business approvals ───────────────────────────── */
-
-const approvalRules = require('../services/paymentsApproval');
-const cloudinary = require('../utils/cloudinary');
-const { createNotification } = require('../utils/notificationhelper');
-
-const approvalRow = (u) => ({
-    _id: u._id,
-    name: u.name,
-    email: u.email,
-    businessName: u.businessProfile?.businessName || '',
-    status: approvalRules.statusOf(u.paymentsApproval),
-    plan: u.paymentsApproval?.plan || null,
-    submittedAt: u.paymentsApproval?.submittedAt || null,
-    decidedAt: u.paymentsApproval?.decidedAt || null,
-    takingPayments: approvalRules.canTakePayments(u.paymentsApproval),
-    adminOff: !!u.paymentsApproval?.adminOff,
-    payoutAccountReviewNeeded: !!u.paymentsApproval?.payoutAccountReviewNeeded,
-});
-
-// GET /api/admin/finance/approvals?status=submitted (default: waiting for Bookplus)
-exports.listApprovals = async (req, res) => {
-    try {
-        const status = String(req.query.status || 'waiting');
-        const q = { role: 'provider', paymentsApproval: { $exists: true } };
-        if (status === 'waiting') q.$or = [{ 'paymentsApproval.status': 'submitted' }, { 'paymentsApproval.payoutAccountReviewNeeded': true }];
-        else if (approvalRules.STATUSES.includes(status)) q['paymentsApproval.status'] = status;
-        const rows = await User.find(q).select('+paymentsApproval name email businessProfile.businessName')
-            .sort({ 'paymentsApproval.submittedAt': 1 }).limit(200).lean();
-        res.set('Cache-Control', 'no-store');
-        res.json({ success: true, data: rows.map(approvalRow) });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
-};
-
-const loadBusiness = (id) => User.findOne({ _id: id, role: 'provider' })
-    .select('+paymentsApproval +payoutAccount name email phone businessProfile.businessName businessProfile.address createdAt isActive pricing');
-
-// GET /api/admin/finance/approvals/:id — everything a reviewer needs
-exports.getApproval = async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
-        const u = await loadBusiness(req.params.id).lean();
-        if (!u || !u.paymentsApproval) return fail(res, 404, 'No application from this business');
-        // The full ID and bank account numbers are shown here: who looked is recorded.
-        await recordFinance({ actor: req.user, action: 'approval.view', provider: u._id });
-        res.set('Cache-Control', 'no-store');
-        res.json({
-            success: true,
-            data: {
-                ...approvalRow(u),
-                phone: u.phone || '',
-                address: u.businessProfile?.address || '',
-                accountCreatedAt: u.createdAt,
-                suspended: u.isActive === false,
-                application: approvalRules.reviewView(u.paymentsApproval),
-                missing: approvalRules.missingFor(u.paymentsApproval, { hasPayoutAccount: payments.hasPayoutAccount(u.payoutAccount) }),
-                // The full account number: the reviewer matches it against the bank letter.
-                payoutAccount: payments.publicPayoutAccount(u.payoutAccount, { full: true }),
-                pricing: u.pricing || null,
-            },
-        });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
-};
-
-// GET /api/admin/finance/approvals/:id/documents/:docId — a link that works for 5 minutes
-exports.getApprovalDocument = async (req, res) => {
-    try {
-        if (!isId(req.params.id) || !isId(req.params.docId)) return fail(res, 404, 'Document not found');
-        const u = await User.findOne({ _id: req.params.id, role: 'provider' }).select('+paymentsApproval').lean();
-        const doc = (u?.paymentsApproval?.documents || []).find((d) => String(d._id) === String(req.params.docId));
-        if (!doc) return fail(res, 404, 'Document not found');
-        if (!cloudinary.isConfigured()) return fail(res, 503, 'Documents can not be opened right now (file storage is not set up).', 'uploads_unavailable');
-        await recordFinance({ actor: req.user, action: 'approval.document_view', provider: u._id, reference: doc.kind });
-        res.set('Cache-Control', 'no-store');
-        res.json({
-            success: true,
-            data: {
-                url: cloudinary.privateDownloadUrl({ publicId: doc.publicId, format: doc.format, resourceType: doc.resourceType, type: doc.deliveryType }),
-                expiresInSeconds: cloudinary.PROOF_LINK_SECONDS,
-                kind: doc.format === 'pdf' || doc.resourceType === 'raw' ? 'pdf' : 'image',
-            },
-        });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
-};
-
-const DECISIONS = { approve: 'approved', reject: 'rejected', request_info: 'info_requested' };
-const DECISION_MESSAGES = {
-    approved: 'Bookplus approved your business for online payments. Switch them on in Online payments when you are ready.',
-    rejected: 'Bookplus could not approve your business for online payments. See Online payments for why.',
-    info_requested: 'Bookplus needs a little more for your online payments application. See Online payments.',
-};
-
-// POST /api/admin/finance/approvals/:id/decision { decision: approve|reject|request_info, note }
-exports.decideApproval = async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
-        const to = DECISIONS[req.body?.decision];
-        if (!to) return fail(res, 400, 'decision must be approve, reject or request_info');
-        const note = String(req.body?.note || '').trim().slice(0, 1000);
-        if (to !== 'approved' && !note) return fail(res, 400, 'Tell the business why, or what else is needed', 'reason_required');
-        const u = await loadBusiness(req.params.id);
-        if (!u || !u.paymentsApproval) return fail(res, 404, 'No application from this business');
-        if (approvalRules.statusOf(u.paymentsApproval) !== 'submitted') return fail(res, 409, 'Only an application waiting for Bookplus can be decided', 'not_submitted');
-        if (to === 'approved') {
-            const missing = approvalRules.missingFor(u.paymentsApproval, { hasPayoutAccount: payments.hasPayoutAccount(u.payoutAccount) });
-            if (missing.length) return res.status(409).json({ success: false, code: 'incomplete', message: 'The application is missing something', missing });
-        }
-        const now = new Date();
-        const set = {
-            'paymentsApproval.status': to, 'paymentsApproval.decidedAt': now,
-            'paymentsApproval.decidedBy': req.user._id, 'paymentsApproval.decisionNote': note,
-        };
-        const docs = u.paymentsApproval.documents || [];
-        if (to === 'approved') {
-            // The business gets its chosen plan at today's rates (kept until
-            // it is moved on purpose: setBusinessPricing).
-            const settings = await pricing.getSettings();
-            const plan = u.paymentsApproval.plan;
-            const p = settings.plans[plan];
-            Object.assign(set, {
-                'pricing.plan': plan,
-                'pricing.rates': { commissionBps: p.commissionBps, fixedFeeCents: p.fixedFeeCents },
-                'pricing.pricingVersion': settings.version,
-                'pricing.planAssignedAt': now,
-                'paymentsApproval.switchOn': false,
-                'paymentsApproval.payoutAccountReviewNeeded': false,
-            });
-        }
-        if (to === 'rejected') set['paymentsApproval.documents'] = []; // deleted below, as the Privacy Policy says
-        // Claim it atomically: two reviewers can't both decide it.
-        const r = await User.updateOne(
-            { _id: u._id, 'paymentsApproval.status': 'submitted' },
-            { $set: set, $push: { 'paymentsApproval.history': { status: to, at: now, by: req.user._id, note } } },
-        );
-        if (r.modifiedCount !== 1) return fail(res, 409, 'Someone else decided it first', 'already_decided');
-        await recordFinance({
-            actor: req.user, action: `approval.${req.body.decision}`, provider: u._id, reason: note,
-            reference: u.paymentsApproval.plan, approvalStatus: to === 'approved' ? 'approved' : to === 'rejected' ? 'rejected' : 'pending',
-            // What the approval set: the plan's rates at that moment, and what was there before.
-            details: to === 'approved'
-                ? { pricingBefore: u.pricing || null, pricingAfter: { plan: set['pricing.plan'], rates: set['pricing.rates'], pricingVersion: set['pricing.pricingVersion'] } }
-                : null,
-        });
-        if (to === 'rejected') {
-            const { destroyVerificationFiles } = require('../utils/accountData');
-            destroyVerificationFiles(u._id, docs).catch(() => {});
-        }
-        createNotification(u._id, DECISION_MESSAGES[to], 'system', '/account?section=payments').catch(() => {});
-        const fresh = await loadBusiness(u._id).lean();
-        res.json({ success: true, data: { ...approvalRow(fresh), application: approvalRules.reviewView(fresh.paymentsApproval) } });
-    } catch (err) {
-        logger.error({ err: err.message }, 'approval decision failed');
-        fail(res, 500, 'Internal server error');
-    }
-};
-
-// POST /api/admin/finance/approvals/:id/switch { off: true|false, reason } — Bookplus's override
-exports.setApprovalSwitch = async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
-        const off = req.body?.off;
-        if (typeof off !== 'boolean') return fail(res, 400, 'off must be true or false');
-        const reason = String(req.body?.reason || '').trim().slice(0, 500);
-        if (!reason) return fail(res, 400, 'Say why', 'reason_required');
-        const u = await User.findOne({ _id: req.params.id, role: 'provider', paymentsApproval: { $exists: true } }).select('_id');
-        if (!u) return fail(res, 404, 'No application from this business');
-        await User.updateOne({ _id: u._id }, {
-            $set: { 'paymentsApproval.adminOff': off, 'paymentsApproval.adminOffReason': off ? reason : '' },
-            $push: { 'paymentsApproval.history': { status: off ? 'switched_off_by_bookplus' : 'switch_released_by_bookplus', at: new Date(), by: req.user._id, note: reason } },
-        });
-        await recordFinance({ actor: req.user, action: off ? 'payments.admin_off' : 'payments.admin_on', provider: u._id, reason });
-        if (off) createNotification(u._id, `Bookplus switched online payments off for your business: ${reason}`, 'system', '/account?section=payments').catch(() => {});
-        res.json({ success: true });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
-};
-
-// POST /api/admin/finance/approvals/:id/payout-account-checked { note, accountUpdatedAt }
-// — the new bank account is genuine. accountUpdatedAt is the version the
-// reviewer looked at: if the business changed it again since, nothing is confirmed.
-exports.confirmPayoutAccount = async (req, res) => {
-    try {
-        if (!isId(req.params.id)) return fail(res, 404, 'Business not found');
-        const note = String(req.body?.note || '').trim().slice(0, 500);
-        if (!note) return fail(res, 400, 'Say how it was checked (e.g. new bank letter, call to the owner)', 'reason_required');
-        const seen = new Date(req.body?.accountUpdatedAt || '');
-        if (Number.isNaN(seen.getTime())) return fail(res, 400, 'Say which version of the account was checked', 'account_version_required');
-        const u = await User.findOne({ _id: req.params.id, role: 'provider' }).select('+payoutAccount +paymentsApproval').lean();
-        if (!u?.paymentsApproval?.payoutAccountReviewNeeded) return fail(res, 409, 'There is no new bank account waiting to be checked', 'nothing_to_check');
-        const current = u.payoutAccount?.updatedAt ? new Date(u.payoutAccount.updatedAt) : null;
-        if (!current || current.getTime() !== seen.getTime()) {
-            return fail(res, 409, 'The bank account changed again since you opened it. Reload and check the new one.', 'account_changed');
-        }
-        const r = await User.updateOne(
-            { _id: u._id, 'paymentsApproval.payoutAccountReviewNeeded': true, 'payoutAccount.updatedAt': current },
-            { $set: { 'paymentsApproval.payoutAccountReviewNeeded': false } },
-        );
-        if (r.modifiedCount !== 1) return fail(res, 409, 'The bank account changed again since you opened it. Reload and check the new one.', 'account_changed');
-        await recordFinance({
-            actor: req.user, action: 'payout_account.confirm', provider: u._id, reason: note,
-            details: { account: payments.publicPayoutAccount(u.payoutAccount) },
-        });
-        res.json({ success: true });
-    } catch (err) { fail(res, 500, 'Internal server error'); }
-};
-
 exports._test = { EDITABLE, launchChecklist, hasFinanceRole, flatten };
-exports.requestRow = requestRow;
