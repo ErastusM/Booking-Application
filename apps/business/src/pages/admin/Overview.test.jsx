@@ -20,7 +20,7 @@ beforeEach(() => {
     svc.appointmentService = { getAllAppointments: vi.fn().mockResolvedValue({ data: { data: [] } }) };
 });
 
-const base = { money: true, error: false, payments: 0, payouts: 0, applications: 0, requests: 0, cases: 0, topUps: 0, launch: { ready: true, items: [] }, roles: [] };
+const base = { money: true, error: false, topUps: 0, launch: { ready: true, items: [] }, roles: [] };
 const renderWith = (counts, twoStep = { recoveryCodesLeft: 8 }) => render(
     <MemoryRouter>
         <TwoStepStatus.Provider value={twoStep}>
@@ -32,17 +32,15 @@ const needsYou = () => within(screen.getByTestId('needs-you'));
 
 describe('Overview', () => {
     it('lists what is waiting, each with a link to it', async () => {
-        renderWith({ ...base, applications: 2, payouts: 1, payoutsCents: 5000, topUps: 1, launch: { ready: false, items: [{ done: true }, { done: false }] } });
+        renderWith({ ...base, topUps: 1, launch: { ready: false, items: [{ done: true }, { done: false }] } });
         expect(await screen.findByText('12')).toBeInTheDocument();
         const rows = screen.getAllByTestId('needs-you-row');
         expect(rows.map((r) => r.textContent)).toEqual([
-            expect.stringContaining('2 businesses waiting for online payments approval'),
-            expect.stringContaining('1 payout due'),
             expect.stringContaining('1 wallet top-up to approve'),
             expect.stringContaining('Go-live checklist: 1 of 2 done'),
         ]);
-        expect(within(rows[0]).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/bkplus-command/money/approvals');
-        expect(within(rows[2]).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/bkplus-command/wallets');
+        expect(within(rows[0]).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/bkplus-command/wallets');
+        expect(rows[1]).toHaveTextContent('Plan billing stays off until it is complete');
     });
 
     it('nothing waiting: says so', () => {
@@ -57,17 +55,17 @@ describe('Overview', () => {
     });
 
     it('recovery codes running low come first, pointing at Admins and roles', () => {
-        renderWith({ ...base, applications: 2, payouts: 1, payoutsCents: 5000 }, { recoveryCodesLeft: 1 });
+        renderWith({ ...base, topUps: 2 }, { recoveryCodesLeft: 1 });
         const rows = screen.getAllByTestId('needs-you-row');
-        expect(rows).toHaveLength(3);
+        expect(rows).toHaveLength(2);
         expect(rows[0]).toHaveTextContent('1 recovery code left');
         expect(within(rows[0]).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/bkplus-command/settings/admins');
-        expect(rows[1]).toHaveTextContent('2 businesses waiting for online payments approval');
+        expect(rows[1]).toHaveTextContent('2 wallet top-ups to approve');
         expect(needsYou().queryByRole('alert')).not.toBeInTheDocument();
     });
 
     it('a failed load still shows its error next to the recovery row', () => {
-        const none = { payments: null, payouts: null, applications: null, requests: null, cases: null, topUps: null, launch: null };
+        const none = { topUps: null, launch: null };
         renderWith({ ...base, ...none, money: undefined, error: true }, { recoveryCodesLeft: 1 });
         expect(screen.getAllByTestId('needs-you-row')[0]).toHaveTextContent('1 recovery code left');
         expect(needsYou().getByRole('alert')).toHaveTextContent('Could not load what needs you');

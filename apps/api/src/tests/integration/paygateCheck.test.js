@@ -1,12 +1,12 @@
 /**
  * "Check the PayGate connection" (Money → Settings): proves the server's
- * PayGate settings before anyone pays. Against the stand-in PayGate, with the
+ * PayGate settings for business plan payments before any business pays. Against the stand-in PayGate, with the
  * public addresses probed through a stub.
  */
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const Payment = require('../../models/Payment');
+const SubscriptionPayment = require('../../models/SubscriptionPayment');
 const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const paygate = require('../../services/paygate');
 const paygateCheck = require('../../services/paygateCheck');
@@ -14,7 +14,7 @@ const { makeProvider, makeFinanceAdmin, authHeader, financeHeader } = require('.
 const { createFakePaygate, KEY } = require('../helpers/fakePaygate');
 
 const gw = createFakePaygate();
-const ENV_KEYS = ['PAYGATE_ID', 'PAYGATE_PASSWORD', 'PAYGATE_ENCRYPTION_KEY', 'PAYGATE_CALLBACK_BASE_URL', 'CUSTOMER_APP_URL', 'PAYMENTS_ENABLED'];
+const ENV_KEYS = ['PAYGATE_ID', 'PAYGATE_PASSWORD', 'PAYGATE_ENCRYPTION_KEY', 'PAYGATE_RECURRING_ID', 'PAYGATE_RECURRING_PASSWORD', 'PAYGATE_CALLBACK_BASE_URL', 'BUSINESS_ORIGIN', 'SUBSCRIPTION_BILLING_ENABLED'];
 let saved;
 let probes;
 
@@ -26,11 +26,12 @@ beforeEach(() => {
     // A real terminal's id (not PayGate's public test account), and the live addresses.
     process.env.PAYGATE_ID = '10099998888';
     process.env.PAYGATE_CALLBACK_BASE_URL = 'https://api.bookplus.pro';
-    process.env.CUSTOMER_APP_URL = 'https://www.bookplus.pro';
+    process.env.BUSINESS_ORIGIN = 'https://business.bookplus.pro';
+    process.env.SUBSCRIPTION_BILLING_ENABLED = 'true';
     probes = [];
     paygateCheck.setHttp(async (url, opts = {}) => {
         probes.push([opts.method || 'GET', url]);
-        if (url.endsWith('/api/payments/paygate/notify')) return { status: 400, text: 'INVALID' };
+        if (url.endsWith('/api/subscriptions/paygate/notify')) return { status: 400, text: 'INVALID' };
         return { status: 200, text: '' };
     });
 });
@@ -52,13 +53,13 @@ describe('PayGate connection check', () => {
         const { fin, data, by } = await run();
         expect(data.ready).toBe(true);
         expect(data.items.map((i) => [i.key, i.status])).toEqual([
-            ['switched_on', 'ok'], ['credentials', 'ok'], ['addresses', 'ok'], ['session', 'ok'],
+            ['switched_on', 'ok'], ['credentials', 'ok'], ['recurring_credentials', 'ok'], ['addresses', 'ok'], ['session', 'ok'],
             ['signature', 'ok'], ['read_back', 'ok'], ['notify', 'ok'], ['result_page', 'ok'],
         ]);
         expect(by('credentials').detail).toContain('•••• 8888');
         expect(JSON.stringify(data)).not.toContain('10099998888');
         expect(JSON.stringify(data)).not.toContain(KEY);
-        expect(by('addresses').detail).toBe('Results go to https://api.bookplus.pro/api/payments/paygate/notify; clients come back to https://www.bookplus.pro/booking/payment.');
+        expect(by('addresses').detail).toBe('Results go to https://api.bookplus.pro/api/subscriptions/paygate/notify; owners come back to https://business.bookplus.pro/account?section=plan.');
         expect(by('read_back').detail).toMatch(/Not Done/);
 
         // One N$5.00 session at PayGate for a BPCHECK reference, with the real callback addresses.
@@ -66,10 +67,10 @@ describe('PayGate connection check', () => {
         expect(web).toHaveLength(1);
         expect(web[0].body).toMatch(/<MerchantOrderId>BPCHECK[0-9A-F]{12}<\/MerchantOrderId>/);
         expect(web[0].body).toContain('<Amount>500</Amount>');
-        expect(web[0].body).toContain('<NotifyUrl>https://api.bookplus.pro/api/payments/paygate/notify</NotifyUrl>');
+        expect(web[0].body).toContain('<NotifyUrl>https://api.bookplus.pro/api/subscriptions/paygate/notify</NotifyUrl>');
         expect(web[0].body).toContain(`<Email>${fin.email}</Email>`);
-        expect(await Payment.countDocuments()).toBe(0);
-        expect(probes).toEqual([['POST', 'https://api.bookplus.pro/api/payments/paygate/notify'], ['GET', 'https://www.bookplus.pro/booking/payment']]);
+        expect(await SubscriptionPayment.countDocuments()).toBe(0);
+        expect(probes).toEqual([['POST', 'https://api.bookplus.pro/api/subscriptions/paygate/notify'], ['GET', 'https://business.bookplus.pro/account?section=plan']]);
 
         // Audited, without secrets.
         const audit = await FinancialAuditLog.findOne({ action: 'paygate.check' }).lean();
@@ -89,7 +90,7 @@ describe('PayGate connection check', () => {
         expect(by('signature').status).toBe('ok');
         expect(by('credentials').detail).toContain('with a separate encryption key');
         // Callbacks are then checked with that key.
-        const ref = 'BP0123456789ABCDEF0123456789AB';
+        const ref = 'BS0123456789ABCDEF0123456789AB';
         gw.tx.set('PR-X', { reference: ref, amountCents: 100, currency: 'NAD', code: 1, transactionId: '1' });
         const body = gw.notifyBody(ref);
         expect(paygate.verifyPostedChecksum([...new URLSearchParams(body)])).toBe(true);
@@ -104,27 +105,29 @@ describe('PayGate connection check', () => {
     });
 
     it('missing settings, PayGate’s test account, wrong addresses, a redirect and a switched-off API are each named', async () => {
+        delete process.env.PAYGATE_RECURRING_ID;
+        expect((await run()).by('recurring_credentials')).toMatchObject({ status: 'fail', detail: expect.stringContaining('PAYGATE_RECURRING_ID') });
         delete process.env.PAYGATE_ID;
         let { by } = await run();
         expect(by('credentials')).toMatchObject({ status: 'fail', detail: 'PAYGATE_ID or PAYGATE_PASSWORD is not set on the server.' });
         expect(by('session').status).toBe('skipped');
 
         process.env.PAYGATE_ID = paygateCheck.TEST_PAYGATE_ID;
-        process.env.CUSTOMER_APP_URL = 'http://www.bookplus.pro';
+        process.env.BUSINESS_ORIGIN = 'http://business.bookplus.pro';
         ({ by } = await run());
         expect(by('credentials')).toMatchObject({ status: 'warn', detail: expect.stringContaining('public test account') });
-        expect(by('addresses')).toMatchObject({ status: 'fail', detail: expect.stringContaining('set CUSTOMER_APP_URL') });
+        expect(by('addresses')).toMatchObject({ status: 'fail', detail: expect.stringContaining('set BUSINESS_ORIGIN') });
         expect(by('result_page').status).toBe('skipped');
 
-        process.env.CUSTOMER_APP_URL = 'https://app.bookplus.pro';
-        process.env.PAYMENTS_ENABLED = 'false';
+        process.env.BUSINESS_ORIGIN = 'https://business.bookplus.pro';
+        process.env.SUBSCRIPTION_BILLING_ENABLED = 'false';
         paygateCheck.setHttp(async (url) => (url.includes('/notify')
             ? { status: 404, text: '' }
-            : { status: 301, text: '', location: 'https://www.bookplus.pro/booking/payment' }));
+            : { status: 301, text: '', location: 'https://business.bookplus.pro/login' }));
         ({ by } = await run());
         expect(by('switched_on').status).toBe('warn');
-        expect(by('notify')).toMatchObject({ status: 'fail', detail: expect.stringContaining('online payments are off on the API') });
-        expect(by('result_page')).toMatchObject({ status: 'warn', detail: expect.stringContaining('redirects to https://www.bookplus.pro/booking/payment') });
+        expect(by('notify')).toMatchObject({ status: 'fail', detail: expect.stringContaining('plan payments are off on the API') });
+        expect(by('result_page')).toMatchObject({ status: 'warn', detail: expect.stringContaining('redirects to https://business.bookplus.pro/login') });
 
         paygateCheck.setHttp(async () => { throw new Error('getaddrinfo ENOTFOUND api.bookplus.pro'); });
         ({ by } = await run());

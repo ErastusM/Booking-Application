@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * Public pictures go up with parameters the API signed (folder, formats,
  * resize), never with an unsigned preset.
  */
-const svc = vi.hoisted(() => ({ uploadService: {}, walletService: {}, onlinePaymentsService: {}, financeService: {} }));
+const svc = vi.hoisted(() => ({ uploadService: {}, walletService: {} }));
 vi.mock('../services', () => svc);
 
 import { uploadToCloudinary, PHOTO_MAX_BYTES } from './uploadImage';

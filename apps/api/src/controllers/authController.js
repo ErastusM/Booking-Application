@@ -1483,15 +1483,6 @@ exports.deleteAccount = async (req, res) => {
             }
         }
 
-        // A business with online payment money still open (owed either way, or
-        // refunds on their way) is settled before it can go: the payout bank
-        // account and records it would delete are needed for that.
-        if (user.role === 'provider') {
-            const o = await require('../services/paymentService').outstandingFor(user._id);
-            if (o.open) {
-                return res.status(409).json({ success: false, code: 'balance_outstanding', message: `Bookplus still ${o.balanceOwedCents < 0 ? 'has to recover' : 'owes'} N$${(Math.abs(o.balanceOwedCents) / 100).toFixed(2)}${o.refundsPendingCents ? ` and has refunds on their way` : ''} for online payments. That is settled first; contact Bookplus.` });
-            }
-        }
 
         // Cancel the user's upcoming appointments (whether they're the customer or
         // the provider), release any held wallet funds, and notify the other party.
@@ -1513,18 +1504,6 @@ const { ApptPhrase } = require('../utils/apptCopy');
                 appt.statusHistory.push({ status: 'cancelled', changedBy: user._id });
                 await appt.save();
                 try { await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: user._id }); } catch (_) {}
-                // Paid online: a business closing its account refunds in full; a
-                // client closing theirs is a client cancellation (refunded within
-                // the business's cancellation window). Never throws.
-                {
-                    const isBusinessSide = appt.provider?.toString() === user._id.toString();
-                    const { checkCancellationWindow } = require('../utils/cancellationPolicy');
-                    const withinWindow = isBusinessSide
-                        || (await checkCancellationWindow(appt.provider, appt.appointmentDate, appt.startTime)).allowed;
-                    await require('../services/paymentService').onAppointmentCancelled(appt._id, {
-                        actor: isBusinessSide ? 'business' : 'client', withinWindow, by: user._id,
-                    });
-                }
                 const otherId = appt.customer?.toString() === user._id.toString() ? appt.provider : appt.customer;
                 if (otherId) {
                     createNotification(otherId, `${ApptPhrase(appt.service?.name)} was cancelled because the other party closed their account.`, 'appointment', '/appointments');

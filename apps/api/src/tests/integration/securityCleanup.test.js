@@ -15,7 +15,7 @@ jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn()
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const User = require('../../models/User');
-const { makeUser, makeProvider, makeService, authHeader, APPROVED_FOR_PAYMENTS } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
 const { futureDate } = require('../helpers/dates');
 const { refreshCookieOf } = require('../helpers/cookies');
 const { createFakePaygate } = require('../helpers/fakePaygate');
@@ -173,30 +173,6 @@ describe('guests', () => {
         const fourth = await book(service, { startTime: '12:00', endTime: '12:30', guestEmail: 'ANA@example.com' });
         expect(fourth.status).toBe(429);
         expect(fourth.body.code).toBe('guest_booking_limit');
-    });
-});
-
-describe('paying online needs a confirmed email', () => {
-    it('refuses a payment-required booking from an unconfirmed account', async () => {
-        const provider = await makeProvider({
-            businessProfile: { businessName: 'Vibe Cuts', currency: 'NAD' },
-            paymentSettings: { mode: 'full' },
-            paymentsApproval: { ...APPROVED_FOR_PAYMENTS },
-        });
-        const service = await makeService(provider._id, { price: 200, duration: 30 });
-        const customer = await makeUser({ isVerified: false });
-        const res = await request(app).post('/api/appointments').set(authHeader(customer)).send({
-            service: service._id, appointmentDate: futureDate(0), startTime: '10:00', endTime: '10:30',
-        });
-        expect(res.status).toBe(403);
-        expect(res.body.code).toBe('email_unverified');
-
-        const confirmed = await makeUser({ email: 'ok@example.com' });
-        const ok = await request(app).post('/api/appointments').set(authHeader(confirmed)).send({
-            service: service._id, appointmentDate: futureDate(0), startTime: '11:00', endTime: '11:30',
-        });
-        expect(ok.status).toBe(201);
-        expect(ok.body.code).toBe('payment_required');
     });
 });
 

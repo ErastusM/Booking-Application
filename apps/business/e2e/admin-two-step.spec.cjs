@@ -32,16 +32,13 @@ test.describe('Admin two-step sign-in', () => {
         await page.waitForURL(/\/bkplus-command$/, { timeout: 15_000 });
         await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
 
-        // Money → Dashboard points to what is left before launch.
-        await adminSection(page, 'Dashboard');
-        await expect(page.getByTestId('finance-dashboard')).toBeVisible();
-        await expect(page.getByTestId('dash-launch')).toContainText('Online payments are off');
-        await page.getByRole('button', { name: 'See the checklist' }).click();
+        // Settings → Go-live checklist shows what is left before plan billing.
+        await adminSection(page, 'Go-live checklist');
         await expect(page).toHaveURL(/\/bkplus-command\/settings\/go-live$/);
-        await expect(page.getByRole('heading', { name: 'Before payments go live' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Before businesses pay for their plan' })).toBeVisible();
         await expect(page.getByTestId('launch-providerApproved')).toContainText('To do');
-        await adminSection(page, 'Prices and fees');
-        await expect(page.getByRole('heading', { name: 'Simulator' })).toBeVisible();
+        await adminSection(page, 'Plan prices');
+        await expect(page.getByLabel('Price a month after that (N$)')).toBeVisible();
 
         // At phone width the wide tables scroll inside their panels; the page never scrolls sideways.
         await page.setViewportSize({ width: 390, height: 844 });
@@ -49,8 +46,7 @@ test.describe('Admin two-step sign-in', () => {
         // Every section, by its sidebar name and its page title, measured once it has loaded.
         const sections = [
             ['Overview'], ['Bookings'], ['Users'], ['Services'], ['Revenue'], ['Wallets'], ['Insights'],
-            ['Dashboard'], ['Payments'], ['Payouts'], ['Disputes'], ['Approvals'], ['Costs', 'Running costs'],
-            ['Prices and fees'], ['Go-live checklist'], ['Admins and roles'], ['Audit log'],
+            ['Subscriptions'], ['Plan prices'], ['Go-live checklist'], ['Admins and roles'], ['Audit log'],
         ];
         for (const [section, title = section] of sections) {
             await adminSection(page, section);

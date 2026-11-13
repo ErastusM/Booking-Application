@@ -2,8 +2,8 @@
  * /api/admin/finance — Bookplus's money controls (controllers/financeController.js).
  * Admin accounts only, in a session confirmed with two-step sign-in, holding
  * the finance or director role (utils/financeRoles.requireFinance). Not tied
- * to PAYMENTS_ENABLED: the prices, fees and launch checklist are set up
- * before payments are switched on.
+ * to SUBSCRIPTION_BILLING_ENABLED: the plan's prices and the launch
+ * checklist are set up before plan billing is switched on.
  */
 const express = require('express');
 const { auth } = require('../middleware/auth');
@@ -15,10 +15,9 @@ const router = express.Router();
 const finance = [auth, requireFinance('finance')];
 const director = [auth, requireFinance('director')];
 
-// Prices, fees, payouts, VAT, approvals; the simulator; the launch checklist.
+// The plan's prices and VAT; the launch checklist.
 router.get('/settings', finance, c.getSettings);
 router.put('/settings', director, c.updateSettings);
-router.get('/simulate', finance, c.simulate);
 router.post('/launch/:gate', director, c.setLaunchGate);
 // Do the server's PayGate settings work? (no money moves)
 router.post('/paygate-check', finance, c.paygateCheck);
@@ -28,50 +27,6 @@ router.get('/subscriptions', finance, subs.list);
 router.put('/subscriptions/visibility', director, subs.setVisibility);
 router.post('/subscriptions/:id/trial', director, subs.move('trial'));
 router.post('/subscriptions/:id/keep-free', director, subs.move('keep-free'));
-
-// A business's plan and agreed rates.
-router.put('/businesses/:id/pricing', director, c.setBusinessPricing);
-
-// Refunds and adjustments: finance prepares, a different director approves.
-router.post('/payments/:id/refund', finance, c.prepareRefund);
-router.post('/adjustments', finance, c.prepareAdjustment);
-router.get('/requests', finance, c.listRequests);
-router.post('/requests/:id/approve', director, c.approveRequest);
-router.post('/requests/:id/reject', director, c.rejectRequest);
-
-// Businesses applying to take online payments (finance reviews them).
-router.get('/approvals', finance, c.listApprovals);
-router.get('/approvals/:id', finance, c.getApproval);
-router.get('/approvals/:id/documents/:docId', finance, c.getApprovalDocument);
-router.post('/approvals/:id/decision', finance, c.decideApproval);
-router.post('/approvals/:id/switch', finance, c.setApprovalSwitch);
-router.post('/approvals/:id/payout-account-checked', finance, c.confirmPayoutAccount);
-
-// Day-to-day money work (controllers/moneyOpsController.js).
-const ops = require('../controllers/moneyOpsController');
-router.get('/payments', finance, ops.listPayments);
-router.post('/payments/:id/sync', finance, ops.syncPayment);
-router.post('/payments/:id/refunds/:refundId/retry', finance, ops.retryRefund);
-router.get('/payouts/due', finance, ops.payoutsDue);
-router.post('/payouts/run', finance, ops.preparePayouts);
-router.get('/payouts/bank-file.csv', finance, ops.bankFileCsv);
-router.get('/payouts', finance, ops.listPayouts);
-router.post('/payouts/:id/paid', finance, ops.payoutPaid);
-router.post('/payouts/:id/failed', finance, ops.payoutFailed);
-router.get('/disputes', finance, ops.listDisputes);
-router.post('/disputes', finance, ops.openDispute);
-router.get('/disputes/:id', finance, ops.getDispute);
-router.post('/disputes/:id/notes', finance, ops.addDisputeNote);
-router.post('/disputes/:id/evidence/upload', finance, ops.evidenceUploadParams);
-router.post('/disputes/:id/evidence', finance, ops.addEvidence);
-router.get('/disputes/:id/evidence/:evidenceId', finance, ops.getEvidence);
-router.post('/disputes/:id/refund', finance, ops.refundFromDispute);
-router.post('/disputes/:id/close', finance, ops.closeDispute);
-
-// The finance dashboard, and Bookplus's own monthly running costs.
-router.get('/dashboard', finance, ops.dashboard);
-router.get('/costs', finance, ops.getCosts);
-router.put('/costs/:month', director, ops.putCosts);
 
 // Who did what.
 router.get('/audit', finance, c.getAudit);
