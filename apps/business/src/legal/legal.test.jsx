@@ -209,82 +209,26 @@ describe('no wallet in the legal text while it is switched off', () => {
     });
 });
 
-describe('online payments in the legal text', () => {
-    const P = { ...FEATURES, paymentsEnabled: true };
-
-    it('while switched off, nothing about paying online; the coming-soon line names PayGate, not DPO', () => {
-        expect(FEATURES.paymentsEnabled).toBe(false);
+describe('clients never pay by card through Bookplus', () => {
+    it('no booking payments switch, and no clause about paying online, payouts or commission', () => {
+        expect(FEATURES).not.toHaveProperty('paymentsEnabled');
         for (const audience of ['customer', 'business']) {
-            for (const doc of [termsOfService(audience), privacyPolicy(audience), legalNotice(audience)]) {
-                expect(textOf(doc)).not.toMatch(/pay online|online payments? (are|is) |PayGate \(Pty\)|chargeback|payout/i);
-                expect(textOf(doc)).not.toMatch(/DPO/);
+            for (const f of [FEATURES, { ...FEATURES, subscriptionBillingEnabled: true }, { ...FEATURES, paymentsEnabled: true }]) {
+                for (const doc of [termsOfService(audience, f), privacyPolicy(audience, f), legalNotice(audience, f)]) {
+                    expect(textOf(doc)).not.toMatch(/pay online|online payments? (are|is) |paying online|payout|commission on|chargeback cases/i);
+                    expect(textOf(doc)).not.toMatch(/DPO/);
+                }
+                expect(termsOfService(audience, f).sections.map((x) => x.id)).not.toEqual(expect.arrayContaining(['paying-online']));
+                expect(termsOfService(audience, f).sections.map((x) => x.id)).not.toContain('online-payments');
             }
             expect(textOf(privacyPolicy(audience))).toMatch(/Card payments through PayGate are coming soon/);
         }
     });
 
-    it('client terms: how paying online works, and every refund rule the platform applies', () => {
-        const terms = termsOfService('customer', P);
-        expect(terms.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['paying-online', 'refunds']));
-        const t = textOf(terms);
-        expect(t).toMatch(/Bookplus never sees or stores your card number/);
-        expect(t).toMatch(/Namibian Dollars \(N\$\)/);
-        expect(t).toMatch(/Bookplus collects online payments on behalf of the business/);
-        expect(t).toMatch(/If you cancel before the business’s cancellation notice starts, everything you paid online is refunded/);
-        expect(t).toMatch(/The business cancels.*Everything you paid online is refunded/);
-        expect(t).toMatch(/not refunded, because the business kept the time for you, unless the business agrees/);
-        expect(t).toMatch(/Always to the card you paid with/);
-        expect(t).toMatch(/if money is still taken after that, we refund it to your card automatically/);
-        expect(t).toMatch(/Before you dispute a payment with your bank/);
-    });
-
-    it('business terms: approval, payouts, refunds up to the balance, chargebacks once, plans, and settling before deleting', () => {
-        const terms = termsOfService('business', P);
-        expect(terms.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['online-payments', 'fees']));
-        const t = textOf(terms);
-        expect(t).toMatch(/Bookplus decides whether to approve you/);
-        expect(t).toMatch(/A new or changed bank account is checked before we pay into it/);
-        expect(t).toMatch(/A payout your bank returns goes back on your balance/);
-        expect(t).toMatch(/up to your balance; a larger refund, or one above Bookplus’s approval limit, is approved by Bookplus first/);
-        expect(t).toMatch(/the card processing fee is not returned/);
-        expect(t).toMatch(/It is taken once, after a second Bookplus person approves it/);
-        expect(t).toMatch(/\*\*Basic\*\*.*\*\*Standard\*\*/);
-        expect(t).toMatch(/once your online payments balance is settled/);
-    });
-
-    it('privacy: PayGate as a processor, the application documents and bank account, how long they are kept', () => {
-        const c = textOf(privacyPolicy('customer', P));
-        expect(c).toMatch(/PayGate \(Pty\) Ltd/);
-        expect(c).toMatch(/Your card number and security code are entered on PayGate’s page and never reach us/);
-        expect(c).toMatch(/Online payment records, refunds, payouts and chargeback cases/);
-        expect(c).toMatch(/Kept as financial records for as long as the law requires/);
-        expect(c).not.toMatch(/5 years|five years/i);
-        expect(c).not.toMatch(/owner’s ID number/);
-        const b = textOf(privacyPolicy('business', P));
-        expect(b).toMatch(/owner’s full name and ID or passport number/);
-        expect(b).toMatch(/Payout bank account/);
-        expect(b).toMatch(/Deleted when the application is rejected or you delete your account/);
-        expect(b).toMatch(/expire after 5 minutes, with every viewing logged/);
-        expect(b).toMatch(/We ask for an ID number and a bank account only if you apply to take online payments/);
-    });
-
-    it('the legal notice gives what the card processor checks, and its links point at real sections', () => {
-        for (const audience of ['customer', 'business']) {
-            const notice = legalNotice(audience, P);
-            const t = textOf(notice);
-            expect(t).toMatch(/Namibian Dollars \(N\$\)/);
-            expect(t).toMatch(/based in \*\*Namibia\*\*/);
-            expect(t).toMatch(/Bookplus never sees or stores them/);
-            const anchor = t.match(/\(\/terms#([a-z-]+)\)/)[1];
-            expect(termsOfService(audience, P).sections.map((x) => x.id)).toContain(anchor);
-        }
-    });
-
-    it('switching payments on adds no liability cap, exclusion or governing-law clause', () => {
-        for (const audience of ['customer', 'business']) {
-            const t = textOf(termsOfService(audience, P));
-            expect(t).not.toMatch(/not liable|as is|indirect or consequential|not responsible for|governed by|jurisdiction|compensate bookplus|indemnif/i);
-        }
+    it('clients pay the business directly; Bookplus takes no commission', () => {
+        expect(textOf(termsOfService('customer'))).toMatch(/You pay the business directly at your appointment/);
+        expect(textOf(legalNotice('customer'))).toMatch(/You pay the business at your appointment\./);
+        expect(textOf(termsOfService('business', { ...FEATURES, subscriptionBillingEnabled: true }))).toMatch(/There is no booking fee and no commission/);
     });
 });
 
@@ -296,7 +240,7 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         expect(FEATURES.subscriptionBillingEnabled).toBe(false);
         const t = textOf(termsOfService('business'));
         expect(termsOfService('business').sections.map((x) => x.id)).not.toContain('plan');
-        expect(t).toMatch(/We will tell you about any subscription, commission or other fee, and its amount, before it applies to you/);
+        expect(t).toMatch(/We will tell you about any subscription or other fee, and its amount, before it applies to you/);
         for (const doc of docs('business')) expect(textOf(doc)).not.toMatch(/saved card|authorise Bookplus to charge|Your Bookplus plan/i);
     });
 
@@ -304,35 +248,61 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         for (const [on, off] of docs('customer', S).map((d, i) => [d, docs('customer')[i]])) expect(textOf(on)).toBe(textOf(off));
     });
 
-    it('business terms: trial, prices fixed at the trial, first payment with 3D Secure, the monthly charge authority, failures, notice, cancelling, refunds', () => {
+    it('business terms follow the Business Subscription Terms (November 2026), clause by clause', () => {
         const terms = termsOfService('business', S);
         const ids = terms.sections.map((x) => x.id);
         expect(ids).toContain('plan');
         expect(ids.indexOf('plan')).toBeLessThan(ids.indexOf('fees'));
         const t = textOf(terms);
-        expect(t).toMatch(/kept free until we tell you otherwise\. We tell you in advance/);
-        expect(t).toMatch(/Nothing is charged during the trial, and you do not need a card to start it/);
-        expect(t).toMatch(/The prices that apply to you are fixed when your trial starts/);
-        expect(t).toMatch(/3D Secure check; Bookplus never sees or stores your card number/);
-        expect(t).toMatch(/your first paid month starts when the trial ends, so your trial is not shortened/);
+        // 1. The fee.
+        expect(t).toMatch(/standard fee of \*\*N\$149\.99 a month\*\* for each registered business account/);
+        // 2. 60 days free.
+        expect(t).toMatch(/first \*\*60 days free\*\* from when it registers/);
+        expect(t).toMatch(/Nothing is charged in that time, and you do not need a card to start it/);
+        expect(t).toMatch(/We remind you 7 days and 1 day before it ends\. If no month is paid when it ends, clients cannot make new online bookings with you until you pay your first month/);
+        // 3, 4. The introductory month and its discount, then the standard fee automatically.
+        expect(t).toMatch(/Your first paid month, the month after the free period, is \*\*N\$79\.99\*\*: 46\.67% off the standard monthly fee/);
+        expect(t).toMatch(/moves automatically to the standard fee of \*\*N\$149\.99 a month\*\* for every month that follows, unless you cancel or the fee is revised/);
+        // 5. Monthly in advance, renews automatically, a valid card, the authority.
+        expect(t).toMatch(/billed monthly in advance and renews automatically each month until you cancel/);
         expect(t).toMatch(/you authorise Bookplus to charge it every month\*\*, when your paid month renews/);
-        expect(t).toMatch(/until you cancel/);
+        expect(t).toMatch(/You must keep a valid card that PayGate supports/);
         expect(t).toMatch(/only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date/);
-        expect(t).toMatch(/try again over the next 7 days/);
-        expect(t).toMatch(/at least 14 days in advance.*including when your introductory price ends/);
-        expect(t).toMatch(/cancel your plan at any time in Account, Your plan.*until the end of the month you have already paid for/);
+        expect(t).toMatch(/3D Secure check; Bookplus never sees or stores your card number/);
+        expect(t).toMatch(/your first paid month starts when it ends, so your free period is not shortened/);
+        // 6. Reminders before each payment and before the introductory price ends.
+        expect(t).toMatch(/a few days before each monthly payment is taken, with the amount and the date/);
+        expect(t).toMatch(/We also tell you in advance when your introductory price ends/);
+        // 7. Five days' grace; the pause, as decided: no new online bookings, still listed, nothing deleted.
+        expect(t).toMatch(/give you \*\*5 days\*\* to pay what is due/);
+        expect(t).toMatch(/your plan is paused: clients cannot make new online bookings with you until it is paid/);
+        expect(t).toMatch(/Your business stays listed, and your dashboard, calendar, clients, booking history and other information are kept; nothing is deleted because of non-payment/);
+        expect(t).not.toMatch(/7 days to pay|over the next 7 days/);
+        // 8. Cancelling before the next payment; access to the end of the paid month.
+        expect(t).toMatch(/cancel your plan at any time before your next payment in Account, Your plan.*until the end of the month you have already paid for/);
+        // 9. No refunds once the month has started, unless the law requires.
+        expect(t).toMatch(/not refunded once the month it pays for has started, except where the law requires it/);
         expect(t).toMatch(/refund the difference to the card that was charged/);
+        // 10. 30 days' notice of a revised fee.
+        expect(t).toMatch(/at least \*\*30 days\*\* in advance, by email and in the app, before a revised fee applies to you/);
+        // 11, 12. Suspension; a pause does not cancel the plan or what is owed.
+        expect(t).toMatch(/suspend or restrict an account with payments overdue, or for fraud or a breach of these Terms/);
+        expect(t).toMatch(/does not cancel your subscription, and what is unpaid is still owed/);
+        expect(t).toMatch(/the oldest unpaid month is paid first/);
+        // 13. Shown before registering.
+        expect(t).toMatch(/Before you register we show you the free period, the introductory price and its discount, the standard monthly fee and your billing dates/);
+        expect(t).toMatch(/kept free until we tell you otherwise\. We tell you in advance/);
         expect(t).toMatch(/Closing your account cancels your plan/);
         expect(t).toMatch(/There is no booking fee/);
         expect(t).not.toMatch(/Using Bookplus without online payments has no fee/);
         expect(t).not.toMatch(/not liable|as is|indirect or consequential|governed by|jurisdiction|indemnif/i);
     });
 
-    it('the 14 days of notice in the terms is the plan setting\'s default', async () => {
+    it('the plan clauses use the starting prices of the API (PlatformSettings.DEFAULTS)', async () => {
         const fs = await import('node:fs');
         const path = await import('node:path');
         const src = fs.readFileSync(path.resolve(__dirname, '../../../api/src/models/PlatformSettings.js'), 'utf8');
-        expect(src).toMatch(/priceChangeNoticeDays: 14/);
+        expect(src).toMatch(/label: 'Basic', trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999,\s*priceChangeNoticeDays: 30,/);
     });
 
     it('privacy (business): the plan and its card token, why, PayGate, how long', () => {
@@ -357,14 +327,6 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         expect(t).toMatch(/based in \*\*Namibia\*\*/);
         expect(t).toMatch(/\(\/terms#plan\)/);
         expect(termsOfService('business', S).sections.map((x) => x.id)).toContain('plan');
-    });
-
-    it('with booking payments on as well, both sets of clauses appear and the fees section covers both', () => {
-        const both = { ...S, paymentsEnabled: true };
-        const terms = termsOfService('business', both);
-        expect(terms.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['online-payments', 'plan', 'fees']));
-        expect(textOf(terms)).toMatch(/If you also take online payments for bookings/);
-        expect(textOf(privacyPolicy('business', both))).toMatch(/Processes online card payments on its own secure page, and for your Bookplus plan saves your card/);
     });
 });
 

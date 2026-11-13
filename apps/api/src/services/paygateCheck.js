@@ -1,10 +1,13 @@
 /**
  * "Check the PayGate connection" (admin, Money → Settings): proves the server's
- * PayGate settings work before anyone pays, without taking any money.
+ * PayGate settings for business plan payments work before any business pays,
+ * without taking any money. (Bookplus takes card payments only for business
+ * subscriptions.)
  *
- *   1. settings     online payments switched on, the PayGate ID and password
- *                   set, https addresses (and whether it is PayGate's public
- *                   test account)
+ *   1. settings     plan billing switched on, terminal 1's PayGate ID and
+ *                   password set (and whether it is PayGate's public test
+ *                   account), terminal 2 (NON3DS, monthly payments) set, https
+ *                   addresses
  *   2. session      PayGate accepts the ID and password and opens a N$5.00
  *                   hosted-page session. Nobody is sent to it, so it is never
  *                   paid; it shows in PayGate's MAP as "not done".
@@ -15,15 +18,15 @@
  *   4. read back    Bookplus can query that session's status from PayGate
  *   5. notify       the public address PayGate posts results to reaches the
  *                   Bookplus API (it answers a blank post with "INVALID")
- *   6. result page  the address clients come back to opens directly, not
- *                   through a redirect
+ *   6. result page  the page owners come back to (Account, Your plan) opens
+ *                   directly, not through a redirect
  *
  * Nothing secret is returned: the PayGate ID is shown as its last 4 digits.
  */
 const crypto = require('crypto');
 const paygate = require('./paygate');
-const payments = require('./paymentService');
-const { paymentsEnabled } = require('../constants/features');
+const billing = require('./subscriptionBilling');
+const { subscriptionBillingEnabled } = require('../constants/features');
 
 const TEST_PAYGATE_ID = '10011072130'; // PayGate's public test account
 const CHECK_AMOUNT_CENTS = 500;
@@ -46,12 +49,12 @@ const isHttps = (u) => /^https:\/\//i.test(u || '');
 const runCheck = async ({ adminEmail = '' } = {}) => {
     const out = [];
     const c = paygate.config();
-    const notifyUrl = payments.notifyUrl();
-    const resultUrl = payments.resultPageUrl('').replace(/\?ref=$/, '');
+    const notifyUrl = billing.notifyUrl();
+    const resultUrl = billing.resultPageUrl('');
 
-    out.push(paymentsEnabled()
-        ? item('switched_on', 'Online payments switched on for the API', 'ok', 'PAYMENTS_ENABLED is on.')
-        : item('switched_on', 'Online payments switched on for the API', 'warn', 'PAYMENTS_ENABLED is off: PayGate’s messages about payments would be refused. Set PAYMENTS_ENABLED=true and reload the API.'));
+    out.push(subscriptionBillingEnabled()
+        ? item('switched_on', 'Plan payments switched on for the API', 'ok', 'SUBSCRIPTION_BILLING_ENABLED is on.')
+        : item('switched_on', 'Plan payments switched on for the API', 'warn', 'SUBSCRIPTION_BILLING_ENABLED is off: PayGate’s messages about plan payments would be refused. Set SUBSCRIPTION_BILLING_ENABLED=true and reload the API when plans are to be paid.'));
 
     const configured = !!(c.paygateId && c.password);
     if (!configured) {
@@ -61,13 +64,18 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
     } else {
         out.push(item('credentials', 'PayGate ID and password', 'ok', `PayGate ID ${lastFour(c.paygateId)}${process.env.PAYGATE_ENCRYPTION_KEY ? ', with a separate encryption key' : ''}.`));
     }
+    // Terminal 2 (NON3DS) charges the saved cards each month; nothing is sent to it here.
+    const rc = paygate.config('recurring');
+    out.push(rc.paygateId && rc.password
+        ? item('recurring_credentials', 'Monthly payments terminal (NON3DS)', 'ok', `PayGate ID ${lastFour(rc.paygateId)}.`)
+        : item('recurring_credentials', 'Monthly payments terminal (NON3DS)', 'fail', 'PAYGATE_RECURRING_ID or PAYGATE_RECURRING_PASSWORD is not set on the server: saved cards could not be charged each month.'));
 
     const addressProblems = [];
     if (!isHttps(notifyUrl)) addressProblems.push(`PayGate would post results to ${notifyUrl || '(nothing)'}: set PAYGATE_CALLBACK_BASE_URL to the API’s https address`);
-    if (!isHttps(resultUrl)) addressProblems.push(`clients would come back to ${resultUrl || '(nothing)'}: set CUSTOMER_APP_URL to the customer site’s https address`);
+    if (!isHttps(resultUrl)) addressProblems.push(`owners would come back to ${resultUrl || '(nothing)'}: set BUSINESS_ORIGIN to the business app’s https address`);
     out.push(addressProblems.length
         ? item('addresses', 'Addresses PayGate uses', 'fail', `${addressProblems.join('; ')}.`)
-        : item('addresses', 'Addresses PayGate uses', 'ok', `Results go to ${notifyUrl}; clients come back to ${resultUrl}.`));
+        : item('addresses', 'Addresses PayGate uses', 'ok', `Results go to ${notifyUrl}; owners come back to ${resultUrl}.`));
 
     // 2-4: a real session at PayGate, never paid.
     let session = null;
@@ -77,9 +85,9 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
         const reference = `BPCHECK${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
         try {
             const r = await paygate.initiate({
-                reference, amountCents: CHECK_AMOUNT_CENTS, currency: payments.ONLINE_CURRENCY,
+                reference, amountCents: CHECK_AMOUNT_CENTS, currency: 'NAD',
                 customer: { firstName: 'Bookplus', lastName: 'Connection check', email: adminEmail || 'check@bookplus.pro' },
-                notifyUrl, returnUrl: payments.returnUrl(),
+                notifyUrl, returnUrl: billing.returnUrl(),
             });
             if (r.ok) {
                 session = { reference, ...r };
@@ -123,7 +131,7 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
             if (r.status === 400 && /INVALID/.test(r.text)) {
                 out.push(item('notify', 'PayGate can reach Bookplus', 'ok', `${notifyUrl} answers.`));
             } else if (r.status === 404) {
-                out.push(item('notify', 'PayGate can reach Bookplus', 'fail', `${notifyUrl} answered “not found”: online payments are off on the API, or the address points somewhere else.`));
+                out.push(item('notify', 'PayGate can reach Bookplus', 'fail', `${notifyUrl} answered “not found”: plan payments are off on the API, or the address points somewhere else.`));
             } else {
                 out.push(item('notify', 'PayGate can reach Bookplus', 'fail', `${notifyUrl} answered ${r.status}${r.location ? ` (redirects to ${r.location})` : ''}, not the Bookplus API.`));
             }
@@ -138,7 +146,7 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
         try {
             const r = await http(resultUrl);
             if (r.status === 200) out.push(item('result_page', 'The payment result page opens', 'ok', `${resultUrl} opens.`));
-            else if (r.status >= 300 && r.status < 400) out.push(item('result_page', 'The payment result page opens', 'warn', `${resultUrl} redirects to ${r.location || 'another address'}. Set CUSTOMER_APP_URL to the address it ends on, so clients come straight back.`));
+            else if (r.status >= 300 && r.status < 400) out.push(item('result_page', 'The payment result page opens', 'warn', `${resultUrl} redirects to ${r.location || 'another address'}. Set BUSINESS_ORIGIN to the address it ends on, so owners come straight back.`));
             else out.push(item('result_page', 'The payment result page opens', 'fail', `${resultUrl} answered ${r.status}.`));
         } catch (err) {
             out.push(item('result_page', 'The payment result page opens', 'fail', `Could not open ${resultUrl}: ${err.message || 'network error'}.`));

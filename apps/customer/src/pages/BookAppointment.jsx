@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ConsentCheckbox, { MARKETING_OPT_IN_TEXT } from '../components/ConsentCheckbox';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService, authService, paymentsService } from '../services';
-import { goToPayGate, PAYMENTS_VISIBLE, nad } from '../utils/payOnline';
+import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService, authService } from '../services';
 import { isFullName, splitName, joinName } from '../utils/personName';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
@@ -171,27 +170,7 @@ const BookAppointment = () => {
     // (no ?providerId) flow — otherwise the time list silently shows a generic
     // 08:00–20:00 window instead of the provider's real working hours.
     const urlProviderId = searchParams.get('providerId');
-    // What this business asks online for a booking of this price (deposit,
-    // full price or nothing), shown on the review step before confirming.
-    const [payPolicy, setPayPolicy] = useState(null);
-    // idle | loading | ready | failed: Confirm waits for it, so the text above
-    // the button always matches what Confirm will do.
-    const [payPolicyStatus, setPayPolicyStatus] = useState('idle');
     const effectiveProviderId = urlProviderId || selectedService?.provider?._id || selectedService?.provider || null;
-    useEffect(() => {
-        if (step !== 'review' || !PAYMENTS_VISIBLE || rescheduleId || !effectiveProviderId || !(totalPrice > 0)) {
-            setPayPolicy(null); setPayPolicyStatus('idle'); return undefined;
-        }
-        let live = true;
-        setPayPolicyStatus('loading');
-        paymentsService.policy(effectiveProviderId, Math.round(totalPrice * 100))
-            .then((r) => { if (live) { setPayPolicy(r.data.data); setPayPolicyStatus('ready'); } })
-            .catch(() => { if (live) { setPayPolicy(null); setPayPolicyStatus('failed'); } });
-        return () => { live = false; };
-    }, [step, rescheduleId, effectiveProviderId, totalPrice]);
-    const policyLoading = payPolicyStatus === 'loading';
-    const payNowCents = payPolicy?.onlinePayment ? payPolicy.amountDueOnlineCents || 0 : 0;
-    const payLaterCents = payNowCents ? Math.max(0, Math.round(totalPrice * 100) - payNowCents) : 0;
 
     // Prices show in the booked business's currency (defaults to NAD).
     const curSym = currencySymbol(providerInfo?.currency);
@@ -597,13 +576,6 @@ const BookAppointment = () => {
                         recurrenceEndDate: recurrence.recurrenceEndDate || undefined,
                     } : {}),
                 });
-                // The business takes payment online: the time is held and the
-                // client pays on PayGate's page, then lands on /booking/payment.
-                if (res?.data?.code === 'payment_required' && res.data.payment) {
-                    track('booking_payment_start', { guest: !user, providerId: providerInfo?._id, kind: res.data.payment.kind });
-                    goToPayGate(res.data.payment);
-                    return;
-                }
                 const created = res?.data?.data;
                 const newAppt = Array.isArray(created) ? created[0] : created;
                 const providerName = providerInfo?.name || '';
@@ -956,19 +928,7 @@ const BookAppointment = () => {
                             <div style={cardStyle} data-testid="review-payment">
                                 <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Payment</div>
                                 <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.55 }}>
-                                    {policyLoading ? (
-                                        <span data-testid="review-pay-checking">Checking how {providerInfo?.name || 'this business'} takes payment…</span>
-                                    ) : payPolicyStatus === 'failed' ? (
-                                        <span data-testid="review-pay-unknown">We could not check how {providerInfo?.name || 'this business'} takes payment. If it asks for a deposit or the full price online, you will be taken to pay by card after you confirm; otherwise you pay at your appointment.</span>
-                                    ) : payNowCents > 0 ? (
-                                        <span data-testid="review-pay-online">
-                                            <strong style={{ color: 'var(--charcoal)' }}>Pay {nad(payNowCents)} now by card</strong>
-                                            {payPolicy.paymentKind === 'deposit' ? ' as a deposit' : ', the full price'}.
-                                            {payLaterCents > 0 && <> The rest, {nad(payLaterCents)}, is paid at your appointment.</>}
-                                            {' '}Your time is held for {payPolicy.holdMinutes} minutes while you pay on the card processor's secure page; card details are never entered on Bookplus.
-                                            {' '}{providerInfo?.name || 'The business'} receives the payment through Bookplus. There is no booking fee for you.
-                                        </span>
-                                    ) : walletOn && paymentMethod === 'wallet'
+                                    {walletOn && paymentMethod === 'wallet'
                                         ? <>{curSym} {totalPrice} will be held from your wallet with {providerInfo?.name || 'this business'} now and taken when your appointment is completed. If the booking is cancelled or missed, it is released back to your balance. Bookplus does not charge a booking fee or deposit.</>
                                         : <><strong style={{ color: 'var(--charcoal)' }}>Pay at your appointment.</strong> You pay {providerInfo?.name || 'the business'} {curSym} {totalPrice} in cash at your appointment. Nothing is charged now. Bookplus does not charge a booking fee or deposit.</>}
                                 </div>
@@ -981,21 +941,6 @@ const BookAppointment = () => {
                                     {(providerInfo?.cancellationWindowHours ?? 0) === 0
                                         ? 'Cancel or reschedule for free anytime.'
                                         : `Cancel or reschedule for free up to ${providerInfo?.cancellationWindowHours ?? 0} hours before your appointment. After that, contact ${providerInfo?.name || 'the business'}.`}
-                                    {payNowCents > 0 && (
-                                        <span data-testid="review-refund-rules" style={{ display: 'block', marginTop: '0.4rem' }}>
-                                            {(providerInfo?.cancellationWindowHours ?? 0) === 0
-                                                ? 'If you cancel, what you paid online is refunded in full.'
-                                                : 'If you cancel in time, what you paid online is refunded in full. A late cancellation or a missed appointment is not refunded, unless the business agrees.'}
-                                            {' '}If the business cancels, you get it all back.
-                                            {/* The full rules, reachable from the pay step (card processor requirement);
-                                                a new tab keeps this booking in progress. */}
-                                            <span style={{ display: 'block', marginTop: '0.4rem' }}>
-                                                <a href="/terms#paying-online" target="_blank" rel="noreferrer" data-testid="review-terms-link" style={{ color: 'var(--gold-dark)' }}>How paying online works</a>
-                                                {' · '}
-                                                <a href="/terms#refunds" target="_blank" rel="noreferrer" data-testid="review-refunds-link" style={{ color: 'var(--gold-dark)' }}>Refund rules</a>
-                                            </span>
-                                        </span>
-                                    )}
                                 </div>
                             </div>
 
@@ -1097,11 +1042,11 @@ const BookAppointment = () => {
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
-                                    disabled={loading || policyLoading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort}
+                                    disabled={loading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort}
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
-                                    {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : payNowCents > 0 ? `Confirm and pay ${nad(payNowCents)}` : 'Confirm'}
+                                    {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                                 </button>
                             </div>
                         </div>
@@ -1116,9 +1061,9 @@ const BookAppointment = () => {
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Total · {curCode}</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || policyLoading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
-                        {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : payNowCents > 0 ? `Confirm and pay ${nad(payNowCents)}` : 'Confirm'}
+                        {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
                 </div>
             </div>

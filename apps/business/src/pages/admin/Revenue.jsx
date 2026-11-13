@@ -122,7 +122,7 @@ const Revenue = () => {
         <>
             <PageHead title="Revenue" />
             <div className="adm-stack">
-                <p className="adm-muted">What businesses earned from completed bookings. Bookplus’s own commission and fees are under Money.</p>
+                <p className="adm-muted">What businesses earned from completed bookings. Bookplus takes no commission; its plan subscriptions are under Money.</p>
                 {error ? (
                     <div role="alert" className="adm-error">{error} <button type="button" className="adm-link" onClick={load}>Try again</button></div>
                 ) : !data ? <Panel><Empty>Loading…</Empty></Panel> : (

@@ -62,60 +62,19 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     },
 
     // Bookplus's money controls (admin, two-step sign-in, finance/director roles).
-    // Settings changes are nested objects: { processingFee: { bps: 350 } }.
+    // Bookplus takes card payments only for business subscriptions. Settings
+    // changes are nested objects: { plans: { basic: { priceCents: 14999 } } }.
     financeService: {
         getSettings: () => API.get('/admin/finance/settings'),
         updateSettings: (changes: any, reason: string) => API.put('/admin/finance/settings', { changes, reason }),
-        simulate: (valuesCents: number[]) => API.get('/admin/finance/simulate', { params: { values: valuesCents.join(',') } }),
         setLaunchGate: (gate: string, done: boolean, note: string) => API.post(`/admin/finance/launch/${encodeURIComponent(gate)}`, { done, note }),
         // Do the server's PayGate settings work? Opens a test session that is never paid.
         paygateCheck: () => API.post('/admin/finance/paygate-check'),
-        setBusinessPricing: (providerId: string, data: any) => API.put(`/admin/finance/businesses/${providerId}/pricing`, data),
-        prepareRefund: (paymentId: string, data: { amountCents?: number; reason: string }) => API.post(`/admin/finance/payments/${paymentId}/refund`, data),
-        prepareAdjustment: (data: { providerId: string; amountCents: number; reason: string }) => API.post('/admin/finance/adjustments', data),
-        listRequests: (status?: string) => API.get('/admin/finance/requests', { params: status ? { status } : {} }),
-        approveRequest: (id: string, note?: string) => API.post(`/admin/finance/requests/${id}/approve`, { note }),
-        rejectRequest: (id: string, note: string) => API.post(`/admin/finance/requests/${id}/reject`, { note }),
         getAudit: (params: any = {}) => API.get('/admin/finance/audit', { params }),
         listAdmins: () => API.get('/admin/finance/admins'),
         setAdminRoles: (id: string, roles: string[]) => API.put(`/admin/finance/admins/${id}/roles`, { roles }),
         resetAdminMfa: (id: string, reason: string) => API.post(`/admin/finance/admins/${id}/reset-mfa`, { reason }),
-        // Businesses applying to take online payments.
-        listApprovals: (status?: string) => API.get('/admin/finance/approvals', { params: status ? { status } : {} }),
-        getApproval: (providerId: string) => API.get(`/admin/finance/approvals/${providerId}`),
-        getApprovalDocument: (providerId: string, docId: string) => API.get(`/admin/finance/approvals/${providerId}/documents/${docId}`),
-        decideApproval: (providerId: string, decision: 'approve' | 'reject' | 'request_info', note?: string) =>
-            API.post(`/admin/finance/approvals/${providerId}/decision`, { decision, note }),
-        setApprovalSwitch: (providerId: string, off: boolean, reason: string) => API.post(`/admin/finance/approvals/${providerId}/switch`, { off, reason }),
-        confirmPayoutAccount: (providerId: string, note: string, accountUpdatedAt: string) =>
-            API.post(`/admin/finance/approvals/${providerId}/payout-account-checked`, { note, accountUpdatedAt }),
-        // Day-to-day: payments that need a look, payout runs, disputes.
-        payments: (params: any = {}) => API.get('/admin/finance/payments', { params }),
-        syncPayment: (paymentId: string) => API.post(`/admin/finance/payments/${paymentId}/sync`),
-        retryRefund: (paymentId: string, refundId: string) => API.post(`/admin/finance/payments/${paymentId}/refunds/${refundId}/retry`),
-        payoutsDue: () => API.get('/admin/finance/payouts/due'),
-        preparePayouts: (providerIds: string[]) => API.post('/admin/finance/payouts/run', { providerIds }),
-        payouts: (params: any = {}) => API.get('/admin/finance/payouts', { params }),
-        payoutBankFile: () => API.get('/admin/finance/payouts/bank-file.csv', { responseType: 'blob' }),
-        payoutPaid: (payoutId: string, bankReference: string) => API.post(`/admin/finance/payouts/${payoutId}/paid`, { bankReference }),
-        payoutFailed: (payoutId: string, reason: string) => API.post(`/admin/finance/payouts/${payoutId}/failed`, { reason }),
-        disputes: (status: 'open' | 'closed' = 'open') => API.get('/admin/finance/disputes', { params: { status } }),
-        openDispute: (data: { paymentId: string; kind: string; summary: string; amountCents?: number; deadlineAt?: string; caseReference?: string }) =>
-            API.post('/admin/finance/disputes', data),
-        getDispute: (id: string) => API.get(`/admin/finance/disputes/${id}`),
-        addDisputeNote: (id: string, text: string) => API.post(`/admin/finance/disputes/${id}/notes`, { text }),
-        disputeUploadParams: (id: string) => API.post(`/admin/finance/disputes/${id}/evidence/upload`),
-        addDisputeEvidence: (id: string, data: { name: string; ref: any }) => API.post(`/admin/finance/disputes/${id}/evidence`, data),
-        getDisputeEvidence: (id: string, evidenceId: string) => API.get(`/admin/finance/disputes/${id}/evidence/${evidenceId}`),
-        refundFromDispute: (id: string, data: { amountCents?: number; reason: string }) => API.post(`/admin/finance/disputes/${id}/refund`, data),
-        closeDispute: (id: string, data: { outcome: 'won' | 'lost' | 'closed'; note: string; recover?: { amountCents?: number } | null }) =>
-            API.post(`/admin/finance/disputes/${id}/close`, data),
-        // The finance dashboard, and Bookplus's own monthly running costs (YYYY-MM).
-        dashboard: (params: { from?: string; to?: string } = {}) => API.get('/admin/finance/dashboard', { params }),
-        getCosts: (month: string) => API.get('/admin/finance/costs', { params: { month } }),
-        putCosts: (month: string, items: { category: string; label?: string; amountCents: number }[], reason: string) =>
-            API.put(`/admin/finance/costs/${month}`, { items, reason }),
-        // Business subscriptions: who is kept free or on a trial (no billing yet).
+        // Business subscriptions: who is kept free, on a trial or paying.
         subscriptions: () => API.get('/admin/finance/subscriptions'),
         subscriptionTrial: (providerId: string, reason: string) => API.post(`/admin/finance/subscriptions/${providerId}/trial`, { reason }),
         subscriptionKeepFree: (providerId: string, reason: string) => API.post(`/admin/finance/subscriptions/${providerId}/keep-free`, { reason }),
@@ -124,6 +83,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     // A business owner's own Bookplus plan ({ visible: false } until shown to businesses).
     subscriptionService: {
+        // What a new business would pay (public; { visible: false } until shown).
+        plan: () => API.get('/subscriptions/plan'),
         mine: () => API.get('/subscriptions/me'),
         // Add card and start plan: where to send the browser (PayGate's own
         // page, by a form POST of `fields`), then the result by reference.
@@ -137,42 +98,6 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // month (ends at once while a month is unpaid). Keep: undo it before then.
         cancel: () => API.post('/subscriptions/me/cancel'),
         keep: () => API.post('/subscriptions/me/keep'),
-    },
-
-    // Paying online for a booking (customer side; all 404 while online payments
-    // are off). policy: what a booking of this price asks for now; status and
-    // retry use the unguessable payment reference, no sign-in needed.
-    paymentsService: {
-        policy: (providerId: string, priceCents: number) => API.get(`/payments/policy/${providerId}`, { params: { priceCents } }),
-        status: (reference: string) => API.get(`/payments/${encodeURIComponent(reference)}/status`),
-        retry: (reference: string) => API.post(`/payments/${encodeURIComponent(reference)}/retry`),
-    },
-
-    // A business applying to take online payments, its switch, and its payout
-    // bank account (all 404 while online payments are off).
-    onlinePaymentsService: {
-        getApplication: () => API.get('/payments/onboarding'),
-        updateApplication: (data: { plan?: string; legal?: any }) => API.put('/payments/onboarding', data),
-        uploadParams: () => API.post('/payments/onboarding/upload'),
-        addDocument: (data: { kind: string; name?: string; ref: any }) => API.post('/payments/onboarding/documents', data),
-        removeDocument: (docId: string) => API.delete(`/payments/onboarding/documents/${docId}`),
-        submit: () => API.post('/payments/onboarding/submit', { acceptTerms: true }),
-        setSwitch: (on: boolean) => API.put('/payments/onboarding/switch', { on }),
-        // What clients pay online: at the appointment, a deposit, or the full price.
-        getSettings: () => API.get('/payments/settings'),
-        updateSettings: (data: { mode: string; depositType?: string; depositValue?: number | null }) => API.put('/payments/settings', data),
-        getPayoutAccount: () => API.get('/payments/payout-account'),
-        getPayoutAccountForEdit: () => API.get('/payments/payout-account/edit'),
-        updatePayoutAccount: (data: any) => API.put('/payments/payout-account', data),
-        // The business's money: what Bookplus owes it, its statement, its paid
-        // bookings, and refunds (above its balance or the approval limit, a
-        // refund becomes a request for Bookplus: 202 approval_required).
-        balance: () => API.get('/payments/me/balance'),
-        ledger: (page = 1, limit = 20) => API.get('/payments/me/ledger', { params: { page, limit } }),
-        statementCsv: () => API.get('/payments/me/statement.csv', { responseType: 'blob' }),
-        payments: (params: any = {}) => API.get('/payments/me/payments', { params }),
-        refund: (paymentId: string, data: { amountCents?: number; reason: string }) => API.post(`/payments/${paymentId}/refund`, data),
-        retryRefund: (paymentId: string, refundId: string) => API.post(`/payments/${paymentId}/refunds/${refundId}/retry`),
     },
 
     // One-click unsubscribe from marketing email. Public: the signed token from

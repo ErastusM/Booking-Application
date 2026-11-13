@@ -2,7 +2,7 @@
 // images only, into this account's own folder, shrunk on arrival. (There used to
 // be an unsigned preset here, which let anyone upload anything to the account.)
 // Proofs of payment use the private uploadProof below — never this.
-import { uploadService, walletService, onlinePaymentsService, financeService } from '../services';
+import { uploadService, walletService } from '../services';
 
 export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -55,26 +55,3 @@ const uploadPrivate = async (file, getParams) => {
 };
 
 export const uploadProof = (file) => uploadPrivate(file, () => walletService.proofUploadParams());
-
-// The documents a business sends with its online payments application (ID,
-// company registration, bank letter): the same private, signed upload, into
-// its own verification folder. PDF, JPG or PNG, at most 10 MB.
-export const VERIFICATION_MAX_BYTES = 10 * 1024 * 1024;
-export const VERIFICATION_ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
-export const uploadVerificationDocument = (file) => {
-    if (file.size > VERIFICATION_MAX_BYTES) return Promise.reject(new Error('That file is over 10 MB. Scan it at a lower resolution, or send a PDF.'));
-    if (!/\.(pdf|jpe?g|png)$/i.test(file.name || '') && !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
-        return Promise.reject(new Error('Send a PDF, JPG or PNG.'));
-    }
-    return uploadPrivate(file, () => onlinePaymentsService.uploadParams());
-};
-
-// Evidence for a card dispute or complaint (admin, Money → Disputes): the same
-// private upload, into the case's own folder. PDF, JPG or PNG, at most 10 MB.
-export const uploadDisputeEvidence = (file, disputeId) => {
-    if (file.size > VERIFICATION_MAX_BYTES) return Promise.reject(new Error('That file is over 10 MB.'));
-    if (!/\.(pdf|jpe?g|png)$/i.test(file.name || '') && !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
-        return Promise.reject(new Error('Send a PDF, JPG or PNG.'));
-    }
-    return uploadPrivate(file, () => financeService.disputeUploadParams(disputeId));
-};

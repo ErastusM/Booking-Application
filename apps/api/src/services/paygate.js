@@ -1,10 +1,11 @@
 /**
  * PayGate PayHost (SOAP 1.1) — the only module that knows PayHost's wire format.
  *
- * Bookplus uses the hosted payment page: we ask PayHost for a payment session
+ * Bookplus takes card payments only for business subscriptions. It uses the
+ * hosted payment page: we ask PayHost for a payment session
  * (WebPaymentRequest), the browser auto-posts the returned fields to PayGate's
- * page, the client types their card THERE (Bookplus never sees card data — PCI
- * SAQ-A), and PayGate tells us the outcome through the ReturnUrl (browser) and
+ * page, the business owner types their card THERE (Bookplus never sees card
+ * data — PCI SAQ-A), and PayGate tells us the outcome through the ReturnUrl (browser) and
  * NotifyUrl (server-to-server). Neither callback is trusted on its own: the
  * outcome is always read back with a server-side Query (QueryRequest).
  *
@@ -49,7 +50,7 @@ class PaygateError extends Error {
 // PayHost terminals, each with its own id, password and signing key
 // (docs/PAYMENTS_GO_LIVE.md, section 4):
 //  - tokenize  terminal 1, "One time and tokenization" (3D Secure): payments
-//              where the payer is present (booking payments, and a business's
+//              where the payer is present (a business's
 //              first plan payment or a new card, which PayHost saves in its
 //              vault). The PAYGATE_* variables.
 //  - recurring terminal 2, "NON3DS": charging a business's saved card each

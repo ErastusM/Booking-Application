@@ -6,7 +6,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { walletEnabled, membershipsEnabled, paymentsEnabled, subscriptionBillingEnabled } = require('../../constants/features');
+const { walletEnabled, membershipsEnabled, subscriptionBillingEnabled } = require('../../constants/features');
 
 describe('wallet feature switch', () => {
     it('the apps default to off', () => {
@@ -50,24 +50,11 @@ describe('memberships feature switch', () => {
     });
 });
 
-describe('payments feature switch', () => {
-    it('the apps default to off', () => {
+describe('no booking payments', () => {
+    it('the apps have no switch for clients paying by card, and the API none either', () => {
         const src = fs.readFileSync(path.resolve(__dirname, '../../../../../packages/config/features.mjs'), 'utf8');
-        expect(src).toMatch(/paymentsEnabled:\s*false/);
-    });
-
-    it('the API defaults to off when PAYMENTS_ENABLED is unset, and only "true" turns it on', () => {
-        const prev = process.env.PAYMENTS_ENABLED;
-        try {
-            delete process.env.PAYMENTS_ENABLED;
-            expect(paymentsEnabled()).toBe(false);
-            process.env.PAYMENTS_ENABLED = '1';
-            expect(paymentsEnabled()).toBe(false);
-            process.env.PAYMENTS_ENABLED = 'true';
-            expect(paymentsEnabled()).toBe(true);
-        } finally {
-            process.env.PAYMENTS_ENABLED = prev;
-        }
+        expect(src).not.toMatch(/paymentsEnabled/);
+        expect(require('../../constants/features').paymentsEnabled).toBeUndefined();
     });
 });
 

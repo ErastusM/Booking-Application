@@ -1,7 +1,7 @@
 /**
  * The monthly side of the Bookplus plan (SUBSCRIPTION_BILLING_ENABLED):
  * charging the saved card on terminal 2 ("NON3DS"), a payment that does not
- * go through (retries, then the plan paused and the business hidden),
+ * go through (retries, then the plan paused: no new online bookings),
  * cancelling and keeping the plan, replacing the card, and deleting saved
  * cards at PayGate. PayGate is a fake transport answering in PayHost's own
  * format (helpers/fakePaygate).
@@ -19,11 +19,12 @@ const VaultDeletion = require('../../models/VaultDeletion');
 const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const Notification = require('../../models/Notification');
 const User = require('../../models/User');
+const PlatformSettings = require('../../models/PlatformSettings');
 const subs = require('../../services/subscriptions');
 const billing = require('../../services/subscriptionBilling');
 const renewals = require('../../services/subscriptionRenewals');
 const pricing = require('../../services/pricing');
-const { providerBookingBlock } = require('../../utils/publicProvider');
+const { providerBookingBlock, publicProviderIds, bookableProviderIds } = require('../../utils/publicProvider');
 const { sendAlert } = require('../../utils/alerts');
 
 const gw = createFakePaygate();
@@ -35,11 +36,16 @@ beforeAll(async () => {
     process.env.BUSINESS_ORIGIN = 'https://business.example.com';
     await testDb.connect();
 });
-beforeEach(() => {
+beforeEach(async () => {
     process.env.SUBSCRIPTION_BILLING_ENABLED = 'true';
     gw.install();
     gw.useVault();
     sendAlert.mockClear();
+    // A plan with six introductory months, so a month at the same price and the
+    // rise after them can both be tested (the defaults: subscriptions.test).
+    await pricing.getSettings({ fresh: true });
+    await PlatformSettings.updateOne({ key: 'platform' }, { $set: { 'plans.basic.trialDays': 30, 'plans.basic.introMonths': 6, 'plans.basic.introPriceCents': 6999, 'plans.basic.priceCents': 14999 } });
+    pricing.invalidateSettings();
 });
 afterEach(async () => {
     gw.uninstall();
@@ -127,12 +133,12 @@ describe('the monthly payment from the saved card', () => {
         expect((await sub(owner)).paidMonths).toBe(2);
     });
 
-    it('the introductory price ending: the owner is told 15 days ahead, then the standard price is charged', async () => {
+    it('the introductory price ending: the owner is told up to 31 days ahead, then the standard price is charged', async () => {
         const { owner, paidThrough } = await paidOwner();
         await Subscription.updateOne({ provider: owner._id }, { $set: { paidMonths: 6 } });
-        // Not yet: more than 15 days ahead.
-        expect(await renewals.notifyPriceRises(at(paidThrough, -16 * DAY))).toBe(0);
-        expect(await renewals.notifyPriceRises(at(paidThrough, -15 * DAY))).toBe(1);
+        // Not yet: more than 31 days ahead (in practice it goes out right after the introductory month is paid).
+        expect(await renewals.notifyPriceRises(at(paidThrough, -32 * DAY))).toBe(0);
+        expect(await renewals.notifyPriceRises(at(paidThrough, -31 * DAY))).toBe(1);
         expect(await renewals.notifyPriceRises(at(paidThrough, -10 * DAY))).toBe(0); // once
         expect(await Notification.countDocuments({ user: owner._id, message: /introductory price ends/ })).toBe(1);
         await renewals.chargeDue(at(paidThrough, 1000));
@@ -223,8 +229,36 @@ describe('the monthly payment from the saved card', () => {
     });
 });
 
+describe('the reminder before each monthly payment', () => {
+    it('is sent 3 days before, once, with the amount, the date and the card', async () => {
+        const { owner, paidThrough } = await paidOwner();
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -4 * DAY))).toBe(0);
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -3 * DAY))).toBe(1);
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -1 * DAY))).toBe(0); // once
+        const n = await Notification.find({ user: owner._id, message: /will be taken from your card ending/ }).lean();
+        expect(n).toHaveLength(1);
+        expect(n[0].message).toMatch(/N\$69\.99/);
+        // The next month gets its own reminder.
+        await renewals.chargeDue(at(paidThrough, 1000));
+        const s = await sub(owner);
+        expect(await renewals.remindUpcomingCharges(at(s.paidThrough, -2 * DAY))).toBe(1);
+        expect(await Notification.countDocuments({ user: owner._id, message: /will be taken from your card ending/ })).toBe(2);
+    });
+
+    it('none once the plan is cancelled', async () => {
+        const { owner, paidThrough } = await paidOwner();
+        await request(app).post('/api/subscriptions/me/cancel').set(authHeader(owner)).expect(200);
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -2 * DAY))).toBe(0);
+    });
+
+    it('runs in the hourly tick', async () => {
+        const { paidThrough } = await paidOwner();
+        expect(await renewals.runBillingTick(at(paidThrough, -2 * DAY))).toMatchObject({ chargeReminders: 1 });
+    });
+});
+
 describe('a payment that does not go through', () => {
-    it('past due (still listed), tried again 1, 3 and 5 days later, then paused at 7 days: hidden, no new bookings', async () => {
+    it('past due (still listed), tried again 1, 2 and 4 days later, then paused at 5 days: still listed, no new online bookings', async () => {
         const { owner, paidThrough } = await paidOwner();
         gw.chargeOutcome = 2;
         const t0 = at(paidThrough, 1000);
@@ -232,14 +266,14 @@ describe('a payment that does not go through', () => {
         let s = await sub(owner);
         expect(s).toMatchObject({ status: 'past_due', retry: { attempts: 1 } });
         expect(new Date(s.retry.nextAttemptAt).getTime()).toBe(t0.getTime() + DAY);
-        expect(new Date(s.retry.graceEndsAt).getTime()).toBe(t0.getTime() + 7 * DAY);
+        expect(new Date(s.retry.graceEndsAt).getTime()).toBe(t0.getTime() + 5 * DAY);
         expect(await Notification.countDocuments({ user: owner._id, message: /did not go through/ })).toBe(1);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.payment_failed' })).toBe(1);
         expect(await providerBookingBlock(owner._id)).toBeNull();
 
         // Not tried again before its time.
         expect(await renewals.chargeDue(at(t0, DAY - 60000))).toEqual({});
-        for (const [days, next] of [[1, 3], [3, 5], [5, null]]) {
+        for (const [days, next] of [[1, 2], [2, 4], [4, null]]) {
             expect(await renewals.chargeDue(at(t0, days * DAY))).toEqual({ declined: 1 });
             s = await sub(owner);
             expect(s.status).toBe('past_due');
@@ -248,20 +282,27 @@ describe('a payment that does not go through', () => {
         expect(gw.charges()).toHaveLength(4);
         expect(new Set((await SubscriptionPayment.find({ kind: 'renewal' }).lean()).map((p) => p.attempt))).toEqual(new Set([1, 2, 3, 4]));
 
-        // Still unpaid 7 days after the first failure: paused.
-        expect(await renewals.pauseOverdue(at(t0, 7 * DAY - 60000))).toBe(0);
-        expect(await renewals.pauseOverdue(at(t0, 7 * DAY))).toBe(1);
+        // Still unpaid 5 days after the first failure (the grace period): paused.
+        expect(await renewals.pauseOverdue(at(t0, 5 * DAY - 60000))).toBe(0);
+        expect(await renewals.pauseOverdue(at(t0, 5 * DAY))).toBe(1);
         s = await sub(owner);
         expect(s).toMatchObject({ status: 'paused', pausedAt: expect.any(Date) });
         expect((await User.findById(owner._id).lean()).billingPausedAt).toEqual(expect.any(Date));
+        // Still listed and visible, but clients cannot book it online; the business can still add bookings itself.
         const profile = await request(app).get(`/api/providers/${owner._id}`);
-        expect(profile.status).toBe(404);
-        expect(profile.body.code).toBe('provider_unavailable');
-        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'provider_unavailable' });
+        expect(profile.status).toBe(200);
+        expect(profile.body.data.provider.takingOnlineBookings).toBe(false);
+        expect(await providerBookingBlock(owner._id)).toMatchObject({ status: 403, code: 'online_bookings_paused' });
+        expect(await providerBookingBlock(owner._id, { byBusiness: true })).toBeNull();
+        expect([...await publicProviderIds([owner._id])]).toEqual([String(owner._id)]);
+        expect([...await bookableProviderIds([owner._id])]).toEqual([]);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.paused' })).toBe(1);
         // Paused: the saved card is not tried again.
         expect(await renewals.chargeDue(at(t0, 8 * DAY))).toEqual({});
         expect((await me(owner)).status).toBe('paused');
+        // Paused does not cancel the plan or what is owed.
+        expect(await Notification.countDocuments({ user: owner._id, message: /paused/ })).toBe(1);
+        expect(s.status).not.toBe('cancelled');
     });
 
     it('a later try that goes through pays the overdue month and clears the retries', async () => {
@@ -285,7 +326,7 @@ describe('a payment that does not go through', () => {
         expect(sendAlert).toHaveBeenCalledWith('Plan renewal refused by PayGate', expect.any(String));
     });
 
-    it('paused: paying with another card starts a new month today, shows the business again, and replaces the card', async () => {
+    it('paused: paying with another card pays the unpaid month (what is owed stays owed), takes online bookings again, and replaces the card', async () => {
         const { owner, paidThrough } = await paidOwner();
         gw.chargeOutcome = 2;
         const t0 = at(paidThrough, 1000);
@@ -295,11 +336,14 @@ describe('a payment that does not go through', () => {
 
         const d = await me(owner);
         expect(d).toMatchObject({ status: 'paused', canAddCard: false, canChangeCard: true, checkout: { kind: 'card', amountCents: 6999 } });
-        const before = Date.now();
+        // The month a new card pays for is the unpaid one, not a month from today.
+        expect(new Date(d.checkout.paidThroughAfter).getTime()).toBe(billing.addMonth(paidThrough).getTime());
         await payWithNewCard(owner);
         const s = await sub(owner);
         expect(s).toMatchObject({ status: 'active', paidMonths: 2, vaultId: NEW_VAULT, card: { last4: '1111' }, pausedAt: null });
-        expect(new Date(s.paidThrough).getTime()).toBeGreaterThanOrEqual(billing.addMonth(new Date(before)).getTime() - 5000);
+        expect(new Date(s.paidThrough).getTime()).toBe(billing.addMonth(paidThrough).getTime());
+        const card = await SubscriptionPayment.findOne({ kind: 'card', status: 'paid' }).lean();
+        expect(new Date(card.periodStart).getTime()).toBe(paidThrough.getTime());
         expect((await User.findById(owner._id).lean()).billingPausedAt).toBeNull();
         expect(await providerBookingBlock(owner._id)).toBeNull();
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.card_payment' })).toBe(1);
@@ -387,9 +431,9 @@ describe('cancelling and keeping the plan', () => {
         expect(gw.deleted).toEqual([FIRST_VAULT]);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.ended' })).toBe(1);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.card_deleted' })).toBe(1);
-        // Still listed (ending a plan is not a pause), and a new plan can be started.
-        expect(await providerBookingBlock(owner._id)).toBeNull();
-        expect(await me(owner)).toMatchObject({ status: 'cancelled', canAddCard: true, checkout: { kind: 'first' } });
+        // No plan: still listed, but no new online bookings until a plan is paid for again.
+        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'online_bookings_paused' });
+        expect(await me(owner)).toMatchObject({ status: 'cancelled', onlineBookingsPaused: true, canAddCard: true, checkout: { kind: 'first' } });
     });
 
     it('kept before the paid month is over: the monthly payments carry on', async () => {
@@ -401,7 +445,7 @@ describe('cancelling and keeping the plan', () => {
         expect(await renewals.chargeDue(at(paidThrough, 1000))).toEqual({ charged: 1 });
     });
 
-    it('cancelling with a month unpaid ends the plan at once; a paused business stays hidden until it pays', async () => {
+    it('cancelling with a month unpaid ends the plan at once; a paused business takes no online bookings until it pays', async () => {
         const { owner, paidThrough } = await paidOwner();
         gw.chargeOutcome = 2;
         await renewals.chargeDue(at(paidThrough, 1000));
@@ -410,9 +454,9 @@ describe('cancelling and keeping the plan', () => {
         const r = await cancel(owner).expect(200);
         expect(r.body.data).toMatchObject({ ended: true });
         expect((await sub(owner)).status).toBe('cancelled');
-        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'provider_unavailable' });
+        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'online_bookings_paused' });
 
-        // Starting a new plan shows the business again.
+        // Starting a new plan switches online bookings back on.
         const { reference } = (await startCheckout(owner).expect(201)).body.data;
         gw.setStatus(reference, 1, { vaultId: NEW_VAULT });
         await notify(gw.notifyBody(reference)).expect(200);
@@ -430,6 +474,65 @@ describe('cancelling and keeping the plan', () => {
         expect((await cancel(owner)).status).toBe(404);
         expect((await keep(owner)).status).toBe(404);
         expect((await request(app).get('/api/subscriptions/me/payments').set(authHeader(owner))).status).toBe(404);
+    });
+});
+
+describe('the free trial ending', () => {
+    /** A business on its trial, ending `days` from now. */
+    const onTrial = async (days) => {
+        await subs.startedAt(new Date(Date.now() - 1000));
+        await showPlans();
+        const owner = await makeProvider();
+        await subs.forProvider(owner);
+        await Subscription.updateOne({ provider: owner._id }, { $set: { trialEndsAt: new Date(Date.now() + days * DAY) } });
+        return owner;
+    };
+
+    it('reminds the owner 7 days and 1 day before, once each', async () => {
+        const owner = await onTrial(10);
+        expect(await renewals.remindTrialsEnding(new Date())).toBe(0);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 3 * DAY + 60000))).toBe(1);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 4 * DAY))).toBe(0);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 9 * DAY + 60000))).toBe(1);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 9 * DAY + 120000))).toBe(0);
+        const notes = await Notification.find({ user: owner._id, message: /free trial ends on/ }).lean();
+        expect(notes).toHaveLength(2);
+    });
+
+    it('ended with no month paid: no new online bookings until the first month is paid, then back on', async () => {
+        const owner = await onTrial(1);
+        expect(await renewals.pauseEndedTrials(new Date())).toBe(0); // not ended yet
+        const after = at(new Date(), DAY + 60000);
+        expect(await renewals.pauseEndedTrials(after)).toBe(1);
+        expect(await renewals.pauseEndedTrials(after)).toBe(0); // once
+        expect(await sub(owner)).toMatchObject({ status: 'trial_ended', pausedAt: expect.any(Date) });
+        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'online_bookings_paused' });
+        expect(await providerBookingBlock(owner._id, { byBusiness: true })).toBeNull();
+        expect((await request(app).get(`/api/providers/${owner._id}`)).status).toBe(200);
+        expect(await me(owner)).toMatchObject({ status: 'trial_ended', onlineBookingsPaused: true, canAddCard: true });
+        expect(await FinancialAuditLog.countDocuments({ action: 'subscription.trial_ended_paused' })).toBe(1);
+        expect(await Notification.countDocuments({ user: owner._id, message: /free trial has ended/ })).toBe(1);
+
+        const { reference } = (await startCheckout(owner).expect(201)).body.data;
+        gw.setStatus(reference, 1);
+        await notify(gw.notifyBody(reference)).expect(200);
+        expect(await sub(owner)).toMatchObject({ status: 'active', pausedAt: null });
+        expect(await providerBookingBlock(owner._id)).toBeNull();
+    });
+
+    it('a card added during the trial: nothing is paused when it ends', async () => {
+        const { owner } = await paidOwner();
+        await Subscription.updateOne({ provider: owner._id }, { $set: { trialEndsAt: new Date(Date.now() - 1000) } });
+        expect(await renewals.pauseEndedTrials(new Date())).toBe(0);
+        expect(await providerBookingBlock(owner._id)).toBeNull();
+    });
+
+    it('switched off: the job does nothing to trials', async () => {
+        const owner = await onTrial(-1);
+        delete process.env.SUBSCRIPTION_BILLING_ENABLED;
+        await renewals.runBillingTick(new Date());
+        expect((await sub(owner)).pausedAt).toBeNull();
+        expect(await providerBookingBlock(owner._id)).toBeNull();
     });
 });
 

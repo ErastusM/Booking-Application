@@ -7,6 +7,7 @@ import { API_BASE } from '../services/api';
 import { MailCheck, Check } from 'lucide-react';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
 import { Select, Field } from '@bookplus/ui';
+import PlanPricing from '../components/PlanPricing';
 
 /**
  * "List your business" — the business side's own signup (Fresha model: the
@@ -309,6 +310,9 @@ const Register = () => {
                                     />
                                 )}
                             </div>
+
+                            {/* The plan's prices and dates, before registering (Business Subscription Terms). */}
+                            <PlanPricing />
 
                             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, cursor: 'pointer', marginTop: '0.25rem' }}>
                                 <input

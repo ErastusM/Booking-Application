@@ -39,7 +39,7 @@ const { checkCancellationWindow, DEFAULT_WINDOW_HOURS } = require('../utils/canc
 // double-book). bookingLockKey/withBookingLocks are shared with the waiting-list
 // promoter so both serialize on the same per-member-per-day key.
 const { withBookingLock, withBookingLocks, bookingLockKey, BookingBusyError } = require('../utils/lock');
-const { providerBookingBlock } = require('../utils/publicProvider');
+const { providerBookingBlock, actsForBusiness } = require('../utils/publicProvider');
 
 // Thrown inside a booking lock when the authoritative re-check finds the slot
 // was taken by the request that won the lock first.
@@ -49,8 +49,6 @@ class SlotTakenError extends Error {
 const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
 const { can } = require('../utils/permissions');
-const payments = require('../services/paymentService');
-const { hiddenFromBusiness, PAYMENT_ABANDONED_REASON } = require('../utils/paymentHold');
 
 // Who a client-facing email/notification for this appointment should go to: the
 // registered customer, or the guest who booked (customer is null for guests).
@@ -850,15 +848,8 @@ exports.getAllAppointments = async (req, res) => {
         const query = scope.query;
 
         const { status } = req.query;
-        if (status && ['pending', 'confirmed', 'completed', 'cancelled', 'no-show', 'pending_payment'].includes(status)) {
+        if (status && ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].includes(status)) {
             query.status = status;
-        }
-        // A booking still waiting for its online payment (or released unpaid) is
-        // not a booking for the business yet: left out of their calendar lists
-        // unless they ask for the ones awaiting payment (?status=pending_payment).
-        // Clients (their own bookings) and admins see everything.
-        if ((req.user.role === 'provider' || req.user.role === 'staff') && status !== 'pending_payment') {
-            Object.assign(query, hiddenFromBusiness());
         }
 
         // Optional date window (ADDITIVE — absent params keep the old "everything"
@@ -940,10 +931,7 @@ exports.getAppointmentsSummary = async (req, res) => {
         const emptyData = { total: 0, byStatus: {}, byService: [], uniqueClients: 0 };
         if (scope.empty) return res.status(200).json({ success: true, data: emptyData });
 
-        // Unpaid online holds are not the business's bookings (paymentHold.js).
-        const match = (req.user.role === 'provider' || req.user.role === 'staff')
-            ? { ...scope.query, ...hiddenFromBusiness() }
-            : scope.query;
+        const match = scope.query;
         // $facet: one pass over the scoped bookings, four independent rollups.
         const [agg] = await Appointment.aggregate([
             { $match: match },
@@ -1071,7 +1059,7 @@ exports.createAppointment = async (req, res) => {
         // A suspended (or removed) business takes no new bookings; its existing
         // bookings are left exactly as they are.
         {
-            const blocked = await providerBookingBlock(svc.provider);
+            const blocked = await providerBookingBlock(svc.provider, { byBusiness: actsForBusiness(req.user, svc.provider) });
             if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
         // Guest checkout: no signed-in user (optionalAuth left req.user null). A
@@ -1219,7 +1207,7 @@ exports.createAppointment = async (req, res) => {
                 provider: svc.provider,
                 customer: null,
                 guestEmail: guestEmail.trim().toLowerCase(),
-                status: { $in: ['pending', 'confirmed', 'pending_payment'] },
+                status: { $in: ['pending', 'confirmed'] },
                 appointmentDate: { $gte: startOfToday },
             });
             if (upcoming >= GUEST_UPCOMING_LIMIT) {
@@ -1544,34 +1532,6 @@ exports.createAppointment = async (req, res) => {
         // wallet prepayment for recurring is a separate feature if ever wanted.)
         if (isRecurring && chosenMethod === 'wallet') chosenMethod = 'cash';
 
-        // Online payment (PAYMENTS_ENABLED): a business may ask clients who book
-        // online for a deposit or the full price upfront. Only a client's own
-        // online booking (a guest, a customer, or another business's account
-        // booking here) is asked — the owner and team members booking from the
-        // calendar, walk-ins and bookings made for an existing client stay as
-        // they are. A wallet-paid booking is already prepaid. With the switch off
-        // (or the business not in NAD) planForBooking is null: unchanged booking.
-        const isOnlineClient = isCustomerLike && req.user?.role !== 'staff';
-        const paymentPlan = isOnlineClient && chosenMethod !== 'wallet' && svc.provider
-            ? await payments.planForBooking(svc.provider, basePrice)
-            : null;
-        // Paying online needs a confirmed email: the receipt and any refund
-        // notice go there. A guest gives their email on the booking itself.
-        if (paymentPlan && req.user && !ownsEmail(req.user)) {
-            return res.status(403).json({
-                success: false,
-                code: 'email_unverified',
-                message: 'Please confirm your email address before paying online. We sent you a link when you signed up.',
-            });
-        }
-        if (paymentPlan && isRecurring) {
-            return res.status(400).json({
-                success: false,
-                code: 'online_payment_recurring_unsupported',
-                message: 'This business takes payment online when you book, which isn’t available for repeat bookings yet. Please book one appointment at a time.',
-            });
-        }
-
         // Multi-location (write threading): a booking may name one of the
         // provider's own active locations; absent → null (resolves to the primary
         // "Main"), the single-location path, which touches no DB. A foreign or
@@ -1592,16 +1552,8 @@ exports.createAppointment = async (req, res) => {
             selectedAddOns: resolvedAddOns,
             selectedOptionName: chosenOption ? chosenOption.name : null,
             totalPrice: basePrice,
-            status: paymentPlan ? 'pending_payment' : 'confirmed',
-            statusHistory: [{ status: paymentPlan ? 'pending_payment' : 'confirmed', changedBy: req.user?._id || null }],
-            // Held for the client to pay online (only when the business asks).
-            ...(paymentPlan ? {
-                paymentKind: paymentPlan.kind,
-                amountDueOnlineCents: paymentPlan.amountCents,
-                amountPaidOnlineCents: 0,
-                currency: paymentPlan.currency,
-                paymentHoldExpiresAt: new Date(Date.now() + payments.holdMinutes() * 60 * 1000),
-            } : {}),
+            status: 'confirmed',
+            statusHistory: [{ status: 'confirmed', changedBy: req.user?._id || null }],
             // Guest contact (no account) — the manageToken is their access credential.
             guestName: isGuest ? bookingClient.name : null,
             // A new client's contact details ride on the same fields (no guestName:
@@ -1765,40 +1717,6 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        // Online payment: open the PayGate session for the hold. The booking is
-        // not confirmed — and nobody is told about it — until the payment lands
-        // (paymentService.ensurePaidEffects fires the usual notices then). If
-        // PayGate can't be reached the hold is released at once (no orphan).
-        if (paymentPlan) {
-            try {
-                const session = await payments.startSession({
-                    appointment,
-                    kind: paymentPlan.kind,
-                    amountCents: paymentPlan.amountCents,
-                    currency: paymentPlan.currency,
-                    payer: isGuest
-                        ? { userId: null, name: bookingClient.name, email: bookingClient.email }
-                        : { userId: req.user._id, name: req.user.name, email: req.user.email },
-                });
-                return res.status(201).json({
-                    success: true,
-                    code: 'payment_required',
-                    message: 'Your time is held. Complete the payment to confirm your booking.',
-                    data: appointment,
-                    payment: payments.checkoutPayload(session, appointment),
-                });
-            } catch (payErr) {
-                await Appointment.deleteOne({ _id: appointment._id, status: 'pending_payment' });
-                return res.status(502).json({
-                    success: false,
-                    code: 'payment_unavailable',
-                    message: payErr instanceof payments.PaymentStartError
-                        ? payErr.message
-                        : 'Online payment is unavailable right now. Please try again in a few minutes.',
-                });
-            }
-        }
-
         // Respond immediately — notifications and email run in the background.
         // A recurring series reports any dates it had to skip (blocked, closed or
         // already taken) so the customer isn't silently missing a week.
@@ -1862,7 +1780,7 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // out back-to-back from startTime.
         const providerId = isStaffActor ? req.user.staffOf : req.user._id;
         {
-            const blocked = await providerBookingBlock(providerId);
+            const blocked = await providerBookingBlock(providerId, { byBusiness: true });
             if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
         // A member's booking lands in THEIR column (or, seeing the whole calendar,
@@ -2216,7 +2134,6 @@ exports.updateAppointment = async (req, res) => {
         // Snapshot the slot so a lost race can be undone (the same post-write
         // backstop every other reschedule path uses — this one had none).
         const previousSlot = slotSnapshot(appointment);
-        const wasCancelled = appointment.status === 'cancelled';
         // Shift multi-service segments by the same delta BEFORE reassigning startTime.
         const shifted = shiftedSegments(appointment, parseTimeToMinutes(newStart));
         appointment.appointmentDate = appointmentDate ? new Date(appointmentDate) : appointment.appointmentDate;
@@ -2231,10 +2148,6 @@ exports.updateAppointment = async (req, res) => {
         if (timingChanged && appointment.status !== 'cancelled'
             && await revertRescheduleIfRaced(appointment, previousSlot)) {
             return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
-        }
-        // An admin cancelling here counts as the business: refund what was paid online.
-        if (!wasCancelled && appointment.status === 'cancelled') {
-            await payments.onAppointmentCancelled(appointment._id, { actor: req.user.role === 'admin' ? 'business' : 'client', withinWindow: req.user.role === 'admin', by: req.user._id });
         }
         res.status(200).json({ success: true, message: 'Appointment updated successfully', data: appointment });
     } catch (error) {
@@ -2255,15 +2168,6 @@ exports.cancelAppointment = async (req, res) => {
         if ((!appointment.customer || appointment.customer._id.toString() !== req.user._id.toString()) && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
         }
-        // A booking still waiting for its online payment: the client is walking
-        // away before paying. Release the hold — the business never saw it, so
-        // nobody is notified — and close the payment attempt.
-        if (appointment.status === 'pending_payment') {
-            const released = await payments.releaseHold(appointment._id, {
-                reason: PAYMENT_ABANDONED_REASON, paymentStatus: 'cancelled', source: 'cancel', by: req.user._id,
-            });
-            return res.status(200).json({ success: true, message: 'Appointment cancelled successfully', data: released || appointment });
-        }
         if (req.user.role !== 'admin') {
             // A booking whose start time has passed is history — it can be
             // completed or disputed with the business, but not cancelled.
@@ -2283,13 +2187,6 @@ exports.cancelAppointment = async (req, res) => {
         appointment.cancellationReason = req.body.cancellationReason || '';
         appointment.statusHistory.push({ status: 'cancelled', changedBy: req.user._id });
         await appointment.save();
-
-        // Paid online: the client cancelled within the business's window (it was
-        // enforced above) → full refund; an admin cancelling counts as the
-        // business. A refund problem never undoes the cancellation.
-        await payments.onAppointmentCancelled(appointment._id, {
-            actor: req.user.role === 'admin' ? 'business' : 'client', withinWindow: true, by: req.user._id,
-        });
 
         // Release any held wallet funds back to available (idempotent; spec §6).
         try {
@@ -2390,7 +2287,7 @@ exports.getAppointmentHistory = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const { status } = req.query;
-        const query = { provider: req.user._id, ...hiddenFromBusiness() };
+        const query = { provider: req.user._id };
         if (status) {
             query.status = status;
         } else {
@@ -2455,17 +2352,6 @@ exports.updateAppointmentStatus = async (req, res) => {
         if (appointment.status === status) {
             return res.status(200).json({ success: true, data: appointment });
         }
-        // Waiting for the client's online payment: it is confirmed by the payment
-        // itself, never by hand. The business may only turn it down.
-        if (appointment.status === 'pending_payment') {
-            if (status !== 'cancelled') {
-                return res.status(409).json({ success: false, code: 'awaiting_payment', message: 'This booking is waiting for the client’s online payment. It confirms itself once they pay.' });
-            }
-            const released = await payments.releaseHold(appointment._id, {
-                reason: 'Cancelled by the business before payment', paymentStatus: 'cancelled', source: 'cancel', by: req.user._id,
-            });
-            return res.status(200).json({ success: true, data: released || appointment });
-        }
         // Reviving a cancelled booking (cancelled → confirmed/pending) drops it back
         // into a slot the system already treated as free — and likely re-sold, since
         // cancellation triggers waiting-list promotion below. Re-run the same conflict
@@ -2492,12 +2378,6 @@ exports.updateAppointmentStatus = async (req, res) => {
         appointment.status = status;
         appointment.statusHistory.push({ status, changedBy: req.user._id });
         await appointment.save();
-
-        // The business (owner, team member or admin) cancelled: whatever the
-        // client paid online goes back in full. No-show/completed keep it.
-        if (status === 'cancelled') {
-            await payments.onAppointmentCancelled(appointment._id, { actor: 'business', by: req.user._id });
-        }
 
         // Wallet money movement on status change — idempotent, and a no-op when the
         // booking carried no reservation. Completing turns the hold into a permanent
@@ -3260,7 +3140,7 @@ exports.createGroupBooking = async (req, res) => {
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
         {
-            const blocked = await providerBookingBlock(svc.provider);
+            const blocked = await providerBookingBlock(svc.provider, { byBusiness: actsForBusiness(req.user, svc.provider) });
             if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
 
@@ -3528,18 +3408,6 @@ exports.getAppointmentByToken = async (req, res) => {
                 // Same fallback the server enforces (0 = anytime), so the page never shows a
                 // stricter policy than the one actually applied.
                 cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
-                // Online payment (only on bookings the business asked to be paid online).
-                ...(appt.paymentKind ? {
-                    onlinePayment: {
-                        kind: appt.paymentKind,
-                        currency: appt.currency || 'NAD',
-                        amountDueOnlineCents: appt.amountDueOnlineCents || 0,
-                        amountPaidOnlineCents: appt.amountPaidOnlineCents || 0,
-                        amountRefundedOnlineCents: appt.amountRefundedOnlineCents || 0,
-                        totalCents: Math.round((appt.totalPrice || 0) * 100),
-                        holdExpiresAt: appt.status === 'pending_payment' ? appt.paymentHoldExpiresAt || null : null,
-                    },
-                } : {}),
             },
         });
     } catch (error) {
@@ -3553,13 +3421,6 @@ exports.cancelAppointmentByToken = async (req, res) => {
             .populate('service', 'name')
             .populate('customer', 'name email');
         if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
-        // Walking away from a booking before paying for it (see cancelAppointment).
-        if (appt.status === 'pending_payment') {
-            await payments.releaseHold(appt._id, {
-                reason: PAYMENT_ABANDONED_REASON, paymentStatus: 'cancelled', source: 'cancel', by: appt.customer?._id || null,
-            });
-            return res.status(200).json({ success: true, message: 'Your booking has been cancelled.' });
-        }
         if (!['pending', 'confirmed'].includes(appt.status)) {
             return res.status(400).json({ success: false, message: 'This booking can no longer be cancelled.' });
         }
@@ -3576,9 +3437,6 @@ exports.cancelAppointmentByToken = async (req, res) => {
         appt.cancellationReason = 'Cancelled by client via link';
         appt.statusHistory.push({ status: 'cancelled', changedBy: appt.customer?._id || null });
         await appt.save();
-
-        // Paid online and cancelled within the window (enforced above) → full refund.
-        await payments.onAppointmentCancelled(appt._id, { actor: 'client', withinWindow: true, by: appt.customer?._id || null });
 
         // Release any held wallet funds back to available (idempotent; spec §6).
         try {

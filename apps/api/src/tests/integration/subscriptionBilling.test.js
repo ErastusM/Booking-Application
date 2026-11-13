@@ -106,7 +106,7 @@ describe('add card and start plan', () => {
 
         const res = await startCheckout(owner);
         expect(res.status).toBe(201);
-        expect(res.body.data).toMatchObject({ amountCents: 6999, currency: 'NAD', method: 'POST', redirectUrl: expect.stringMatching(/^https:\/\//) });
+        expect(res.body.data).toMatchObject({ amountCents: 7999, currency: 'NAD', method: 'POST', redirectUrl: expect.stringMatching(/^https:\/\//) });
         expect(Object.keys(res.body.data.fields)).toEqual(['PAYGATE_ID', 'PAY_REQUEST_ID', 'REFERENCE', 'CHECKSUM']);
         expect(res.body.data.reference).toMatch(billing.REFERENCE_RE);
 
@@ -115,11 +115,11 @@ describe('add card and start plan', () => {
         expect(sent).toMatch(/<\/Customer><Vault>true<\/Vault><Redirect>/);
         expect(sent).toContain('</Order><Recurring><InitialAuth>true</InitialAuth><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>CARD_HOLDER</InitiatedType></Recurring>');
         expect(sent).toContain('/api/subscriptions/paygate/notify');
-        expect(sent).toContain('<Amount>6999</Amount>');
+        expect(sent).toContain('<Amount>7999</Amount>');
 
         const log = await FinancialAuditLog.find({ action: 'subscription.checkout_start' }).lean();
         expect(log).toHaveLength(1);
-        expect(log[0]).toMatchObject({ amountCents: 6999, reference: res.body.data.reference, actorRole: 'provider' });
+        expect(log[0]).toMatchObject({ amountCents: 7999, reference: res.body.data.reference, actorRole: 'provider' });
     });
 
     it('refused unless the owner agrees to the plan terms: nothing is opened at PayGate', async () => {
@@ -204,7 +204,7 @@ describe('add card and start plan', () => {
         const owner = await trialOwner();
         const { reference } = (await startCheckout(owner)).body.data;
         const status = () => request(app).get(`/api/subscriptions/me/checkout/${reference}`).set(authHeader(owner));
-        expect((await status()).body.data).toMatchObject({ reference, status: 'initiated', amountCents: 6999 });
+        expect((await status()).body.data).toMatchObject({ reference, status: 'initiated', amountCents: 7999 });
         gw.setStatus(reference, 1);
         await SubscriptionPayment.updateOne({ reference }, { $set: { lastQueriedAt: null } });
         expect((await status()).body.data.status).toBe('paid');

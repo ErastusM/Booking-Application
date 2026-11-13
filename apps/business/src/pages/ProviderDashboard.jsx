@@ -41,8 +41,6 @@ import { MEMBER_PALETTE, memberColorMap, sameColor } from '../utils/memberColors
 import Switch from '../components/Switch';
 import ServiceMenu from '../components/ServiceMenu';
 import { useToast } from '../components/Toast';
-import RefundDialog from '../components/RefundDialog';
-import { bookingPaymentLine, bookingRefundableCents } from '../utils/onlinePayment';
 // App-styled replacements for the native <select>, date/time inputs and
 // window.confirm, so every picker and prompt wears the app's colours (and times
 // are always 24-hour, whatever the device's locale).
@@ -354,7 +352,6 @@ const ProviderDashboard = () => {
     const [seriesCancelMode, setSeriesCancelMode] = useState('this');
     const [cancellingSeries, setCancellingSeries] = useState(false);
     const [apptDetailModal, setApptDetailModal] = useState(null);
-    const [refundAppt, setRefundAppt] = useState(null);
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
@@ -4762,7 +4759,6 @@ const ProviderDashboard = () => {
                                         ['Price',     apptDetailModal.totalPrice ? `${curSym} ${apptDetailModal.totalPrice}` : '—'],
                                     ]),
                                     // Paid online: what came in, and what is left to collect.
-                                    ...(bookingPaymentLine(apptDetailModal) ? [['Paid online', bookingPaymentLine(apptDetailModal)]] : []),
                                     ['Booking ref', apptDetailModal.bookingReference || (apptDetailModal._id ? apptDetailModal._id.slice(-8).toUpperCase() : '—')],
                                 ].map(([label, value]) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
@@ -4777,13 +4773,6 @@ const ProviderDashboard = () => {
                                     </span>
                                 </div>
                             </div>
-
-                            {/* Give back money paid online (owners; the API checks it too). */}
-                            {!isStaff && bookingRefundableCents(apptDetailModal) > 0 && (
-                                <button type="button" className="btn-outline" style={{ width: '100%' }} data-testid="appt-refund" onClick={() => setRefundAppt(apptDetailModal)}>
-                                    Refund the online payment
-                                </button>
-                            )}
 
                             {/* Intake / consent forms for this appointment */}
                             <Suspense fallback={null}><ApptFormsView appointmentId={apptDetailModal._id} /></Suspense>
@@ -4828,21 +4817,6 @@ const ProviderDashboard = () => {
                                 primary buttons here. "Mark complete" is the finish action. */}
                         </div>
                 </ChromeModal>
-            )}
-
-            {refundAppt && (
-                <RefundDialog
-                    paymentId={String(refundAppt.onlinePayment)}
-                    refundableCents={bookingRefundableCents(refundAppt)}
-                    title={[refundAppt.customer?.name || refundAppt.guestName || refundAppt.walkInName, refundAppt.service?.name].filter(Boolean).join(' · ')}
-                    onClose={() => setRefundAppt(null)}
-                    onDone={({ code, message }) => {
-                        setRefundAppt(null);
-                        setApptDetailModal(null);
-                        toast(message, code === 'refunded' ? 'success' : 'info', 6000);
-                        fetchAppointments({ force: true });
-                    }}
-                />
             )}
 
             {/* Recurring series cancel modal */}

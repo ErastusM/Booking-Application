@@ -23,8 +23,8 @@ import { AdminData } from './adminData';
  * phone) and one page at a time. It sits behind two-step sign-in
  * (components/AdminTwoStep) like every admin request on the API.
  *
- * The sidebar counts what needs someone: payments to look at, payouts due,
- * applications and refunds waiting, open cases, wallet top-ups. They refresh
+ * The sidebar counts what needs someone: wallet top-ups, and the go-live
+ * checklist for plan billing. They refresh
  * every minute and when you move between sections. A count that fails to load
  * keeps its last value; only the API saying "no money role" hides the Money
  * and Settings sections.
@@ -33,12 +33,7 @@ import { AdminData } from './adminData';
 const settle = async (p) => { try { return { value: await p }; } catch (error) { return { error }; } };
 
 export const loadCounts = async (prev = null) => {
-    const [attention, due, applications, requests, cases, settings, wallets] = await Promise.all([
-        settle(financeService.payments({ view: 'attention', limit: 1 })),
-        settle(financeService.payoutsDue()),
-        settle(financeService.listApprovals('waiting')),
-        settle(financeService.listRequests('pending')),
-        settle(financeService.disputes('open')),
+    const [settings, wallets] = await Promise.all([
         settle(financeService.getSettings()),
         settle(providerWalletService.getAdminSummary()),
     ]);
@@ -47,21 +42,10 @@ export const loadCounts = async (prev = null) => {
     const failed = (r) => !!r.error && r.error.response?.data?.code !== 'finance_role_required';
     // A value from this round, else the last good one (a failed poll changes nothing).
     const keep = (r, pick, key) => (r.value ? pick(r.value.data) : (prev?.[key] ?? null));
-    const payable = due.value ? due.value.data.data.filter((r) => r.payable) : null;
     return {
         // true: money role; false: the API said there is none; otherwise the last known.
         money: settings.value ? true : noRole ? false : (prev?.money ?? undefined),
-        error: [attention, due, applications, requests, cases, settings, wallets].some(failed),
-        payments: keep(attention, (d) => d.total ?? d.data?.length ?? 0, 'payments'),
-        payouts: payable ? payable.length : (prev?.payouts ?? null),
-        payoutsCents: due.value ? due.value.data.totalPayableCents : (prev?.payoutsCents ?? null),
-        payoutSchedule: due.value ? due.value.data.schedule : (prev?.payoutSchedule ?? null),
-        applications: keep(applications, (d) => d.data.length, 'applications'),
-        oldestApplication: applications.value
-            ? applications.value.data.data.reduce((o, r) => (r.submittedAt && (!o || r.submittedAt < o) ? r.submittedAt : o), null)
-            : (prev?.oldestApplication ?? null),
-        requests: keep(requests, (d) => d.data.length, 'requests'),
-        cases: keep(cases, (d) => d.data.length, 'cases'),
+        error: [settings, wallets].some(failed),
         launch: keep(settings, (d) => d.data.launch, 'launch'),
         roles: settings.value ? settings.value.data.data.me?.roles || [] : (prev?.roles ?? []),
         topUps: keep(wallets, (d) => d.data?.pendingTopUps ?? 0, 'topUps'),
@@ -74,16 +58,10 @@ const NAV = [
         ['revenue', 'Revenue'], ['wallets', 'Wallets', (c) => ({ n: c?.topUps, hot: true })], ['insights', 'Insights'],
     ] },
     { group: 'Money', money: true, items: [
-        ['money', 'Dashboard'],
-        ['money/payments', 'Payments', (c) => ({ n: c?.payments, hot: true })],
-        ['money/payouts', 'Payouts', (c) => ({ n: c?.payouts })],
-        ['money/disputes', 'Disputes', (c) => ({ n: c?.cases })],
-        ['money/approvals', 'Approvals', (c) => ({ n: (c?.applications ?? 0) + (c?.requests ?? 0), hot: true })],
         ['money/subscriptions', 'Subscriptions'],
-        ['money/costs', 'Costs'],
     ] },
     { group: 'Settings', money: true, items: [
-        ['settings/prices', 'Prices and fees'], ['settings/go-live', 'Go-live checklist'],
+        ['settings/prices', 'Plan prices'], ['settings/go-live', 'Go-live checklist'],
         ['settings/admins', 'Admins and roles'], ['settings/audit', 'Audit log'],
     ] },
 ];
@@ -228,7 +206,7 @@ const AdminConsole = () => {
                             <Route path="revenue" element={<Revenue />} />
                             <Route path="wallets" element={<Wallets />} />
                             <Route path="insights" element={<Insights />} />
-                            <Route path="money" element={<MoneySection view="dashboard" />} />
+                            <Route path="money" element={<MoneySection view="subscriptions" />} />
                             <Route path="money/:view" element={<MoneySection />} />
                             <Route path="settings/:view" element={<MoneySection />} />
                             <Route path="*" element={<Navigate to="/bkplus-command" replace />} />

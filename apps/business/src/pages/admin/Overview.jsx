@@ -6,7 +6,7 @@ import { appointmentBusiness, appointmentClient } from '../../utils/adminPanel';
 import { PageHead, Panel, Kpis, Status, Empty } from '../../components/admin/ui';
 import { useTwoStepStatus } from '../../components/AdminTwoStep';
 import { useAdminData } from './adminData';
-import { BOOKING_STATUS, bookingDay, cents, count, day, money, money0, plural } from './format';
+import { BOOKING_STATUS, bookingDay, count, money, money0, plural } from './format';
 
 // What needs someone first, the platform in four figures, and the latest bookings.
 
@@ -20,30 +20,11 @@ const NeedsYou = ({ counts, codesLeft }) => {
         text: codesLeft === 0 ? 'No recovery codes left' : `${plural(codesLeft, 'recovery code')} left`,
         sub: 'A director can reset your two-step sign-in to issue new ones',
     });
-    if (counts.applications) rows.push({
-        tone: 'bad', to: 'money/approvals', action: 'Review',
-        text: `${plural(counts.applications, 'business', 'businesses')} waiting for online payments approval`,
-        sub: counts.oldestApplication ? `Oldest sent ${day(counts.oldestApplication)}` : null,
-    });
-    if (counts.requests) rows.push({
-        tone: 'bad', to: 'money/approvals', action: 'Review',
-        text: `${plural(counts.requests, 'refund or adjustment', 'refunds or adjustments')} waiting for a director`,
-    });
-    if (counts.payments) rows.push({
-        tone: 'warn', to: 'money/payments', action: 'Open',
-        text: `${plural(counts.payments, 'payment')} to look at`, sub: 'Open too long, flagged, or a refund on its way',
-    });
-    if (counts.payouts) rows.push({
-        tone: 'warn', to: 'money/payouts', action: 'Prepare',
-        text: `${plural(counts.payouts, 'payout')} due`,
-        sub: `${cents(counts.payoutsCents)}${counts.payoutSchedule?.nextRunDate ? ` · next run ${day(counts.payoutSchedule.nextRunDate)}` : ''}`,
-    });
-    if (counts.cases) rows.push({ tone: 'warn', to: 'money/disputes', action: 'Open', text: `${plural(counts.cases, 'open case')}` });
     if (counts.topUps) rows.push({ tone: 'warn', to: 'wallets', action: 'Review', text: `${plural(counts.topUps, 'wallet top-up')} to approve` });
     const launch = counts.launch;
     if (launch && !launch.ready) {
         const done = launch.items.filter((i) => i.done).length;
-        rows.push({ to: 'settings/go-live', action: 'Continue', text: `Go-live checklist: ${done} of ${launch.items.length} done`, sub: 'Online payments stay off until it is complete' });
+        rows.push({ to: 'settings/go-live', action: 'Continue', text: `Go-live checklist: ${done} of ${launch.items.length} done`, sub: 'Plan billing stays off until it is complete' });
     }
     // Shown when no count could be listed (the recovery row is not a count).
     const failed = counts.error && rows.length === (codesLow ? 1 : 0)

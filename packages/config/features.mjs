@@ -15,13 +15,9 @@
 // menu item or screen, and the API's /api/packages routes answer 404. To switch
 // it back on: set this to true AND MEMBERSHIPS_ENABLED=true for the API.
 //
-// paymentsEnabled — online card payments for bookings (PayGate PayHost hosted
-// page): a business may ask for a deposit or the full price upfront, Bookplus
-// collects it and pays the business out. OFF until the owner switches it on
-// (October 2026): while off, every booking is paid at the appointment, neither
-// app shows payment settings, a pay step or earnings from online payments, and
-// the API's /api/payments routes answer 404. To switch it on: set this to true
-// AND PAYMENTS_ENABLED=true (plus the PAYGATE_* settings) for the API.
+// Clients never pay by card through Bookplus: they pay the business directly
+// (at the appointment, or from the wallet when it is on). The only card
+// payments on Bookplus are businesses paying for their plan.
 //
 // subscriptionBillingEnabled — businesses paying for their Bookplus plan by
 // card (Basic: a free trial, then monthly payments on a card saved with
@@ -33,7 +29,6 @@
 export const FEATURES = {
     walletEnabled: false,
     membershipsEnabled: false,
-    paymentsEnabled: false,
     subscriptionBillingEnabled: false,
 };
 

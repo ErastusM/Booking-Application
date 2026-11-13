@@ -7,14 +7,22 @@
  *    card, on terminal 2 ("NON3DS", nobody present), for the month that
  *    starts there.
  *  - A payment that does not go through makes the plan past due (still
- *    listed): it is tried again 1, 3 and 5 days after the first failure, and
- *    the owner can pay with another card meanwhile. Still unpaid 7 days after
- *    the first failure: the plan is paused, and the business is not shown to
- *    clients and takes no new bookings (utils/publicProvider) until a month
- *    is paid with a card.
- *  - Price rises (the introductory price ending): the owner is told at least
- *    14 days before the first payment at the new price. A month whose rise
+ *    listed): it is tried again 1, 2 and 4 days after the first failure, and
+ *    the owner can pay with another card meanwhile. Still unpaid 5 days after
+ *    the first failure (the grace period): the plan is paused. Clients cannot
+ *    make new online bookings (utils/publicProvider) until the unpaid month is
+ *    paid with a card; the business stays listed and keeps its dashboard,
+ *    calendar and data. A pause does not cancel what is owed: the months owed
+ *    are paid oldest first (subscriptionBilling.cardPeriod, then this job).
+ *  - Each monthly charge: the owner is reminded 3 days before, with the
+ *    amount, the date and the card.
+ *  - Price rises (the introductory price ending): the owner is told as soon as
+ *    the introductory month is paid (up to 31 days before the first payment at
+ *    the new price), and never less than 14 days before; a month whose rise
  *    was not told in time is charged at the old price.
+ *  - The free trial: the owner is reminded 7 days and 1 day before it ends.
+ *    If it ends with no month paid, clients cannot make new online bookings
+ *    until the first month is paid (the same pause, nothing deleted).
  *  - Cancelling: nothing more is charged, the plan runs to the end of the
  *    month paid for, then ends. Cancelling while a month is unpaid ends the
  *    plan at once. Closing the account ends it at once.
@@ -48,10 +56,15 @@ const CLAIM_MS = 30 * 60 * 1000;
 const MAX_DELETE_ATTEMPTS = 10;
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
-// Business Terms, "Price changes": at least 14 days' notice. Sent from 15
-// days before, so an hourly job always gives the full 14.
+// The introductory price ending: told from 31 days before the first payment at
+// the standard price (in practice, right after the introductory month is
+// paid), and never less than 14 days before. (A revision of the price list
+// itself only applies to new trials: existing plans keep their prices.)
 const PRICE_NOTICE_DAYS = 14;
-const PRICE_NOTICE_SEND_DAYS = 15;
+const PRICE_NOTICE_SEND_DAYS = 31;
+// Business Subscription Terms, "Payment notifications": a reminder this many
+// days before each monthly charge.
+const CHARGE_REMINDER_DAYS = 3;
 const alertSafe = (title, body) => { sendAlert(title, body).catch(() => {}); };
 const historyEntry = (status, source, note) => ({ status, at: new Date(), source, ...(note ? { note } : {}) });
 
@@ -74,7 +87,7 @@ const sameTime = (a, b) => !!a && !!b && new Date(a).getTime() === new Date(b).g
 const riseToldInTime = (sub) => sameTime(sub.priceNotice?.forPaidThrough, sub.paidThrough)
     && new Date(sub.priceNotice.sentAt).getTime() <= new Date(sub.paidThrough).getTime() - PRICE_NOTICE_DAYS * DAY;
 
-/** Tell owners whose next monthly payment is at a higher price, 15 days ahead. */
+/** Tell owners whose next monthly payment is at a higher price, up to 31 days ahead. */
 const notifyPriceRises = async (now = new Date()) => {
     const soon = await Subscription.find({
         status: 'active', cancelAtPeriodEnd: { $ne: true },
@@ -96,10 +109,52 @@ const notifyPriceRises = async (now = new Date()) => {
             subject: 'Your Bookplus plan price from next month',
             heading: 'your plan price is changing',
             lines: [
-                `Your introductory months are ending. From your payment on ${billing.day(sub.paidThrough)}, your Bookplus plan is ${billing.nad(next)} a month instead of ${billing.nad(last)}.`,
+                `Your introductory price is ending. From your payment on ${billing.day(sub.paidThrough)}, your Bookplus plan is ${billing.nad(next)} a month instead of ${billing.nad(last)}, the standard monthly price.`,
                 'If you do not want to continue at the new price, you can cancel in Account, Your plan before then. Your plan then stays active until the end of the month you have paid for.',
             ],
             rows: [['Now', `${billing.nad(last)} a month`], ['From', billing.day(sub.paidThrough)], ['New price', `${billing.nad(next)} a month`]],
+        });
+    }
+    return n;
+};
+
+/* ───────────────────────── reminders before each charge ───────────────────────── */
+
+/** What the next monthly charge will be (cents): the old price if a rise was not told in time. */
+const nextChargeCents = (sub, now) => {
+    const amount = subs.describe(sub, now).nextPriceCents;
+    const { last } = prices(sub);
+    return last != null && amount > last && !riseToldInTime(sub) ? last : amount;
+};
+
+/** Remind owners 3 days before the saved card is charged for the next month. */
+const remindUpcomingCharges = async (now = new Date()) => {
+    const soon = await Subscription.find({
+        status: 'active', cancelAtPeriodEnd: { $ne: true },
+        paidThrough: { $gt: now, $lte: new Date(now.getTime() + CHARGE_REMINDER_DAYS * DAY) },
+    }).lean();
+    let n = 0;
+    for (const sub of soon) {
+        if (sameTime(sub.chargeReminder?.forPaidThrough, sub.paidThrough)) continue;
+        const amountCents = nextChargeCents(sub, now);
+        if (!Number.isInteger(amountCents) || amountCents <= 0) continue;
+        const r = await Subscription.updateOne(
+            { _id: sub._id, paidThrough: sub.paidThrough, 'chargeReminder.forPaidThrough': { $ne: sub.paidThrough } },
+            { $set: { 'chargeReminder.forPaidThrough': sub.paidThrough, 'chargeReminder.sentAt': now } },
+        );
+        if (!r.modifiedCount) continue;
+        n += 1;
+        const when = billing.day(sub.paidThrough);
+        const card = sub.card?.last4 ? `your card ending ${sub.card.last4}` : 'your saved card';
+        await billing.tellOwner(sub.provider, {
+            message: `Your Bookplus plan payment of ${billing.nad(amountCents)} will be taken from ${card} on ${when}.`,
+            subject: 'Your next Bookplus plan payment',
+            heading: 'your next plan payment',
+            lines: [
+                `Your Bookplus plan renews on ${when}: ${billing.nad(amountCents)} will be taken from ${card} for the month that starts then.`,
+                'To use another card, change it in Account, Your plan. If you do not want to continue, you can cancel there before then; your plan then stays active until the end of the month you have paid for.',
+            ],
+            rows: [['Amount', billing.nad(amountCents)], ['On', when], ['Card', sub.card?.last4 ? `ending ${sub.card.last4}` : 'saved card']],
         });
     }
     return n;
@@ -141,12 +196,10 @@ const chargeOne = async (subId, now = new Date()) => {
         const cardSession = await SubscriptionPayment.exists({ subscription: claimed._id, kind: 'card', status: { $in: OPEN }, createdAt: { $gt: new Date(now.getTime() - billing.CARD_SESSION_MS) } });
         if (cardSession) return 'card_session';
 
-        let amountCents = subs.describe(claimed, now).nextPriceCents;
         // A rise the owner was not told about 14 days ahead: this month is at the old price.
-        const { last } = prices(claimed);
-        if (last != null && amountCents > last && !riseToldInTime(claimed)) {
+        const amountCents = nextChargeCents(claimed, now);
+        if (amountCents !== subs.describe(claimed, now).nextPriceCents) {
             logger.warn({ subscriptionId: String(claimed._id) }, 'Price rise not notified in time — charging the previous price this month');
-            amountCents = last;
         }
         if (!Number.isInteger(amountCents) || amountCents <= 0) {
             logger.warn({ subscriptionId: String(claimed._id) }, 'A plan renewal has nothing to charge — skipped');
@@ -256,9 +309,71 @@ const chargeDue = async (now = new Date()) => {
     return out;
 };
 
+/* ───────────────────────── the free trial ending ───────────────────────── */
+
+const TRIAL_REMINDER_DAYS = [7, 1];
+
+/** Remind owners whose free trial ends within 7 days, then within 1 day. */
+const remindTrialsEnding = async (now = new Date()) => {
+    const soon = await Subscription.find({
+        status: 'trialing', trialEndsAt: { $gt: now, $lte: new Date(now.getTime() + TRIAL_REMINDER_DAYS[0] * DAY) },
+    }).lean();
+    let n = 0;
+    for (const sub of soon) {
+        const left = new Date(sub.trialEndsAt).getTime() - now.getTime();
+        // The closest reminder due that has not been sent (a late one replaces the earlier).
+        const due = [...TRIAL_REMINDER_DAYS].reverse().find((d) => left <= d * DAY && !sub.trialReminders?.[`d${d}SentAt`]);
+        if (!due) continue;
+        const set = {};
+        for (const d of TRIAL_REMINDER_DAYS) if (d >= due) set[`trialReminders.d${d}SentAt`] = now;
+        const r = await Subscription.updateOne({ _id: sub._id, status: 'trialing', [`trialReminders.d${due}SentAt`]: null }, { $set: set });
+        if (!r.modifiedCount) continue;
+        n += 1;
+        const when = billing.day(sub.trialEndsAt);
+        await billing.tellOwner(sub.provider, {
+            message: `Your Bookplus free trial ends on ${when}. Add a card in Account, Your plan to keep taking online bookings.`,
+            subject: due === 1 ? 'Your Bookplus free trial ends tomorrow' : 'Your Bookplus free trial ends in a week',
+            heading: due === 1 ? 'your free trial ends tomorrow' : 'your free trial ends in a week',
+            lines: [
+                `Your Bookplus free trial ends on ${when}.`,
+                'To keep taking online bookings, add a card in Account, Your plan and pay your first month. Adding it now does not shorten your trial: your first paid month starts when the trial ends.',
+                'If no month is paid when the trial ends, clients cannot make new online bookings with you until it is. Your business stays listed and nothing is deleted.',
+            ],
+            rows: [['Trial ends', when], ['Then', `${billing.nad(subs.describe(sub, now).nextPriceCents)} a month`]],
+        });
+    }
+    return n;
+};
+
+/** Trials that ended with no month paid: online bookings paused until the first month is paid. */
+const pauseEndedTrials = async (now = new Date()) => {
+    const ended = await Subscription.find({ status: { $in: ['trialing', 'trial_ended'] }, trialEndsAt: { $lte: now }, pausedAt: null, paidMonths: { $in: [0, null] } }).select('_id provider').lean();
+    let n = 0;
+    for (const sub of ended) {
+        const r = await Subscription.updateOne(
+            { _id: sub._id, status: { $in: ['trialing', 'trial_ended'] }, pausedAt: null },
+            { $set: { status: 'trial_ended', pausedAt: now }, $push: { history: { at: now, event: 'trial_ended_paused', note: 'Trial ended with no month paid' } } },
+        );
+        if (!r.modifiedCount) continue;
+        n += 1;
+        await User.updateOne({ _id: sub.provider, billingPausedAt: null }, { $set: { billingPausedAt: now } });
+        await recordFinance({ action: 'subscription.trial_ended_paused', provider: sub.provider, details: { subscription: String(sub._id) } });
+        await billing.tellOwner(sub.provider, {
+            message: 'Your Bookplus free trial has ended. Clients cannot make new online bookings with you until you add a card and pay your first month in Account, Your plan.',
+            subject: 'Your Bookplus free trial has ended',
+            heading: 'your free trial has ended',
+            lines: [
+                'Your Bookplus free trial has ended, and no month is paid yet.',
+                'Clients cannot make new online bookings with you until you add a card and pay your first month in Account, Your plan. Your business stays listed, and your dashboard, calendar, clients and booking history are kept; you can still add bookings to your calendar yourself.',
+            ],
+        });
+    }
+    return n;
+};
+
 /* ───────────────────────── pausing, ending ───────────────────────── */
 
-/** Past due for the whole 7 days: pause the plan (and the listing). */
+/** Past due for the whole grace period (5 days): pause online bookings. */
 const pauseOverdue = async (now = new Date()) => {
     const overdue = await Subscription.find({ status: 'past_due', 'retry.graceEndsAt': { $lte: now }, chargingAt: null }).select('_id provider').lean();
     let n = 0;
@@ -268,20 +383,20 @@ const pauseOverdue = async (now = new Date()) => {
         if (await SubscriptionPayment.exists({ subscription: sub._id, kind: 'renewal', status: { $in: OPEN } })) continue;
         const r = await Subscription.updateOne(
             { _id: sub._id, status: 'past_due', 'retry.graceEndsAt': { $lte: now }, chargingAt: null },
-            { $set: { status: 'paused', pausedAt: now, 'retry.nextAttemptAt': null }, $push: { history: { at: now, event: 'paused', note: 'Unpaid 7 days after the payment failed' } } },
+            { $set: { status: 'paused', pausedAt: now, 'retry.nextAttemptAt': null }, $push: { history: { at: now, event: 'paused', note: `Unpaid ${billing.GRACE_DAYS} days after the payment failed` } } },
         );
         if (!r.modifiedCount) continue;
         n += 1;
         await User.updateOne({ _id: sub.provider }, { $set: { billingPausedAt: now } });
         await recordFinance({ action: 'subscription.paused', provider: sub.provider, details: { subscription: String(sub._id) } });
         await billing.tellOwner(sub.provider, {
-            message: 'Your Bookplus plan is paused because this month is unpaid. Your business is not shown to clients and they cannot make new bookings until you pay with a card in Account, Your plan.',
+            message: 'Your Bookplus plan is paused because this month is unpaid. Clients cannot make new online bookings until you pay with a card in Account, Your plan.',
             subject: 'Your Bookplus plan is paused',
             heading: 'your plan is paused',
             lines: [
-                'Your Bookplus plan is paused because this month is still unpaid, 7 days after the payment from your saved card did not go through.',
-                'Your business is not shown to clients and they cannot make new bookings. Your existing bookings, clients and information are kept.',
-                'Pay with a card in Account, Your plan and your business is shown again straight away.',
+                `Your Bookplus plan is paused because this month is still unpaid, ${billing.GRACE_DAYS} days after the payment from your saved card did not go through.`,
+                'Clients cannot make new online bookings. Your business stays listed, and your dashboard, calendar, clients and booking history are kept; you can still add bookings to your calendar yourself.',
+                'Your plan is not cancelled, and the unpaid month is still owed. Pay it with a card in Account, Your plan and online bookings are back on straight away. If more months are owed by then, your card is charged for them in turn.',
             ],
         });
     }
@@ -290,18 +405,20 @@ const pauseOverdue = async (now = new Date()) => {
 
 /**
  * End a plan now: nothing more is charged, the saved card is deleted at
- * PayGate. A plan paused for non-payment stays paused (hidden) until a new
- * plan is paid for.
+ * PayGate. Clients cannot make new online bookings (a paused plan stays
+ * paused) until a new plan is paid for.
  */
 const endPlan = async (subId, { reason = 'plan_ended', actor = null, now = new Date(), note = '' } = {}) => {
     const sub = await Subscription.findOneAndUpdate(
         { _id: subId, status: { $in: ['active', 'past_due', 'paused'] }, chargingAt: null },
         {
-            $set: { status: 'cancelled', endedAt: now, cancelAtPeriodEnd: false, vaultId: null, 'retry.nextAttemptAt': null, card: { brand: null, last4: null, expMonth: null, expYear: null, savedAt: null } },
+            $set: { status: 'cancelled', endedAt: now, pausedAt: now, cancelAtPeriodEnd: false, vaultId: null, 'retry.nextAttemptAt': null, card: { brand: null, last4: null, expMonth: null, expYear: null, savedAt: null } },
             $push: { history: { at: now, event: 'ended', by: actor?._id || null, note: note || reason } },
         },
     ).select('+vaultId').lean(); // the document BEFORE the update: it still has the token
     if (!sub) return false;
+    // No plan: clients cannot make new online bookings until one is paid for again.
+    if (reason !== 'account_closed') await User.updateOne({ _id: sub.provider, billingPausedAt: null }, { $set: { billingPausedAt: now } });
     await billing.queueVaultDeletion({ provider: sub.provider, subscription: sub._id, vaultId: sub.vaultId, last4: sub.card?.last4, reason: reason === 'account_closed' ? 'account_closed' : 'plan_ended' });
     await recordFinance({ actor, action: 'subscription.ended', provider: sub.provider, reason: note, details: { subscription: String(sub._id), reason, from: sub.status, paidThrough: sub.paidThrough || null } });
     return true;
@@ -320,7 +437,7 @@ const endCancelled = async (now = new Date()) => {
                 heading: 'your plan has ended',
                 lines: [
                     'Your Bookplus plan has ended at the end of the month you paid for, as you asked. Your card will not be charged again, and we have asked PayGate to delete it.',
-                    'You can start the plan again at any time in Account, Your plan.',
+                    'Clients cannot make new online bookings with you until you start the plan again in Account, Your plan; your business stays listed and nothing is deleted.',
                 ],
             });
         }
@@ -391,7 +508,7 @@ const cancel = async (owner, now = new Date()) => {
             subject: 'Your Bookplus plan is cancelled',
             heading: 'your plan is cancelled',
             lines: [
-                `Your Bookplus plan is cancelled. Your card will not be charged again, and your plan stays active until ${billing.day(sub.paidThrough)}, the end of the month you paid for.`,
+                `Your Bookplus plan is cancelled. Your card will not be charged again, and your plan stays active until ${billing.day(sub.paidThrough)}, the end of the month you paid for. After that, clients cannot make new online bookings with you until you start a plan again.`,
                 'Changed your mind? Choose "Keep my plan" in Account, Your plan before then.',
             ],
         });
@@ -449,12 +566,15 @@ const onAccountClosed = async (providerId, now = new Date()) => {
 
 /** One pass: ends, charges, pauses, then the card deletion queue. */
 const runBillingTick = async (now = new Date()) => {
-    const out = { ended: 0, priceNotices: 0, charges: {}, paused: 0, cardsDeleted: 0 };
+    const out = { ended: 0, priceNotices: 0, chargeReminders: 0, charges: {}, paused: 0, trialReminders: 0, trialsEnded: 0, cardsDeleted: 0 };
     if (subscriptionBillingEnabled() && billing.cardsReady()) {
         out.ended = await endCancelled(now);
         out.priceNotices = await notifyPriceRises(now);
+        out.chargeReminders = await remindUpcomingCharges(now);
         out.charges = await chargeDue(now);
         out.paused = await pauseOverdue(now);
+        out.trialReminders = await remindTrialsEnding(now);
+        out.trialsEnded = await pauseEndedTrials(now);
     }
     out.cardsDeleted = await runVaultDeletions(now);
     return out;
@@ -464,7 +584,7 @@ const startRenewalJob = () => {
     cron.schedule('20 * * * *', () => withLock('subscription-billing-tick', 50 * 60 * 1000, async () => {
         try {
             const out = await runBillingTick();
-            if (out.ended || out.priceNotices || out.paused || out.cardsDeleted || Object.keys(out.charges).length) logger.info(out, 'Plan billing tick');
+            if (out.ended || out.priceNotices || out.chargeReminders || out.paused || out.trialReminders || out.trialsEnded || out.cardsDeleted || Object.keys(out.charges).length) logger.info(out, 'Plan billing tick');
         } catch (err) {
             logger.error({ err: err.message }, 'Plan billing tick failed');
         }
@@ -473,6 +593,6 @@ const startRenewalJob = () => {
 };
 
 module.exports = {
-    PlanError, PRICE_NOTICE_DAYS, notifyPriceRises, chargeOne, chargeDue, pauseOverdue, endPlan, endCancelled, runVaultDeletions,
+    PlanError, PRICE_NOTICE_DAYS, CHARGE_REMINDER_DAYS, notifyPriceRises, remindUpcomingCharges, chargeOne, chargeDue, pauseOverdue, remindTrialsEnding, pauseEndedTrials, endPlan, endCancelled, runVaultDeletions,
     cancel, keep, onAccountClosed, runBillingTick, startRenewalJob,
 };

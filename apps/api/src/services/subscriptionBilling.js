@@ -55,9 +55,10 @@ const MAX_ATTEMPTS_PER_DAY = 6;
 const DAY = 24 * 60 * 60 * 1000;
 // A monthly payment that does not go through is tried again this many days
 // after the first failure, and the plan is paused GRACE_DAYS after it if the
-// month is still unpaid (Business Terms, "Your Bookplus plan").
-const RETRY_AFTER_DAYS = [1, 3, 5];
-const GRACE_DAYS = 7;
+// month is still unpaid (Business Subscription Terms, "Failed payments": a
+// five-day grace period).
+const RETRY_AFTER_DAYS = [1, 2, 4];
+const GRACE_DAYS = 5;
 // A new-card session older than this no longer holds back a renewal.
 const CARD_SESSION_MS = 60 * 60 * 1000;
 
@@ -70,16 +71,7 @@ const returnUrl = () => `${apiBase()}/api/subscriptions/paygate/return`;
 /** Where the owner's browser lands after PayGate: Account -> Your plan. */
 const resultPageUrl = (reference) => `${String(businessOrigin() || '').replace(/\/+$/, '')}/account?section=plan${reference ? `&checkout=${encodeURIComponent(reference)}` : ''}`;
 
-/** The day a month after `from` (the 31st becomes the last day of a shorter month). */
-const addMonth = (from) => {
-    const d = new Date(from);
-    const day = d.getUTCDate();
-    d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    d.setUTCDate(Math.min(day, last));
-    return d;
-};
+const { addMonth } = subs;
 
 const nad = (cents) => `N$${(Number(cents || 0) / 100).toFixed(2)}`;
 const day = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Windhoek' });
@@ -91,13 +83,14 @@ const FIRST_FROM = ['trialing', 'trial_ended', 'cancelled'];
 const CARD_FROM = ['active', 'past_due', 'paused'];
 
 /**
- * The month a new card pays for: the one after the month paid to (the next
- * one, or the overdue one while past due), or a month from today once the plan
- * is paused (the business was not listed meanwhile).
+ * The month a new card pays for: the one that starts where the plan is paid
+ * to: the next one, or the oldest unpaid one while past due or paused (a pause
+ * does not cancel what is owed). If more months are owed after it, the saved
+ * card (now the new one) is charged for them in turn.
  */
 const cardPeriod = (sub, now) => ({
     prevPaidThrough: sub.paidThrough || null,
-    periodStart: sub.status === 'paused' || !sub.paidThrough ? now : new Date(sub.paidThrough),
+    periodStart: sub.paidThrough ? new Date(sub.paidThrough) : now,
 });
 const sameTime = (a, b) => (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
 
@@ -253,7 +246,7 @@ const queueVaultDeletion = async ({ provider, subscription, vaultId, last4, reas
     return VaultDeletion.create({ provider, subscription, vaultId, last4: last4 || null, reason });
 };
 
-/** The plan is paid again: shown to clients and bookable, if it was paused. */
+/** The plan is paid again: clients can book online again, if it was paused. */
 const unpauseListing = (providerId) => User.updateOne({ _id: providerId, billingPausedAt: { $ne: null } }, { $set: { billingPausedAt: null } });
 
 const RESET_RETRY = { 'retry.firstFailedAt': null, 'retry.attempts': 0, 'retry.nextAttemptAt': null, 'retry.graceEndsAt': null, pausedAt: null };
@@ -376,8 +369,11 @@ const applyMonthPaid = async (paymentId, card, now = new Date()) => {
             rows: [['Amount', nad(payment.amountCents)], ['Card', before.card?.last4 ? `ending ${before.card.last4}` : 'saved card'], ['Paid to', day(paidThrough)], ['Reference', payment.reference]],
         });
     } else if (before.status !== 'active') {
+        // Paying an old month can leave more months owed: the card is charged
+        // for them in turn (subscriptionRenewals, within the hour).
+        const stillOwed = paidThrough <= now;
         await tellOwner(payment.provider, {
-            message: `Thank you: your Bookplus plan is paid to ${day(paidThrough)}${before.status === 'paused' ? ' and your business is shown to clients again' : ''}.`,
+            message: `Thank you: your Bookplus plan is paid to ${day(paidThrough)}${before.status === 'paused' ? ', and clients can book you online again' : ''}.${stillOwed ? ' The next month owed is charged to this card shortly.' : ''}`,
             subject: 'Your Bookplus plan is paid',
             heading: 'your plan is paid',
         });
@@ -410,7 +406,7 @@ const applyRenewalFailed = async (payment, now = new Date()) => {
     const lines = [
         `Your Bookplus plan payment of ${nad(payment.amountCents)} from your saved card did not go through.`,
         nextAttemptAt ? `We will try again on ${day(nextAttemptAt)}.` : 'We will not try this card again.',
-        `You can pay with another card in Account, Your plan. If the month is still unpaid on ${day(graceEndsAt)}, your plan is paused: your business is not shown to clients and they cannot make new bookings until it is paid. Your bookings, clients and information are kept.`,
+        `You can pay with another card in Account, Your plan. If the month is still unpaid on ${day(graceEndsAt)}, your plan is paused: clients cannot make new online bookings until it is paid. Your business stays listed, and your dashboard, calendar, clients and booking history are kept. A pause does not cancel your plan or the amount owed.`,
     ];
     await tellOwner(payment.provider, {
         message: lines.slice(0, 2).join(' '),

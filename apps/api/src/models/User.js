@@ -11,77 +11,6 @@ const signupSurveySchema = new mongoose.Schema({
     submittedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
-// How clients pay for ONLINE bookings (PAYMENTS_ENABLED). Absent = at the
-// appointment, as always. Deposit: `percent` (depositValue 1–100) or `fixed`
-// (depositValue in integer cents, capped at the booking's price).
-const paymentSettingsSchema = new mongoose.Schema({
-    mode: { type: String, enum: ['at_appointment', 'deposit', 'full'], default: 'at_appointment' },
-    depositType: { type: String, enum: ['percent', 'fixed'], default: 'percent' },
-    depositValue: { type: Number, default: null },
-    updatedAt: { type: Date, default: null },
-    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-}, { _id: false });
-
-// Where Bookplus pays this business out. Owner-only; never public, never logged.
-const payoutAccountSchema = new mongoose.Schema({
-    accountHolder: { type: String, trim: true, maxlength: 100 },
-    bankName: { type: String, trim: true, maxlength: 100 },
-    branchCode: { type: String, trim: true, maxlength: 12 },
-    accountNumber: { type: String, trim: true, maxlength: 24 },
-    updatedAt: { type: Date, default: null },
-}, { _id: false });
-
-// A business's application to take online payments (payment specification,
-// section 6): its chosen plan, its legal details, the documents it uploaded
-// (private Cloudinary files, opened by Bookplus only through short-lived signed
-// links), Bookplus's decision, and the two switches: the business's own
-// Online Payments on/off, and Bookplus's override that switches it off.
-const verificationDocSchema = new mongoose.Schema({
-    kind: { type: String, enum: ['owner_id', 'registration', 'bank_letter', 'other'], required: true },
-    name: { type: String, default: '', maxlength: 120 },
-    publicId: { type: String, required: true },
-    resourceType: { type: String, enum: ['image', 'raw'], default: 'image' },
-    format: { type: String, default: '' },
-    deliveryType: { type: String, default: 'authenticated' },
-    uploadedAt: { type: Date, default: Date.now },
-});
-const paymentsApprovalSchema = new mongoose.Schema({
-    status: { type: String, enum: ['draft', 'submitted', 'info_requested', 'approved', 'rejected'], default: 'draft' },
-    plan: { type: String, enum: ['basic', 'standard', null], default: null },
-    legal: {
-        businessType: { type: String, enum: ['sole_trader', 'cc', 'company', 'other', null], default: null },
-        registeredName: { type: String, default: '', trim: true, maxlength: 120 },
-        registrationNumber: { type: String, default: '', trim: true, maxlength: 40 },
-        ownerName: { type: String, default: '', trim: true, maxlength: 100 },
-        ownerIdNumber: { type: String, default: '', trim: true, maxlength: 30 },
-    },
-    documents: { type: [verificationDocSchema], default: [] },
-    termsAcceptedAt: { type: Date, default: null },
-    submittedAt: { type: Date, default: null },
-    decidedAt: { type: Date, default: null },
-    decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    // What Bookplus told the business (why rejected, what else it needs).
-    decisionNote: { type: String, default: '', maxlength: 1000 },
-    // The business's own Online Payments switch (only once approved).
-    switchOn: { type: Boolean, default: false },
-    // Bookplus switched online payments off for this business.
-    adminOff: { type: Boolean, default: false },
-    adminOffReason: { type: String, default: '', maxlength: 500 },
-    // The payout bank account changed after approval: no payout until
-    // Bookplus has checked the new account (a common fraud route).
-    payoutAccountReviewNeeded: { type: Boolean, default: false },
-    history: {
-        type: [{
-            _id: false,
-            status: String,
-            at: { type: Date, default: Date.now },
-            by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-            note: { type: String, default: '' },
-        }],
-        default: [],
-    },
-}, { _id: false });
-
 // Two-step sign-in for admin accounts (utils/mfa.js). The secret is stored
 // encrypted; recovery codes only as hashes.
 const mfaSchema = new mongoose.Schema({
@@ -93,24 +22,6 @@ const mfaSchema = new mongoose.Schema({
     recoveryHashes: { type: [String], default: undefined, select: false },
     failures: { type: Number, default: 0, select: false },
     lockedUntil: { type: Date, default: null, select: false },
-}, { _id: false });
-
-// A business's Bookplus plan. `rates` is what it agreed to when the plan was
-// set (later price changes don't reach it until it is moved on purpose);
-// `override` is a rate Bookplus agreed with this business alone.
-const pricingSchema = new mongoose.Schema({
-    plan: { type: String, enum: ['basic', 'standard'], default: null },
-    planAssignedAt: { type: Date, default: null },
-    pricingVersion: { type: Number, default: null },
-    rates: {
-        commissionBps: { type: Number, default: null },
-        fixedFeeCents: { type: Number, default: null },
-    },
-    override: {
-        commissionBps: { type: Number, default: null },
-        fixedFeeCents: { type: Number, default: null },
-        note: { type: String, default: '', maxlength: 300 },
-    },
 }, { _id: false });
 
 const userSchema = new mongoose.Schema(
@@ -322,13 +233,6 @@ const userSchema = new mongoose.Schema(
             // window here to re-enable enforcement for their business.
             cancellationWindowHours: { type: Number, default: 0, min: 0, max: 168 },
         },
-        // Online payment setting (providers). Deliberately NOT inside
-        // businessProfile, which is served publicly; no default, so accounts
-        // that never chose keep an unchanged document ("at the appointment").
-        paymentSettings: { type: paymentSettingsSchema, default: undefined },
-        // Bank account for payouts (providers). select:false and stripped from
-        // toJSON — only the payments endpoints read it, deliberately.
-        payoutAccount: { type: payoutAccountSchema, default: undefined, select: false },
         // Post-signup friction survey response (null until answered/dismissed).
         signupSurvey: { type: signupSurveySchema, default: null },
         // True only for accounts created AFTER this feature shipped, so the
@@ -345,8 +249,8 @@ const userSchema = new mongoose.Schema(
         // Set when the user self-deactivates — signing in again reactivates the
         // account (distinct from an admin suspension, which stays blocked).
         deactivatedAt: { type: Date, default: null },
-        // The business's Bookplus plan is paused for non-payment: not shown to
-        // clients and no new bookings until a month is paid (utils/publicProvider).
+        // The business's Bookplus plan is paused for non-payment: still listed,
+        // but clients cannot book it online until a month is paid (utils/publicProvider).
         billingPausedAt: { type: Date, default: null },
         // Bookplus staff money roles (utils/financeRoles.js). Admin accounts only;
         // empty on an admin = both roles (the owner's original admin).
@@ -354,14 +258,6 @@ const userSchema = new mongoose.Schema(
         // Two-step sign-in (utils/mfa.js) for admin accounts. Only `enabled` is
         // ever read outside the sign-in code; the rest never leaves the API.
         mfa: { type: mfaSchema, default: undefined },
-        // Which Bookplus plan this business is on for online payments and the
-        // rates it agreed to (services/pricing.js ratesFor). Unset = it has not
-        // chosen yet, and nothing changes for it until it does.
-        pricing: { type: pricingSchema, default: undefined },
-        // Online payments application and switches (see paymentsApprovalSchema).
-        // select:false and stripped from toJSON: ID numbers and document refs
-        // are read only by the payments endpoints.
-        paymentsApproval: { type: paymentsApprovalSchema, default: undefined, select: false },
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
         // Hash of the browser cookie the code was minted for (utils/handoffBinding).
@@ -419,6 +315,7 @@ const userSchema = new mongoose.Schema(
                 delete ret.oauthCodeBinding;
                 delete ret.loginFailures;
                 delete ret.loginLockedUntil;
+                // Never served, should an older record still hold them (booking payments were removed).
                 delete ret.payoutAccount;
                 delete ret.paymentsApproval;
                 if (ret.mfa) ret.mfa = { enabled: !!ret.mfa.enabled, enabledAt: ret.mfa.enabledAt || null };

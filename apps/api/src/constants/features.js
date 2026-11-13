@@ -25,20 +25,6 @@ const requireMemberships = (req, res, next) => (membershipsEnabled()
     : res.status(404).json({ success: false, message: 'Not found' }));
 
 /**
- * PAYMENTS_ENABLED — online card payments for bookings through PayGate PayHost
- * (deposits / full prepayment, refunds, the balance Bookplus owes each business
- * and the payouts recorded against it). Default OFF (owner decision, October
- * 2026): until it is switched on every booking behaves exactly as before (pay
- * at the appointment), the business's payment setting is ignored, the hold
- * sweeper does nothing and every /api/payments route answers 404. The apps read
- * the same switch from packages/config/features.mjs.
- */
-const paymentsEnabled = () => String(process.env.PAYMENTS_ENABLED || '').toLowerCase() === 'true';
-const requirePayments = (req, res, next) => (paymentsEnabled()
-    ? next()
-    : res.status(404).json({ success: false, message: 'Not found' }));
-
-/**
  * SUBSCRIPTION_BILLING_ENABLED — businesses adding a card to start their
  * Bookplus plan: the first payment through PayGate (terminal 1, "One time
  * and tokenization"), which also saves the card for the monthly charges. Default OFF.
@@ -64,5 +50,5 @@ const requireWallet = (req, res, next) => (walletEnabled() ? next() : res.status
 
 module.exports = {
     walletEnabled, WALLET_COMING_SOON, requireWallet, membershipsEnabled, requireMemberships,
-    paymentsEnabled, requirePayments, subscriptionBillingEnabled, requireSubscriptionBilling,
+    subscriptionBillingEnabled, requireSubscriptionBilling,
 };
