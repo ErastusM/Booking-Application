@@ -60,7 +60,7 @@ describe('MoneyPanel — sections', () => {
     it('opens on Subscriptions, with no tab row of its own (the sidebar moves between sections)', async () => {
         render(<MoneyPanel />);
         await screen.findByTestId('money-panel');
-        expect(auth.financeService.subscriptions).toHaveBeenCalled();
+        await vi.waitFor(() => expect(auth.financeService.subscriptions).toHaveBeenCalled());
         expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     });
 
