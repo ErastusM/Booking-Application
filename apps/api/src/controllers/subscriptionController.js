@@ -243,7 +243,9 @@ exports.paygateReturn = async (req, res) => {
 // POST /api/subscriptions/paygate/notify — PayGate's server, expects plain "OK"
 exports.paygateNotify = async (req, res) => {
     const pairs = orderedPairs(req);
-    if (!paygate.verifyPostedChecksum(pairs, tokenizeKey())) {
+    // Signed by terminal 1 (a card on PayGate's page) or terminal 2 (a monthly payment).
+    const recurringKey = paygate.isConfigured(billing.RECURRING_TERMINAL) ? paygate.config(billing.RECURRING_TERMINAL).checksumKey : '';
+    if (!paygate.verifyPostedChecksum(pairs, tokenizeKey()) && !(recurringKey && paygate.verifyPostedChecksum(pairs, recurringKey))) {
         logger.warn({ fields: pairs.map(([k]) => k).filter((k) => k !== 'CHECKSUM') }, 'PayGate notify (plan) with an invalid checksum — rejected');
         return res.status(400).type('text/plain').send('INVALID');
     }

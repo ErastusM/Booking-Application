@@ -31,8 +31,8 @@ const requireMemberships = (req, res, next) => (membershipsEnabled()
  * While off, "Add card and start plan" is never offered and every route that
  * opens or completes a card payment for a plan answers 404. It is offered only
  * when this is on AND plans are shown to businesses (admin console, Money ->
- * Subscriptions) AND PayGate is configured AND the vault wire format is
- * filled in (services/paygate.js).
+ * Subscriptions) AND both PayGate terminals are configured (services/paygate.js
+ * holds PayHost's PayVault formats).
  */
 const subscriptionBillingEnabled = () => String(process.env.SUBSCRIPTION_BILLING_ENABLED || '').toLowerCase() === 'true';
 const requireSubscriptionBilling = (req, res, next) => (subscriptionBillingEnabled()

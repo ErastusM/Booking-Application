@@ -494,6 +494,12 @@ const applyQueryResult = async (payment, q, source, now = new Date()) => {
         );
         if (moved) {
             if (next !== 'pending') {
+                // PayGate can save the card before the payment fails: it is not
+                // kept, so ask PayGate to delete it.
+                const orphan = payment.kind !== 'renewal' ? paygate.cardSummary(q.vault) : null;
+                const saved = orphan ? await Subscription.findById(payment.subscription).select('+vaultId').lean() : null;
+                // Never the card the plan is using (in case PayGate hands back the same token).
+                if (orphan && saved?.vaultId !== orphan.vaultId) await queueVaultDeletion({ provider: payment.provider, subscription: payment.subscription, vaultId: orphan.vaultId, last4: orphan.last4, reason: 'payment_failed' });
                 await recordFinance({
                     action: 'subscription.payment_failed', amountCents: payment.amountCents, currency: payment.currency,
                     provider: payment.provider, reference: payment.reference,
@@ -562,5 +568,5 @@ module.exports = {
     TERMINAL, RECURRING_TERMINAL, REFERENCE_RE, MAX_ATTEMPTS_PER_DAY, RETRY_AFTER_DAYS, GRACE_DAYS, CARD_SESSION_MS, CheckoutError,
     notifyUrl, returnUrl, resultPageUrl, addMonth, nad, day, cardsReady,
     eligibility, startCheckout, applyQueryResult, applyPaid, applyMonthPaid, applyRenewalFailed, syncCheckout,
-    checkoutStatus, paymentHistory, publicCard, sanitizeNotify, tellOwner, queueVaultDeletion, unpauseListing, newReference,
+    checkoutStatus, paymentHistory, publicCard, sanitizeNotify, tellOwner, queueVaultDeletion, unpauseListing, newReference, splitName,
 };

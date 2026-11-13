@@ -302,7 +302,15 @@ describe('terminals', () => {
     });
 });
 
-describe('charging and deleting a saved card', () => {
+// Answers recorded from PayGate's test gateway (public test account, test card), 2026-11-13.
+const REAL = {
+    queryWithVault: '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body><ns2:SingleFollowUpResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:QueryResponse><ns2:Status><ns2:TransactionId>1274098159</ns2:TransactionId><ns2:Reference>BSTEST1794601445185</ns2:Reference><ns2:StatusName>Pending</ns2:StatusName><ns2:AuthCode/><ns2:PayRequestId>0660598E-5DF9-4C0B-A584-E97A3EC3C0D1</ns2:PayRequestId><ns2:VaultId>0a81d7b8-df33-4b2b-b0f0-c24b09ea1865</ns2:VaultId><ns2:PayVaultData><ns2:name>cardNumber</ns2:name><ns2:value>400000xxxxxx0002</ns2:value></ns2:PayVaultData><ns2:PayVaultData><ns2:name>expDate</ns2:name><ns2:value>012030</ns2:value></ns2:PayVaultData><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>900201</ns2:ResultCode><ns2:ResultDescription>Phase 1 authentication complete</ns2:ResultDescription><ns2:Currency>ZAR</ns2:Currency><ns2:Amount>500</ns2:Amount><ns2:RiskIndicator>NP</ns2:RiskIndicator><ns2:PaymentType><ns2:Method>CC</ns2:Method><ns2:Detail>Visa</ns2:Detail></ns2:PaymentType></ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    chargeRefused3ds: '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body><ns2:SinglePaymentResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:CardPaymentResponse><ns2:Status><ns2:StatusName>Error</ns2:StatusName><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>15</ns2:ResultCode><ns2:ResultDescription>Transaction cant be Merchant Initiated with 3D Enabled Terminal</ns2:ResultDescription></ns2:Status></ns2:CardPaymentResponse></ns2:SinglePaymentResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    deleted: '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body><ns2:SingleVaultResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:DeleteVaultResponse><ns2:Status><ns2:StatusName>Completed</ns2:StatusName></ns2:Status></ns2:DeleteVaultResponse></ns2:SingleVaultResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    validationError: '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body><ns2:SinglePaymentResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:WebPaymentResponse><ns2:Status><ns2:StatusName>ValidationError</ns2:StatusName><ns2:StatusDetail>Order-&gt;BillingDetails-&gt;Address-&gt;Country is a required field.</ns2:StatusDetail></ns2:Status></ns2:WebPaymentResponse></ns2:SinglePaymentResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+};
+
+describe('charging and deleting a saved card (PayHost PayVault)', () => {
     const saved = { ...process.env };
     const sent = [];
     beforeEach(() => {
@@ -314,40 +322,42 @@ describe('charging and deleting a saved card', () => {
     });
     afterEach(() => {
         process.env = { ...saved };
-        paygate.setWire('charge', null);
-        paygate.setWire('deleteVault', null);
-        paygate.setVaultWire(null);
+        for (const w of ['vault', 'charge', 'deleteVault']) paygate.setWire(w, null);
         paygate.setTransport();
     });
-    const answer = (inner) => async ({ soapAction, body }) => { sent.push({ soapAction, body }); return { status: 200, body: `<Envelope><Body>${inner}</Body></Envelope>` }; };
-    const chargeWire = { soapAction: 'Charge', responseElement: 'ChargeResponse', build: ({ account, vaultId, reference, amountCents, el }) => `<Charge>${account}${el('V', vaultId)}${el('R', reference)}${el('A', amountCents)}</Charge>` };
+    const answer = (body) => async ({ soapAction, body: b }) => { sent.push({ soapAction, body: b }); return { status: 200, body }; };
+    const charged = (code) => `<Envelope><Body><SinglePaymentResponse><CardPaymentResponse><Status><StatusName>Completed</StatusName><PayRequestId>PR1</PayRequestId><Reference>BSX</Reference><TransactionStatusCode>${code}</TransactionStatusCode><Amount>6999</Amount><Currency>NAD</Currency></Status></CardPaymentResponse></SinglePaymentResponse></Body></Envelope>`;
 
-    it('not ready until all three formats (save, charge, delete) are filled in; nothing is sent', async () => {
+    it('PayHost\'s formats are in place; a format marked not ready stops everything, sending nothing', async () => {
+        expect(paygate.recurringReady()).toBe(true);
+        paygate.setWire('charge', false);
         expect(paygate.recurringReady()).toBe(false);
         paygate.setTransport(answer(''));
         await expect(paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BSX', amountCents: 100 })).rejects.toMatchObject({ code: 'VAULT_NOT_READY' });
+        paygate.setWire('deleteVault', false);
         await expect(paygate.deleteVault({ vaultId: 'abcdef1234' })).rejects.toMatchObject({ code: 'VAULT_NOT_READY' });
-        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: () => null });
-        paygate.setWire('charge', chargeWire);
-        expect(paygate.recurringReady()).toBe(false);
-        paygate.setWire('deleteVault', { build: () => '<D/>' });
-        expect(paygate.recurringReady()).toBe(true);
         expect(sent).toHaveLength(0);
+        paygate.setWire('charge', null);
+        paygate.setWire('deleteVault', null);
+        expect(paygate.recurringReady()).toBe(true);
         expect(() => paygate.setWire('other', {})).toThrow(/Unknown wire/);
     });
 
-    it('charges on terminal 2 with the token, escaped, and reads the answer like a Query', async () => {
-        paygate.setWire('charge', chargeWire);
-        paygate.setTransport(answer('<ChargeResponse><Status><PayRequestId>PR1</PayRequestId><Reference>BSX</Reference><TransactionStatusCode>1</TransactionStatusCode><Amount>6999</Amount><Currency>NAD</Currency></Status></ChargeResponse>'));
-        const r = await paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BS<X>', amountCents: 6999 });
+    it('charges on terminal 2: a merchant-initiated recurring CardPaymentRequest with the token, no CVV', async () => {
+        paygate.setTransport(answer(charged(1)));
+        const r = await paygate.chargeVault({
+            vaultId: 'eb9c11c5-e564-46e2-a087-2207ab8afadd', reference: 'BS<X>', amountCents: 6999,
+            customer: { firstName: 'Ana', lastName: 'Shikongo', email: 'a@x.na' }, notifyUrl: 'https://api/n', returnUrl: 'https://api/r',
+        });
         expect(r).toMatchObject({ ok: true, transactionStatusCode: 1, payRequestId: 'PR1', amountCents: 6999 });
-        expect(sent[0].soapAction).toBe('Charge');
-        expect(sent[0].body).toContain('<PayGateId>222</PayGateId><Password>rec</Password>');
-        expect(sent[0].body).toContain('<R>BS&lt;X&gt;</R>');
+        const b = sent[0].body;
+        expect(b).toMatch(/<SinglePaymentRequest xmlns="http:\/\/www\.paygate\.co\.za\/PayHOST"><CardPaymentRequest><Account><PayGateId>222<\/PayGateId><Password>rec<\/Password><\/Account><Customer><FirstName>Ana<\/FirstName><LastName>Shikongo<\/LastName><Email>a@x\.na<\/Email><\/Customer><VaultId>eb9c11c5-e564-46e2-a087-2207ab8afadd<\/VaultId><BudgetPeriod>0<\/BudgetPeriod><Redirect>/);
+        expect(b).toContain('<MerchantOrderId>BS&lt;X&gt;</MerchantOrderId><Currency>NAD</Currency><Amount>6999</Amount>');
+        expect(b).toContain('</Order><Recurring><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>MERCHANT</InitiatedType></Recurring></CardPaymentRequest>');
+        expect(b).not.toContain('<CVV>');
     });
 
     it('refuses without a token-shaped vault id, a positive amount, or terminal 2 settings', async () => {
-        paygate.setWire('charge', chargeWire);
         paygate.setTransport(answer(''));
         await expect(paygate.chargeVault({ vaultId: '<x>', reference: 'BSX', amountCents: 100 })).rejects.toMatchObject({ code: 'NO_VAULT' });
         await expect(paygate.chargeVault({ vaultId: 'abcdef1234', reference: 'BSX', amountCents: 0 })).rejects.toMatchObject({ code: 'BAD_AMOUNT' });
@@ -356,20 +366,23 @@ describe('charging and deleting a saved card', () => {
         expect(sent).toHaveLength(0);
     });
 
-    it('an answer with no transaction, or a fault, is a clean failure', () => {
-        paygate.setWire('charge', chargeWire);
-        expect(paygate.parseChargeResponse('<Envelope><Body><ChargeResponse><Status><StatusName>Error</StatusName><ResultDescription>Invalid vault</ResultDescription></Status></ChargeResponse></Body></Envelope>'))
-            .toMatchObject({ ok: false, error: { code: 'GATEWAY_ERROR', message: 'Invalid vault' } });
+    it('PayGate refusing a charge (Error, code 0) is a clean failure, never an open payment', () => {
+        expect(paygate.parseChargeResponse(REAL.chargeRefused3ds))
+            .toMatchObject({ ok: false, error: { code: 'GATEWAY_ERROR', message: 'Transaction cant be Merchant Initiated with 3D Enabled Terminal', resultCode: '15' } });
         expect(paygate.parseChargeResponse('<Envelope><Body><Fault><faultcode>x</faultcode><faultstring>no</faultstring></Fault></Body></Envelope>')).toMatchObject({ ok: false, error: { code: 'SOAP_FAULT' } });
         expect(paygate.parseChargeResponse('not xml <<<')).toMatchObject({ ok: false });
+        // 3D Secure asked for: nobody is there, nothing is charged.
+        expect(paygate.parseChargeResponse('<Envelope><Body><SinglePaymentResponse><CardPaymentResponse><Status><StatusName>ThreeDSecureRedirectRequired</StatusName><TransactionStatusCode>0</TransactionStatusCode></Status><Redirect><RedirectUrl>https://x</RedirectUrl></Redirect></CardPaymentResponse></SinglePaymentResponse></Body></Envelope>'))
+            .toMatchObject({ ok: false, error: { code: 'NEEDS_3DS' } });
+        expect(paygate.parseChargeResponse(charged(2))).toMatchObject({ ok: true, transactionStatusCode: 2 });
     });
 
-    it('deletes a saved card on terminal 1; an Error status is a failure', async () => {
-        paygate.setWire('deleteVault', { soapAction: 'Del', build: ({ account, vaultId, el }) => `<Del>${account}${el('V', vaultId)}</Del>` });
-        paygate.setTransport(answer('<DelResponse><Status><StatusName>Completed</StatusName></Status></DelResponse>'));
+    it('deletes a saved card on terminal 1 with a DeleteVaultRequest; an Error or ValidationError is a failure', async () => {
+        paygate.setTransport(answer(REAL.deleted));
         expect(await paygate.deleteVault({ vaultId: 'abcdef1234' })).toEqual({ ok: true });
-        expect(sent[0].body).toContain('<PayGateId>111</PayGateId>');
-        expect(paygate.parseDeleteVaultResponse('<Envelope><Body><DelResponse><Status><StatusName>Error</StatusName></Status></DelResponse></Body></Envelope>')).toMatchObject({ ok: false });
+        expect(sent[0].body).toContain('<SingleVaultRequest xmlns="http://www.paygate.co.za/PayHOST"><DeleteVaultRequest><Account><PayGateId>111</PayGateId><Password>pay</Password></Account><VaultId>abcdef1234</VaultId></DeleteVaultRequest></SingleVaultRequest>');
+        expect(paygate.parseDeleteVaultResponse('<Envelope><Body><DeleteVaultResponse><Status><StatusName>Error</StatusName></Status></DeleteVaultResponse></Body></Envelope>')).toMatchObject({ ok: false });
+        expect(paygate.parseDeleteVaultResponse(REAL.validationError)).toMatchObject({ ok: false });
     });
 });
 
@@ -379,28 +392,37 @@ describe('vault (saving the card)', () => {
     };
     afterEach(() => paygate.setVaultWire(null));
 
-    it('is not ready until the wire format is filled in: a request to save a card is refused', () => {
+    it('asks PayHost to save the card (<Vault> after <Customer>) and starts a recurring agreement after <Order>, only when asked', () => {
+        const xml = paygate.buildWebPaymentRequest({ ...base, vault: true });
+        expect(xml).toMatch(/<\/Customer><Vault>true<\/Vault><Redirect>/);
+        expect(xml).toContain('</Order><Recurring><InitialAuth>true</InitialAuth><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>CARD_HOLDER</InitiatedType></Recurring></WebPaymentRequest>');
+        const plain = paygate.buildWebPaymentRequest(base);
+        expect(plain).not.toContain('<Vault>');
+        expect(plain).not.toContain('<Recurring>');
+    });
+
+    it('marked not ready: a request to save a card is refused; an ordinary payment is unaffected', () => {
+        paygate.setVaultWire(false);
         expect(paygate.vaultReady()).toBe(false);
         expect(() => paygate.buildWebPaymentRequest({ ...base, vault: true })).toThrow(expect.objectContaining({ code: 'VAULT_NOT_READY' }));
-        // An ordinary payment is unaffected.
         expect(paygate.buildWebPaymentRequest(base)).toContain('<Amount>6999</Amount>');
     });
 
-    it('once described, places the vault element after the one named, and only when asked', () => {
-        paygate.setVaultWire({ after: 'Customer', requestXml: '<X>1</X>', extract: () => null });
-        const xml = paygate.buildWebPaymentRequest({ ...base, vault: true });
-        expect(xml).toMatch(/<\/Customer><X>1<\/X><Redirect>/);
-        expect(paygate.buildWebPaymentRequest(base)).not.toContain('<X>1</X>');
+    it('reads the saved card from a real Query answer: token, masked number, expiry, brand', () => {
+        const q = paygate.parseQueryResponse(REAL.queryWithVault);
+        expect(q).toMatchObject({ ok: true, transactionStatusCode: 0 });
+        expect(q.vault).toEqual({ vaultId: '0a81d7b8-df33-4b2b-b0f0-c24b09ea1865', brand: 'Visa', maskedCard: '400000xxxxxx0002', expiry: '012030' });
+        expect(paygate.cardSummary(q.vault)).toEqual({ vaultId: '0a81d7b8-df33-4b2b-b0f0-c24b09ea1865', brand: 'Visa', last4: '0002', expMonth: 1, expYear: 2030 });
+        // No VaultId: no card. A broken extractor never breaks the Query.
+        expect(paygate.parseQueryResponse(REAL.queryWithVault.replace(/<ns2:VaultId>[^<]*<\/ns2:VaultId>/, '')).vault).toBeNull();
+        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: () => { throw new Error('boom'); } });
+        expect(paygate.parseQueryResponse(REAL.queryWithVault)).toMatchObject({ ok: true, vault: null });
+        paygate.setVaultWire(false);
+        expect(paygate.parseQueryResponse(REAL.queryWithVault).vault).toBeNull();
     });
 
-    it('a Query reports the saved card through the wire format, and nothing when it is not filled in', () => {
-        const body = '<Envelope><Body><SingleFollowUpResponse><QueryResponse><Status><TransactionStatusCode>1</TransactionStatusCode><Tok>abcdef1234</Tok></Status></QueryResponse></SingleFollowUpResponse></Body></Envelope>';
-        expect(paygate.parseQueryResponse(body).vault).toBeNull();
-        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: ({ status }) => ({ vaultId: status.Tok }) });
-        expect(paygate.parseQueryResponse(body).vault).toEqual({ vaultId: 'abcdef1234' });
-        // A broken extractor never breaks the Query.
-        paygate.setVaultWire({ after: 'Customer', requestXml: '<X/>', extract: () => { throw new Error('boom'); } });
-        expect(paygate.parseQueryResponse(body)).toMatchObject({ ok: true, transactionStatusCode: 1, vault: null });
+    it('a ValidationError from PayHost is a failed session, not a payment', () => {
+        expect(paygate.parseWebPaymentResponse(REAL.validationError)).toMatchObject({ ok: false, error: { code: 'GATEWAY_ERROR' } });
     });
 
     it('cardSummary keeps the token, brand, last 4 and expiry only', () => {

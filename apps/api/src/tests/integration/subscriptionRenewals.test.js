@@ -3,8 +3,8 @@
  * charging the saved card on terminal 2 ("NON3DS"), a payment that does not
  * go through (retries, then the plan paused: no new online bookings),
  * cancelling and keeping the plan, replacing the card, and deleting saved
- * cards at PayGate. PayGate is a fake transport with made-up wire formats
- * (helpers/fakePaygate) until PayHost's real elements are filled in.
+ * cards at PayGate. PayGate is a fake transport answering in PayHost's own
+ * format (helpers/fakePaygate).
  */
 jest.mock('../../utils/alerts', () => ({ sendAlert: jest.fn().mockResolvedValue(true) }));
 
@@ -105,7 +105,9 @@ describe('the monthly payment from the saved card', () => {
         const sent = gw.charges();
         expect(sent).toHaveLength(1);
         expect(sent[0].body).toContain(`<PayGateId>${RECURRING_ID}</PayGateId>`);
-        expect(sent[0].body).toContain(`<TestVaultId>${FIRST_VAULT}</TestVaultId>`);
+        expect(sent[0].body).toContain(`<VaultId>${FIRST_VAULT}</VaultId>`);
+        expect(sent[0].body).toContain('<InitiatedType>MERCHANT</InitiatedType>');
+        expect(sent[0].body).not.toContain('<CVV>');
         expect(sent[0].body).toContain('<Amount>6999</Amount>');
 
         const s = await sub(owner);
@@ -177,6 +179,19 @@ describe('the monthly payment from the saved card', () => {
         expect(await renewals.chargeDue(at(now, 3600 * 1000))).toEqual({ charged: 1 });
         expect(gw.charges()).toHaveLength(1); // asked, not charged again
         expect((await sub(owner)).paidMonths).toBe(2);
+    });
+
+    it('a notify from terminal 2 (signed with its key) settles a monthly payment still processing', async () => {
+        const { owner, paidThrough } = await paidOwner();
+        gw.chargeOutcome = 5;
+        await renewals.chargeDue(at(paidThrough, 1000));
+        const p = await SubscriptionPayment.findOne({ provider: owner._id, kind: 'renewal' }).lean();
+        gw.setStatus(p.reference, 1);
+        expect((await notify(gw.notifyBody(p.reference))).text).toBe('OK');
+        expect(await SubscriptionPayment.findOne({ reference: p.reference }).lean()).toMatchObject({ status: 'paid' });
+        expect((await sub(owner)).paidMonths).toBe(2);
+        // Signed with another key: refused.
+        expect((await notify(gw.notifyBody(p.reference, { checksumKey: 'nope' }))).status).toBe(400);
     });
 
     it('PayGate unreachable mid-charge: the outcome is unknown, so it is flagged and never charged again blind', async () => {
@@ -359,7 +374,7 @@ describe('replacing the card', () => {
 
         // The next monthly payment is a month later, on the new card.
         await renewals.chargeDue(at(s.paidThrough, 1000));
-        expect(gw.charges()[0].body).toContain(`<TestVaultId>${NEW_VAULT}</TestVaultId>`);
+        expect(gw.charges()[0].body).toContain(`<VaultId>${NEW_VAULT}</VaultId>`);
     });
 
     it('a new card and the monthly payment never both pay the same month unnoticed', async () => {
