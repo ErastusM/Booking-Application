@@ -312,6 +312,8 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         const t = textOf(terms);
         expect(t).toMatch(/kept free until we tell you otherwise\. We tell you in advance/);
         expect(t).toMatch(/Nothing is charged during the trial, and you do not need a card to start it/);
+        expect(t).toMatch(/We remind you 7 days and 1 day before it ends\. If no month is paid when the trial ends, clients cannot make new online bookings with you until you pay your first month/);
+        expect(t).toMatch(/After that, clients cannot make new online bookings with you until you start a plan again/);
         expect(t).toMatch(/The prices that apply to you are fixed when your trial starts/);
         expect(t).toMatch(/3D Secure check; Bookplus never sees or stores your card number/);
         expect(t).toMatch(/your first paid month starts when the trial ends, so your trial is not shortened/);
@@ -319,6 +321,10 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         expect(t).toMatch(/until you cancel/);
         expect(t).toMatch(/only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date/);
         expect(t).toMatch(/try again over the next 7 days/);
+        // The pause, as the specification has it: no new online bookings, still listed, nothing deleted.
+        expect(t).toMatch(/your plan is paused: clients cannot make new online bookings with you until the month is paid/);
+        expect(t).toMatch(/Your business stays listed, and your dashboard, calendar, clients, booking history and other information are kept; nothing is deleted because of non-payment/);
+        expect(t).not.toMatch(/no longer shown on the marketplace/);
         expect(t).toMatch(/at least 14 days in advance.*including when your introductory price ends/);
         expect(t).toMatch(/cancel your plan at any time in Account, Your plan.*until the end of the month you have already paid for/);
         expect(t).toMatch(/refund the difference to the card that was charged/);

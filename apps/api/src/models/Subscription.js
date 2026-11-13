@@ -9,18 +9,22 @@ const mongoose = require('mongoose');
  * status:
  *   exempt      kept free: a business from before subscriptions, until it is moved
  *   trialing    in the free trial (trialEndsAt)
- *   trial_ended the trial is over and no card is saved yet
+ *   trial_ended the trial is over and no month is paid yet: clients cannot make
+ *               new online bookings (User.billingPausedAt) until the first
+ *               month is paid
  *   active      the owner added a card and paid the first month (paidThrough);
  *               the card is saved in PayGate's vault for the monthly charges.
  *               cancelAtPeriodEnd: the owner cancelled; nothing more is
  *               charged and the plan ends at paidThrough
  *   past_due    a monthly payment did not go through: retried until
  *               retry.graceEndsAt (7 days), the business is still listed
- *   paused      still unpaid after the 7 days: the business is not shown to
- *               clients and takes no new bookings (User.billingPausedAt)
- *               until a month is paid with a card
+ *   paused      still unpaid after the 7 days: clients cannot make new online
+ *               bookings (User.billingPausedAt) until a month is paid with a
+ *               card; the business stays listed and keeps its dashboard,
+ *               calendar and data
  *   cancelled   the plan ended (cancelled, or the account was closed); the
- *               saved card is deleted at PayGate. A new plan can be started.
+ *               saved card is deleted at PayGate. Clients cannot make new
+ *               online bookings until a new plan is paid for.
  *
  * The card: only PayGate's vault token (vaultId, never selected by default)
  * and what the owner is shown (brand, last 4 digits, expiry). Bookplus never
@@ -83,7 +87,14 @@ const subscriptionSchema = new mongoose.Schema({
         nextAttemptAt: { type: Date, default: null },
         graceEndsAt: { type: Date, default: null },
     },
+    // Online bookings paused for non-payment: the trial ended without a card
+    // (trial_ended), the month is unpaid (paused), or the plan ended (cancelled).
     pausedAt: { type: Date, default: null },
+    // Reminders that the free trial is ending (7 days and 1 day before).
+    trialReminders: {
+        d7SentAt: { type: Date, default: null },
+        d1SentAt: { type: Date, default: null },
+    },
     // The 14 days' notice of a price rise (the introductory price ending),
     // given for the monthly payment due at forPaidThrough.
     priceNotice: {

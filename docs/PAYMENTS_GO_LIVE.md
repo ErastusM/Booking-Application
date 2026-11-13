@@ -192,10 +192,16 @@ note for each payment.
 - **Not through:** the plan is past due (the business is still listed). The
   card is tried again 1, 3 and 5 days after the first failure, and the owner
   can pay with another card meanwhile. Still unpaid 7 days after the first
-  failure: the plan is **paused**, and the business is hidden from clients and
-  takes no new bookings (`User.billingPausedAt`, the same rule as a
-  suspension) until a month is paid with a card. Its bookings and data are
-  kept.
+  failure: the plan is **paused** (`User.billingPausedAt`): clients cannot
+  make new online bookings with it, and its openings are left out of search,
+  until a month is paid with a card. The business stays listed (its page
+  says it isn't taking online bookings), keeps its dashboard, calendar,
+  clients and booking history, and can still add bookings to its own
+  calendar. Nothing is deleted.
+- **The free trial ending:** the owner is reminded 7 days and 1 day before.
+  If it ends with no month paid, new online bookings are paused the same way
+  until the first month is paid. A plan that ends after a cancel is paused
+  too, until a plan is started again.
 - **Price rise** (the introductory months ending): the owner is told 15 days
   before the first payment at the standard price. If that notice did not go
   out at least 14 days before, that month is charged at the old price.

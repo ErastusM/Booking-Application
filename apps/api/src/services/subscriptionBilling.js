@@ -253,7 +253,7 @@ const queueVaultDeletion = async ({ provider, subscription, vaultId, last4, reas
     return VaultDeletion.create({ provider, subscription, vaultId, last4: last4 || null, reason });
 };
 
-/** The plan is paid again: shown to clients and bookable, if it was paused. */
+/** The plan is paid again: clients can book online again, if it was paused. */
 const unpauseListing = (providerId) => User.updateOne({ _id: providerId, billingPausedAt: { $ne: null } }, { $set: { billingPausedAt: null } });
 
 const RESET_RETRY = { 'retry.firstFailedAt': null, 'retry.attempts': 0, 'retry.nextAttemptAt': null, 'retry.graceEndsAt': null, pausedAt: null };
@@ -377,7 +377,7 @@ const applyMonthPaid = async (paymentId, card, now = new Date()) => {
         });
     } else if (before.status !== 'active') {
         await tellOwner(payment.provider, {
-            message: `Thank you: your Bookplus plan is paid to ${day(paidThrough)}${before.status === 'paused' ? ' and your business is shown to clients again' : ''}.`,
+            message: `Thank you: your Bookplus plan is paid to ${day(paidThrough)}${before.status === 'paused' ? ', and clients can book you online again' : ''}.`,
             subject: 'Your Bookplus plan is paid',
             heading: 'your plan is paid',
         });
@@ -410,7 +410,7 @@ const applyRenewalFailed = async (payment, now = new Date()) => {
     const lines = [
         `Your Bookplus plan payment of ${nad(payment.amountCents)} from your saved card did not go through.`,
         nextAttemptAt ? `We will try again on ${day(nextAttemptAt)}.` : 'We will not try this card again.',
-        `You can pay with another card in Account, Your plan. If the month is still unpaid on ${day(graceEndsAt)}, your plan is paused: your business is not shown to clients and they cannot make new bookings until it is paid. Your bookings, clients and information are kept.`,
+        `You can pay with another card in Account, Your plan. If the month is still unpaid on ${day(graceEndsAt)}, your plan is paused: clients cannot make new online bookings until it is paid. Your business stays listed, and your dashboard, calendar, clients and booking history are kept.`,
     ];
     await tellOwner(payment.provider, {
         message: lines.slice(0, 2).join(' '),

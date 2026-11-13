@@ -63,6 +63,8 @@ const describe = (sub, now = new Date()) => {
         nextAttemptAt: status === 'past_due' ? sub.retry?.nextAttemptAt || null : null,
         graceEndsAt: status === 'past_due' ? sub.retry?.graceEndsAt || null : null,
         pausedAt: status === 'paused' ? sub.pausedAt || null : null,
+        // Clients cannot make new online bookings: unpaid month, trial ended unpaid, or no plan.
+        onlineBookingsPaused: ['paused', 'trial_ended', 'cancelled'].includes(status) && !!sub.pausedAt,
     };
 };
 

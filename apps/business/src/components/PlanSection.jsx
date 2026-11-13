@@ -166,7 +166,7 @@ const PayWithCard = ({ plan }) => {
                     <>
                         You pay {nad(amount)} now with the new card
                         {plan.status === 'active' ? <> for your next month, so your plan is paid to {day(plan.checkout.paidThroughAfter)}.</>
-                            : plan.status === 'paused' ? <> for a month starting today, and your business is shown to clients again straight away.</>
+                            : plan.status === 'paused' ? <> for a month starting today, and clients can book you online again straight away.</>
                                 : <> for the month that is unpaid, so your plan is paid to {day(plan.checkout.paidThroughAfter)}.</>}
                         {' '}The new card replaces your saved card, which we ask PayGate to delete.
                     </>
@@ -229,7 +229,7 @@ const CancelPlan = ({ plan, onChanged }) => {
                         {unpaid
                             ? 'Your plan ends now and nothing more is charged. We ask PayGate to delete your saved card.'
                             : <>Your card will not be charged again, and your plan stays active until {day(plan.paidThrough)}, the end of the month you paid for. We do not refund part of a month already paid. After that we ask PayGate to delete your saved card.</>}
-                        {plan.status === 'paused' ? ' Your business stays hidden from clients until you start a plan again.' : ''}
+                        {plan.status === 'paused' ? ' Clients still cannot book you online until you start a plan again.' : ''}
                     </p>
                     {error && <p style={{ ...p, color: 'var(--danger-fg)', marginTop: '0.6rem' }} role="alert">{error}</p>}
                     <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.9rem' }}>
@@ -287,7 +287,10 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
             {plan.status === 'trialing' && (
                 <div style={card}>
                     <h3 style={h3}>Free trial: {plan.trialDaysLeft} day{plan.trialDaysLeft === 1 ? '' : 's'} left</h3>
-                    <p style={p}>Your free trial ends on {day(plan.trialEndsAt)}. Nothing is charged during the trial.</p>
+                    <p style={p}>
+                        Your free trial ends on {day(plan.trialEndsAt)}. Nothing is charged during the trial. To keep taking online bookings
+                        after it, add a card before then; your first paid month starts when the trial ends.
+                    </p>
                 </div>
             )}
 
@@ -299,6 +302,12 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                             ? 'Add a card to keep using Bookplus on the Basic plan.'
                             : 'Nothing is charged yet. We will let you know before card payments for plans start.'}
                     </p>
+                    {plan.onlineBookingsPaused && (
+                        <p style={{ ...p, marginTop: '0.6rem' }} data-testid="bookings-paused">
+                            Clients cannot make new online bookings with you until you pay your first month. Your business is still listed, you can
+                            still add bookings to your calendar yourself, and your bookings, clients and information are kept.
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -335,7 +344,7 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                         Your payment of {nad(plan.nextPriceCents)} from your saved card did not go through.
                         {plan.nextAttemptAt ? <> We will try again on {day(plan.nextAttemptAt)}.</> : null}
                         {' '}You can pay with another card below.
-                        {plan.graceEndsAt ? <> If the month is still unpaid on {day(plan.graceEndsAt)}, your plan is paused: your business is not shown to clients and they cannot make new bookings until it is paid.</> : null}
+                        {plan.graceEndsAt ? <> If the month is still unpaid on {day(plan.graceEndsAt)}, your plan is paused: clients cannot make new online bookings until it is paid. Your business stays listed and your information is kept.</> : null}
                     </p>
                     {savedCard}
                 </div>
@@ -345,8 +354,9 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                 <div style={{ ...card, borderColor: 'var(--danger-fg)' }} data-testid="paused">
                     <h3 style={h3}>Your plan is paused</h3>
                     <p style={p}>
-                        This month is unpaid, so your business is not shown to clients and they cannot make new bookings.
-                        Your existing bookings, clients and information are kept. Pay with a card below and your business is shown again straight away.
+                        This month is unpaid, so clients cannot make new online bookings. Your business is still listed, and you can still add
+                        bookings to your calendar yourself. Your bookings, clients and information are kept. Pay with a card below and online
+                        bookings are back on straight away.
                     </p>
                 </div>
             )}
@@ -358,6 +368,12 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                         {plan.endedAt ? <>Your plan ended on {day(plan.endedAt)}. </> : null}
                         Nothing more is charged. {plan.canAddCard ? 'You can start it again below.' : ''}
                     </p>
+                    {plan.onlineBookingsPaused && (
+                        <p style={{ ...p, marginTop: '0.6rem' }} data-testid="bookings-paused">
+                            Clients cannot make new online bookings with you until you start your plan again. Your business is still listed and
+                            your information is kept.
+                        </p>
+                    )}
                 </div>
             )}
 
