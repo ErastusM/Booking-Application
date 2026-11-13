@@ -81,55 +81,100 @@ const isConfigured = (terminal = DEFAULT_TERMINAL) => {
     return !!(c.paygateId && c.password);
 };
 
-/* ───────────────────────── vault (saving the card) ─────────────────────────
+/* ───────────────────────── vault (saved cards, PayVault) ─────────────────────────
  *
- * NOT FILLED IN YET. PayHost can save the card used for a payment in its vault
- * and return a token (a vault id) that later charges use instead of the card.
- * The exact elements are to be taken from the PayHost documentation
- * (docs.paygate.co.za, the vault / tokenization section) and checked against
- * the test gateway before anything here is switched on:
+ * PayHost saves a card in its vault (PayVault) and returns a token, the
+ * VaultId, that later payments use instead of the card. The formats below are
+ * PayHost's own (its WSDL, secure.paygate.co.za/payhost/process.trans?wsdl,
+ * and docs.paygate.co.za), checked on PayGate's test gateway with its public
+ * test account (2026-11-13):
  *
- *   requestXml  the element(s) in a WebPaymentRequest that ask PayHost to save
- *               the card, and `after`: the element they follow (the schema's
- *               order matters: Account, Customer, Redirect, Order)
- *   extract     ({ status }) => { vaultId, brand, maskedCard, expiry } | null,
- *               read from a QueryResponse's Status block (parsed XML)
+ *   vault        Saving the card with the first payment: <Vault>true</Vault>
+ *                after <Customer> in the WebPaymentRequest, and after <Order>
+ *                the cardholder-initiated start of a recurring agreement
+ *                (<Recurring> InitialAuth, RECURRING, CARD_HOLDER), so the
+ *                monthly charges that follow are recognised as such. The
+ *                Query answer then carries <VaultId>, <PayVaultData> (cardNumber
+ *                masked as 400000xxxxxx0002, expDate as MMYYYY) and the brand in
+ *                <PaymentType><Detail>.
+ *   charge       The monthly payment: a CardPaymentRequest with the <VaultId>
+ *                and <Recurring> RECURRING, MERCHANT (merchant-initiated, no
+ *                CVV). PayGate refuses a merchant-initiated charge on a 3D
+ *                Secure terminal ("Transaction cant be Merchant Initiated with
+ *                3D Enabled Terminal"), so it only runs on terminal "recurring"
+ *                (NON3DS). The answer is a CardPaymentResponse Status, read like
+ *                a Query's. A Redirect in it (3D Secure asked for) is not a
+ *                payment.
+ *   deleteVault  A DeleteVaultRequest with the VaultId. PayGate answers
+ *                Completed, also for a token already deleted.
  *
- * Until then `vaultReady()` is false, a request with `vault: true` is refused
- * (VAULT_NOT_READY), and Bookplus never offers to save a card. Tests describe
- * a wire format with setVaultWire() to exercise everything around it.
+ * Still to confirm with PayGate for the live account (its public test account
+ * without 3D Secure did not accept the documented password, so it could not be
+ * tried): that a token saved on terminal 1 can be charged on terminal 2, and
+ * which terminal deletes it (the code deletes on terminal 1).
+ *
+ * Tests can replace a format with setWire(name, def), mark it not ready with
+ * setWire(name, false), and restore PayHost's with setWire(name, null).
  */
-/* The other two vault operations, same rule (NOT FILLED IN YET):
- *
- *   charge       charging a saved card with nobody present (terminal
- *                "recurring", no 3D Secure): the monthly plan payment.
- *                { soapAction, responseElement,
- *                  build({ account, vaultId, reference, amountCents, currency, customer, el }) }
- *                build returns the request inside the SOAP Body; `account` is
- *                the terminal's <Account> element, `el(name, value)` makes an
- *                escaped element. The answer is read like a QueryResponse
- *                (Status block, TransactionStatusCode) from `responseElement`.
- *   deleteVault  asking PayHost to delete a saved card (the plan ended, the
- *                card was replaced, or the account was closed).
- *                { soapAction, build({ account, vaultId, el }) }; success is a
- *                Status that is not an Error and no SOAP Fault.
- *
- * Which terminal deletes a token, and whether a token saved on terminal 1 can
- * be charged on terminal 2, are also to be checked with PayGate (the code
- * assumes the vault is shared by the merchant's terminals and deletes on
- * terminal 1).
- */
-const UNFILLED_WIRE = Object.freeze({ ready: false });
-const wires = { vault: UNFILLED_WIRE, charge: UNFILLED_WIRE, deleteVault: UNFILLED_WIRE };
+const findAll = (node, name) => {
+    const hit = findKey(node, name);
+    if (hit == null) return [];
+    return Array.isArray(hit) ? hit : [hit];
+};
+const PAYHOST_WIRES = Object.freeze({
+    vault: Object.freeze({
+        ready: true,
+        after: 'Customer',
+        requestXml: '<Vault>true</Vault>',
+        trailingXml: '<Recurring><InitialAuth>true</InitialAuth><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>CARD_HOLDER</InitiatedType></Recurring>',
+        extract: ({ status }) => {
+            const vaultId = text(findKey(status, 'VaultId'));
+            if (!vaultId) return null;
+            const data = {};
+            for (const d of findAll(status, 'PayVaultData')) {
+                const k = text(findKey(d, 'name'));
+                if (k) data[k] = text(findKey(d, 'value'));
+            }
+            return {
+                vaultId,
+                brand: text(findKey(findKey(status, 'PaymentType') || {}, 'Detail')),
+                maskedCard: data.cardNumber || null,
+                expiry: data.expDate || null,
+            };
+        },
+    }),
+    charge: Object.freeze({
+        ready: true,
+        soapAction: 'SinglePaymentRequest',
+        responseElement: 'CardPaymentResponse',
+        build: ({ account, vaultId, reference, amountCents, currency, customer = {}, notifyUrl, returnUrl, country = 'NAM', el }) => {
+            const person = `<Customer>${el('FirstName', customer.firstName || 'Business')}${el('LastName', customer.lastName || 'Owner')}${el('Email', customer.email || '')}</Customer>`;
+            return `<SinglePaymentRequest xmlns="${NS}"><CardPaymentRequest>${account}${person}${el('VaultId', vaultId)}${el('BudgetPeriod', 0)}`
+                + (notifyUrl ? `<Redirect>${el('NotifyUrl', notifyUrl)}${el('ReturnUrl', returnUrl || notifyUrl)}</Redirect>` : '')
+                + `<Order>${el('MerchantOrderId', reference)}${el('Currency', currency)}${el('Amount', amountCents)}`
+                + `<BillingDetails>${person}<Address>${el('Country', country)}</Address></BillingDetails></Order>`
+                + '<Recurring><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>MERCHANT</InitiatedType></Recurring>'
+                + '</CardPaymentRequest></SinglePaymentRequest>';
+        },
+    }),
+    deleteVault: Object.freeze({
+        ready: true,
+        soapAction: 'SingleVaultRequest',
+        build: ({ account, vaultId, el }) => `<SingleVaultRequest xmlns="${NS}"><DeleteVaultRequest>${account}${el('VaultId', vaultId)}</DeleteVaultRequest></SingleVaultRequest>`,
+    }),
+});
+const NOT_READY = Object.freeze({ ready: false });
+const wires = { ...PAYHOST_WIRES };
 const wireReady = (name) => wires[name]?.ready === true;
-/** Tests only: describe a wire format ('vault' | 'charge' | 'deleteVault'). Pass nothing to restore the unfilled one. */
+/** Tests: replace a format ('vault' | 'charge' | 'deleteVault'); false = not ready; nothing = PayHost's. */
 const setWire = (name, def) => {
     if (!(name in wires)) throw new PaygateError(`Unknown wire "${name}"`, { code: 'BAD_WIRE' });
-    wires[name] = def ? { ready: true, ...def } : UNFILLED_WIRE;
+    if (def === false) wires[name] = NOT_READY;
+    else wires[name] = def ? { ready: true, ...def } : PAYHOST_WIRES[name];
 };
 const vaultReady = () => wireReady('vault');
 const setVaultWire = (def) => setWire('vault', def);
-/** Can monthly plan payments run at all: saving, charging and deleting a card are all filled in. */
+/** Can monthly plan payments run at all: saving, charging and deleting a card are all available. */
 const recurringReady = () => wireReady('vault') && wireReady('charge') && wireReady('deleteVault');
 
 const VAULT_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
@@ -218,6 +263,8 @@ const buildWebPaymentRequest = ({
         const at = parts.findIndex(([name]) => name === vaultWire.after);
         if (at < 0 || !vaultWire.requestXml) throw new PaygateError('Saving a card is not available yet', { code: 'VAULT_NOT_READY' });
         parts.splice(at + 1, 0, ['Vault', vaultWire.requestXml]);
+        // After Order (WebPaymentRequestType's sequence ends with Recurring).
+        if (vaultWire.trailingXml) parts.push(['VaultTrailing', vaultWire.trailingXml]);
     }
     return envelope(
         `<SinglePaymentRequest xmlns="${NS}"><WebPaymentRequest>`
@@ -329,7 +376,8 @@ const statusOf = (status) => {
     };
 };
 
-const isErrorStatus = (s) => /^error$/i.test(s.statusName || '');
+// "Error", and "ValidationError" for a request PayHost's schema refused.
+const isErrorStatus = (s) => /error$/i.test(s.statusName || '');
 
 /**
  * Parse a WebPaymentResponse.
@@ -396,6 +444,7 @@ const parseQueryResponse = (xml) => {
 // The saved card in a Status block, when the vault wire format is known.
 const vaultOf = (statusNode) => {
     if (!vaultReady() || typeof wires.vault.extract !== 'function') return null;
+    // (A VaultId can be present before the payment is approved: callers only use it once it is.)
     try { return wires.vault.extract({ status: statusNode || {} }) || null; } catch (err) { return null; }
 };
 
@@ -410,7 +459,13 @@ const parseChargeResponse = (xml) => {
     if (fault) return { ok: false, error: { code: 'SOAP_FAULT', message: fault.message, resultCode: fault.code } };
     const resp = findKey(doc, wires.charge.responseElement || 'CardPaymentResponse') || findKey(doc, 'SinglePaymentResponse');
     const status = statusOf(findKey(resp || {}, 'Status'));
-    if (!resp || status.transactionStatusCode == null) {
+    // 3D Secure asked for: nobody is there to answer it, so nothing is charged.
+    if (resp && findKey(resp, 'RedirectUrl')) {
+        return { ok: false, error: { code: 'NEEDS_3DS', message: 'PayGate asked for 3D Secure on a saved-card charge', resultCode: status.resultCode } };
+    }
+    // An Error (or ValidationError) status is a refusal: nothing was charged,
+    // even when it carries TransactionStatusCode 0 ("Not Done").
+    if (!resp || status.transactionStatusCode == null || isErrorStatus(status)) {
         return {
             ok: false,
             error: {
@@ -594,12 +649,12 @@ const requireWire = (name) => {
  * → parseChargeResponse's shape. Throws PaygateError (NOT_CONFIGURED,
  * VAULT_NOT_READY, BAD_AMOUNT, NETWORK); on NETWORK the outcome is UNKNOWN.
  */
-const chargeVault = async ({ vaultId, reference, amountCents, currency = 'NAD', customer = {}, terminal = 'recurring' }) => {
+const chargeVault = async ({ vaultId, reference, amountCents, currency = 'NAD', customer = {}, notifyUrl, returnUrl, terminal = 'recurring' }) => {
     const wire = requireWire('charge');
     assertCents(amountCents);
     if (!VAULT_ID_RE.test(String(vaultId || ''))) throw new PaygateError('No saved card', { code: 'NO_VAULT' });
     const c = requireConfig(terminal);
-    const body = envelope(wire.build({ account: accountXml(c), vaultId, reference, amountCents, currency, customer, el }));
+    const body = envelope(wire.build({ account: accountXml(c), vaultId, reference, amountCents, currency, customer, notifyUrl, returnUrl, el }));
     return parseChargeResponse(await send(wire.soapAction || 'SinglePaymentRequest', body));
 };
 

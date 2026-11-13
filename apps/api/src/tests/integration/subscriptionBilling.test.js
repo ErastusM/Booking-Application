@@ -14,6 +14,7 @@ const { createFakePaygate, PAYGATE_ID } = require('../helpers/fakePaygate');
 const Subscription = require('../../models/Subscription');
 const SubscriptionPayment = require('../../models/SubscriptionPayment');
 const FinancialAuditLog = require('../../models/FinancialAuditLog');
+const VaultDeletion = require('../../models/VaultDeletion');
 const subs = require('../../services/subscriptions');
 const billing = require('../../services/subscriptionBilling');
 const { PLAN_TERMS_VERSION } = require('../../constants/consent');
@@ -78,7 +79,7 @@ describe('behind the switch', () => {
         expect((await startCheckout(owner)).status).toBe(404);
     });
 
-    it('on, but the vault wire formats are not filled in (or a terminal not configured): unavailable', async () => {
+    it('on, but saved cards unavailable (or a terminal not configured): unavailable', async () => {
         const owner = await trialOwner();
         gw.useVault(false);
         let me = await request(app).get('/api/subscriptions/me').set(authHeader(owner)).expect(200);
@@ -111,7 +112,8 @@ describe('add card and start plan', () => {
 
         const sent = gw.calls[0].body;
         expect(sent).toContain(`<PayGateId>${PAYGATE_ID}</PayGateId>`);
-        expect(sent).toMatch(/<\/Customer><TestSaveCard>true<\/TestSaveCard><Redirect>/);
+        expect(sent).toMatch(/<\/Customer><Vault>true<\/Vault><Redirect>/);
+        expect(sent).toContain('</Order><Recurring><InitialAuth>true</InitialAuth><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>CARD_HOLDER</InitiatedType></Recurring>');
         expect(sent).toContain('/api/subscriptions/paygate/notify');
         expect(sent).toContain('<Amount>6999</Amount>');
 
@@ -222,6 +224,16 @@ describe('add card and start plan', () => {
         expect((await Subscription.findOne({ provider: owner._id }).lean()).status).toBe('trialing');
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.payment_failed' })).toBe(1);
         expect((await startCheckout(owner)).status).toBe(201);
+    });
+
+    it('declined after PayGate saved the card: the card is not kept, and PayGate is asked to delete it', async () => {
+        const owner = await trialOwner();
+        const { reference } = (await startCheckout(owner)).body.data;
+        gw.setStatus(reference, 2, { vaultOnFail: true });
+        await notify(gw.notifyBody(reference)).expect(200);
+        expect(await Subscription.findOne({ provider: owner._id }).select('+vaultId').lean()).toMatchObject({ status: 'trialing', vaultId: null });
+        const d = await VaultDeletion.findOne({}).select('+vaultId').lean();
+        expect(d).toMatchObject({ reason: 'payment_failed', vaultId: 'a1b2c3d4-e5f6-4711-8899-aabbccddeeff', status: 'pending' });
     });
 
     it('approved for a different amount: flagged, the plan is not started', async () => {

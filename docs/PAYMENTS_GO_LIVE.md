@@ -228,13 +228,28 @@ It is offered only when all of these are true:
 2. Plans are shown to businesses (admin console → Money → Subscriptions).
 3. Both terminals are set: `PAYGATE_ID` / `PAYGATE_PASSWORD`, and
    `PAYGATE_RECURRING_ID` / `PAYGATE_RECURRING_PASSWORD` (below).
-4. The three vault wire formats are filled in, in
-   `apps/api/src/services/paygate.js` (the "vault" section: saving a card,
-   charging a saved card, deleting a saved card), from PayGate's PayHost
-   documentation, and checked against the test gateway with PayGate's public
-   test credentials. Also to confirm with PayGate: a card saved on terminal 1
-   can be charged on terminal 2, and which terminal deletes it. Until then
-   nothing offers to save a card and nothing is charged.
+4. **PayVault is on for both terminals** at PayGate, and PayGate has
+   confirmed in writing that a card saved on terminal 1 (with the first
+   payment, 3D Secure) can be charged on terminal 2 (NON3DS,
+   merchant-initiated, no CVV), and which terminal deletes it (the code
+   deletes on terminal 1).
+
+The PayHost formats themselves (saving a card with the first payment,
+charging it each month, deleting it) are in `apps/api/src/services/paygate.js`
+("vault" section), taken from PayHost's WSDL and checked on PayGate's test
+gateway with its public test account and test cards: saving the card and
+reading it back (VaultId, masked number, expiry, brand), a merchant-initiated
+charge (PayGate refuses it on a 3D Secure terminal, which is why the monthly
+payment uses NON3DS), and deleting a card. PayGate's public test account
+without 3D Secure did not accept its documented password, so the first real
+monthly charge is checked live (step below).
+
+**First live check, before telling businesses:** one Bookplus-owned business
+on a trial ending soon adds a real card (smallest plan price), and the first
+monthly charge is watched in the API log and at map.paygate.co.za on the
+NON3DS terminal. If PayGate answers that the token is unknown on that
+terminal, the two terminals do not share the vault: switch
+`SUBSCRIPTION_BILLING_ENABLED` off and ask PayGate to link them.
 
 ### Putting the NON3DS terminal on the server
 

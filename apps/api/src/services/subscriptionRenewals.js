@@ -195,7 +195,9 @@ const chargeOne = async (subId, now = new Date()) => {
                 reference: payment.reference,
                 amountCents,
                 currency: 'NAD',
-                customer: { email: owner?.email || '' },
+                customer: { ...billing.splitName(owner?.name), email: owner?.email || '' },
+                notifyUrl: billing.notifyUrl(),
+                returnUrl: billing.returnUrl(),
                 terminal: billing.RECURRING_TERMINAL,
             });
         } catch (err) {
