@@ -175,6 +175,13 @@ clauses in the legal pages.
 ## Plans: paying by card (subscriptions, steps 2 and 3)
 
 Separate from booking payments, and off until `SUBSCRIPTION_BILLING_ENABLED=true`.
+It follows the Business Subscription Terms (November 2026): 60 days free, then
+N$79.99 for the first paid month (46.67% off), then N$149.99 a month. These are
+the starting values of a new installation (`PlatformSettings.DEFAULTS`); on the
+live server a director sets them in the admin console (Settings → Prices and
+fees, Basic plan), and each business keeps the prices it registered with. The
+sign-up page shows them, with the billing dates, once plans are shown to
+businesses (`GET /api/subscriptions/plan`).
 
 **Starting the plan.** A business on its free trial (or whose trial has ended,
 or whose plan ended) presses **Account → Your plan → Add card and start plan**:
@@ -186,15 +193,19 @@ last 4 digits and expiry; never the card number.
 
 **Monthly payments.** An hourly job (one API instance at a time) charges the
 saved card on terminal 2 ("NON3DS", `PAYGATE_RECURRING_*`) when the paid month
-is up, for the month that starts there. The owner gets an email and an in-app
-note for each payment.
+is up, for the month that starts there. The owner is reminded by email and
+in the app 3 days before each payment (amount, date, card), and gets a receipt
+for each one.
 
 - **Not through:** the plan is past due (the business is still listed). The
-  card is tried again 1, 3 and 5 days after the first failure, and the owner
-  can pay with another card meanwhile. Still unpaid 7 days after the first
-  failure: the plan is **paused** (`User.billingPausedAt`): clients cannot
-  make new online bookings with it, and its openings are left out of search,
-  until a month is paid with a card. The business stays listed (its page
+  card is tried again 1, 2 and 4 days after the first failure, and the owner
+  can pay with another card meanwhile. Still unpaid 5 days after the first
+  failure (the grace period): the plan is **paused** (`User.billingPausedAt`):
+  clients cannot make new online bookings with it, and its openings are left
+  out of search, until the unpaid month is paid with a card. A pause does not
+  cancel the plan or what is owed: the oldest unpaid month is paid first, then
+  the saved (new) card is charged for any other months owed, one per hourly
+  run. The business stays listed (its page
   says it isn't taking online bookings), keeps its dashboard, calendar,
   clients and booking history, and can still add bookings to its own
   calendar. Nothing is deleted.
@@ -202,16 +213,19 @@ note for each payment.
   If it ends with no month paid, new online bookings are paused the same way
   until the first month is paid. A plan that ends after a cancel is paused
   too, until a plan is started again.
-- **Price rise** (the introductory months ending): the owner is told 15 days
-  before the first payment at the standard price. If that notice did not go
-  out at least 14 days before, that month is charged at the old price.
+- **Price rise** (the introductory month ending): the owner is told as soon
+  as the introductory month is paid (up to 31 days before the first payment at
+  the standard price). If that notice did not go out at least 14 days before,
+  that month is charged at the old price. A revision of the price list only
+  applies to new businesses; the terms promise 30 days' notice before a
+  revised fee applies to an existing one, which would need building first.
 - **Cancel:** nothing more is charged, the plan runs to the end of the paid
   month, then ends. "Keep my plan" undoes it until then. Cancelling with a
   month unpaid ends the plan at once (a paused business stays hidden until it
   starts a plan again).
 - **Replace card:** the owner pays the next month on PayGate's page with the
-  new card (the overdue one while past due, a month from today while paused);
-  the new card replaces the saved one.
+  new card (the oldest unpaid one while past due or paused); the new card
+  replaces the saved one.
 - **Saved cards are deleted at PayGate** when a plan ends, a card is replaced,
   the account is closed, or a director keeps the business free. A queue
   (`VaultDeletion`) retries for about two days; if PayGate still refuses, the

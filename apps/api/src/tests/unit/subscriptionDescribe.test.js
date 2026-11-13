@@ -34,4 +34,35 @@ describe('subscriptions.describe', () => {
         const endedAt = new Date('2026-11-01T12:00:00Z');
         expect(subs.describe({ status: 'cancelled', terms, paidMonths: 2, endedAt }, now)).toMatchObject({ status: 'cancelled', endedAt, nextPriceCents: 6999 });
     });
+
+    it('unpaid months: a pause does not cancel what is owed, counted from the date paid to', () => {
+        const paidThrough = new Date('2026-10-31T12:00:00Z');
+        expect(subs.unpaidMonths(paidThrough, new Date('2026-10-31T11:00:00Z'))).toBe(0);
+        expect(subs.unpaidMonths(paidThrough, new Date('2026-11-05T12:00:00Z'))).toBe(1);
+        // 31 October, 30 November (a shorter month), 31 December.
+        expect(subs.unpaidMonths(paidThrough, new Date('2026-12-31T12:00:00Z'))).toBe(3);
+        const terms = { trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999 };
+        expect(subs.describe({ status: 'paused', terms, paidMonths: 1, paidThrough, pausedAt: new Date('2026-11-05T12:00:00Z') }, new Date('2026-12-01T12:00:00Z')))
+            .toMatchObject({ status: 'paused', unpaidMonths: 2, nextPriceCents: 14999 });
+        expect(subs.describe({ status: 'active', terms, paidMonths: 1, paidThrough: new Date('2027-01-01T00:00:00Z') }, new Date('2026-12-01T12:00:00Z')).unpaidMonths).toBe(0);
+    });
+});
+
+describe('the plan clauses and the starting prices agree', () => {
+    it('Business Terms PLAN_TERMS equals PlatformSettings.DEFAULTS for Basic, and the discount is right', () => {
+        // Jest runs CommonJS here: read the values from the source.
+        const src = require('fs').readFileSync(require('path').resolve(__dirname, '../../../../../packages/config/legal/terms.mjs'), 'utf8');
+        const block = src.match(/export const PLAN_TERMS = Object\.freeze\(\{([\s\S]*?)\}\);/)[1];
+        const PLAN_TERMS = Object.fromEntries([...block.matchAll(/(\w+):\s*('?)([^,'\n]+)\2,/g)].map(([, k, q, v]) => [k, q ? v : Number(v)]));
+        const basic = require('../../models/PlatformSettings').DEFAULTS.plans.basic;
+        for (const k of ['trialDays', 'introMonths', 'introPriceCents', 'priceCents', 'priceChangeNoticeDays']) expect([k, basic[k]]).toEqual([k, PLAN_TERMS[k]]);
+        const pct = Math.round(((basic.priceCents - basic.introPriceCents) / basic.priceCents) * 10000) / 100;
+        expect(PLAN_TERMS.discountText).toBe(`${pct}%`);
+    });
+
+    it('the grace period is 5 days, with every retry inside it', () => {
+        const billing = require('../../services/subscriptionBilling');
+        expect(billing.GRACE_DAYS).toBe(5);
+        expect(billing.RETRY_AFTER_DAYS.every((d) => d < billing.GRACE_DAYS)).toBe(true);
+    });
 });

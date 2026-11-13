@@ -19,6 +19,7 @@ const VaultDeletion = require('../../models/VaultDeletion');
 const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const Notification = require('../../models/Notification');
 const User = require('../../models/User');
+const PlatformSettings = require('../../models/PlatformSettings');
 const subs = require('../../services/subscriptions');
 const billing = require('../../services/subscriptionBilling');
 const renewals = require('../../services/subscriptionRenewals');
@@ -35,11 +36,16 @@ beforeAll(async () => {
     process.env.BUSINESS_ORIGIN = 'https://business.example.com';
     await testDb.connect();
 });
-beforeEach(() => {
+beforeEach(async () => {
     process.env.SUBSCRIPTION_BILLING_ENABLED = 'true';
     gw.install();
     gw.useVault();
     sendAlert.mockClear();
+    // A plan with six introductory months, so a month at the same price and the
+    // rise after them can both be tested (the defaults: subscriptions.test).
+    await pricing.getSettings({ fresh: true });
+    await PlatformSettings.updateOne({ key: 'platform' }, { $set: { 'plans.basic.trialDays': 30, 'plans.basic.introMonths': 6, 'plans.basic.introPriceCents': 6999, 'plans.basic.priceCents': 14999 } });
+    pricing.invalidateSettings();
 });
 afterEach(async () => {
     gw.uninstall();
@@ -125,12 +131,12 @@ describe('the monthly payment from the saved card', () => {
         expect((await sub(owner)).paidMonths).toBe(2);
     });
 
-    it('the introductory price ending: the owner is told 15 days ahead, then the standard price is charged', async () => {
+    it('the introductory price ending: the owner is told up to 31 days ahead, then the standard price is charged', async () => {
         const { owner, paidThrough } = await paidOwner();
         await Subscription.updateOne({ provider: owner._id }, { $set: { paidMonths: 6 } });
-        // Not yet: more than 15 days ahead.
-        expect(await renewals.notifyPriceRises(at(paidThrough, -16 * DAY))).toBe(0);
-        expect(await renewals.notifyPriceRises(at(paidThrough, -15 * DAY))).toBe(1);
+        // Not yet: more than 31 days ahead (in practice it goes out right after the introductory month is paid).
+        expect(await renewals.notifyPriceRises(at(paidThrough, -32 * DAY))).toBe(0);
+        expect(await renewals.notifyPriceRises(at(paidThrough, -31 * DAY))).toBe(1);
         expect(await renewals.notifyPriceRises(at(paidThrough, -10 * DAY))).toBe(0); // once
         expect(await Notification.countDocuments({ user: owner._id, message: /introductory price ends/ })).toBe(1);
         await renewals.chargeDue(at(paidThrough, 1000));
@@ -208,8 +214,36 @@ describe('the monthly payment from the saved card', () => {
     });
 });
 
+describe('the reminder before each monthly payment', () => {
+    it('is sent 3 days before, once, with the amount, the date and the card', async () => {
+        const { owner, paidThrough } = await paidOwner();
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -4 * DAY))).toBe(0);
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -3 * DAY))).toBe(1);
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -1 * DAY))).toBe(0); // once
+        const n = await Notification.find({ user: owner._id, message: /will be taken from your card ending/ }).lean();
+        expect(n).toHaveLength(1);
+        expect(n[0].message).toMatch(/N\$69\.99/);
+        // The next month gets its own reminder.
+        await renewals.chargeDue(at(paidThrough, 1000));
+        const s = await sub(owner);
+        expect(await renewals.remindUpcomingCharges(at(s.paidThrough, -2 * DAY))).toBe(1);
+        expect(await Notification.countDocuments({ user: owner._id, message: /will be taken from your card ending/ })).toBe(2);
+    });
+
+    it('none once the plan is cancelled', async () => {
+        const { owner, paidThrough } = await paidOwner();
+        await request(app).post('/api/subscriptions/me/cancel').set(authHeader(owner)).expect(200);
+        expect(await renewals.remindUpcomingCharges(at(paidThrough, -2 * DAY))).toBe(0);
+    });
+
+    it('runs in the hourly tick', async () => {
+        const { paidThrough } = await paidOwner();
+        expect(await renewals.runBillingTick(at(paidThrough, -2 * DAY))).toMatchObject({ chargeReminders: 1 });
+    });
+});
+
 describe('a payment that does not go through', () => {
-    it('past due (still listed), tried again 1, 3 and 5 days later, then paused at 7 days: still listed, no new online bookings', async () => {
+    it('past due (still listed), tried again 1, 2 and 4 days later, then paused at 5 days: still listed, no new online bookings', async () => {
         const { owner, paidThrough } = await paidOwner();
         gw.chargeOutcome = 2;
         const t0 = at(paidThrough, 1000);
@@ -217,14 +251,14 @@ describe('a payment that does not go through', () => {
         let s = await sub(owner);
         expect(s).toMatchObject({ status: 'past_due', retry: { attempts: 1 } });
         expect(new Date(s.retry.nextAttemptAt).getTime()).toBe(t0.getTime() + DAY);
-        expect(new Date(s.retry.graceEndsAt).getTime()).toBe(t0.getTime() + 7 * DAY);
+        expect(new Date(s.retry.graceEndsAt).getTime()).toBe(t0.getTime() + 5 * DAY);
         expect(await Notification.countDocuments({ user: owner._id, message: /did not go through/ })).toBe(1);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.payment_failed' })).toBe(1);
         expect(await providerBookingBlock(owner._id)).toBeNull();
 
         // Not tried again before its time.
         expect(await renewals.chargeDue(at(t0, DAY - 60000))).toEqual({});
-        for (const [days, next] of [[1, 3], [3, 5], [5, null]]) {
+        for (const [days, next] of [[1, 2], [2, 4], [4, null]]) {
             expect(await renewals.chargeDue(at(t0, days * DAY))).toEqual({ declined: 1 });
             s = await sub(owner);
             expect(s.status).toBe('past_due');
@@ -233,9 +267,9 @@ describe('a payment that does not go through', () => {
         expect(gw.charges()).toHaveLength(4);
         expect(new Set((await SubscriptionPayment.find({ kind: 'renewal' }).lean()).map((p) => p.attempt))).toEqual(new Set([1, 2, 3, 4]));
 
-        // Still unpaid 7 days after the first failure: paused.
-        expect(await renewals.pauseOverdue(at(t0, 7 * DAY - 60000))).toBe(0);
-        expect(await renewals.pauseOverdue(at(t0, 7 * DAY))).toBe(1);
+        // Still unpaid 5 days after the first failure (the grace period): paused.
+        expect(await renewals.pauseOverdue(at(t0, 5 * DAY - 60000))).toBe(0);
+        expect(await renewals.pauseOverdue(at(t0, 5 * DAY))).toBe(1);
         s = await sub(owner);
         expect(s).toMatchObject({ status: 'paused', pausedAt: expect.any(Date) });
         expect((await User.findById(owner._id).lean()).billingPausedAt).toEqual(expect.any(Date));
@@ -251,6 +285,9 @@ describe('a payment that does not go through', () => {
         // Paused: the saved card is not tried again.
         expect(await renewals.chargeDue(at(t0, 8 * DAY))).toEqual({});
         expect((await me(owner)).status).toBe('paused');
+        // Paused does not cancel the plan or what is owed.
+        expect(await Notification.countDocuments({ user: owner._id, message: /paused/ })).toBe(1);
+        expect(s.status).not.toBe('cancelled');
     });
 
     it('a later try that goes through pays the overdue month and clears the retries', async () => {
@@ -274,7 +311,7 @@ describe('a payment that does not go through', () => {
         expect(sendAlert).toHaveBeenCalledWith('Plan renewal refused by PayGate', expect.any(String));
     });
 
-    it('paused: paying with another card starts a new month today, shows the business again, and replaces the card', async () => {
+    it('paused: paying with another card pays the unpaid month (what is owed stays owed), takes online bookings again, and replaces the card', async () => {
         const { owner, paidThrough } = await paidOwner();
         gw.chargeOutcome = 2;
         const t0 = at(paidThrough, 1000);
@@ -284,11 +321,14 @@ describe('a payment that does not go through', () => {
 
         const d = await me(owner);
         expect(d).toMatchObject({ status: 'paused', canAddCard: false, canChangeCard: true, checkout: { kind: 'card', amountCents: 6999 } });
-        const before = Date.now();
+        // The month a new card pays for is the unpaid one, not a month from today.
+        expect(new Date(d.checkout.paidThroughAfter).getTime()).toBe(billing.addMonth(paidThrough).getTime());
         await payWithNewCard(owner);
         const s = await sub(owner);
         expect(s).toMatchObject({ status: 'active', paidMonths: 2, vaultId: NEW_VAULT, card: { last4: '1111' }, pausedAt: null });
-        expect(new Date(s.paidThrough).getTime()).toBeGreaterThanOrEqual(billing.addMonth(new Date(before)).getTime() - 5000);
+        expect(new Date(s.paidThrough).getTime()).toBe(billing.addMonth(paidThrough).getTime());
+        const card = await SubscriptionPayment.findOne({ kind: 'card', status: 'paid' }).lean();
+        expect(new Date(card.periodStart).getTime()).toBe(paidThrough.getTime());
         expect((await User.findById(owner._id).lean()).billingPausedAt).toBeNull();
         expect(await providerBookingBlock(owner._id)).toBeNull();
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.card_payment' })).toBe(1);

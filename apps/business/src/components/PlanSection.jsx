@@ -166,8 +166,8 @@ const PayWithCard = ({ plan }) => {
                     <>
                         You pay {nad(amount)} now with the new card
                         {plan.status === 'active' ? <> for your next month, so your plan is paid to {day(plan.checkout.paidThroughAfter)}.</>
-                            : plan.status === 'paused' ? <> for a month starting today, and clients can book you online again straight away.</>
-                                : <> for the month that is unpaid, so your plan is paid to {day(plan.checkout.paidThroughAfter)}.</>}
+                            : <> for the oldest month that is unpaid, so your plan is paid to {day(plan.checkout.paidThroughAfter)}{plan.status === 'paused' ? ', and clients can book you online again straight away' : ''}.
+                                {plan.unpaidMonths > 1 ? <> The other {plan.unpaidMonths - 1} month{plan.unpaidMonths === 2 ? '' : 's'} owed {plan.unpaidMonths === 2 ? 'is' : 'are'} then charged to the new card in turn.</> : null}</>}
                         {' '}The new card replaces your saved card, which we ask PayGate to delete.
                     </>
                 )}
@@ -354,9 +354,10 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                 <div style={{ ...card, borderColor: 'var(--danger-fg)' }} data-testid="paused">
                     <h3 style={h3}>Your plan is paused</h3>
                     <p style={p}>
-                        This month is unpaid, so clients cannot make new online bookings. Your business is still listed, and you can still add
-                        bookings to your calendar yourself. Your bookings, clients and information are kept. Pay with a card below and online
-                        bookings are back on straight away.
+                        {plan.unpaidMonths > 1 ? <>{plan.unpaidMonths} months are unpaid</> : <>A month is unpaid</>}, so clients cannot make new
+                        online bookings. Your business is still listed, and you can still add bookings to your calendar yourself. Your bookings,
+                        clients and information are kept. Your plan is not cancelled, and what is unpaid is still owed: pay with a card below
+                        and online bookings are back on straight away.
                     </p>
                 </div>
             )}

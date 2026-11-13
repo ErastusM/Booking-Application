@@ -19,7 +19,7 @@ const planSchema = new mongoose.Schema({
     introPriceCents: { type: Number, default: 0, min: 0 },
     priceCents: { type: Number, default: 0, min: 0 },
     // How many days before the standard price starts the business is told.
-    priceChangeNoticeDays: { type: Number, default: 14, min: 0, max: 90 },
+    priceChangeNoticeDays: { type: Number, default: 30, min: 0, max: 90 },
     // Commission on each eligible online booking.
     commissionBps: { type: Number, required: true, min: 0, max: 10000 },
     fixedFeeCents: { type: Number, default: 0, min: 0 },
@@ -85,12 +85,14 @@ const platformSettingsSchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
 
-// The specification's starting values (section 15).
+// The starting values: Business Subscription Terms (November 2026) for Basic:
+// 60 days free, then N$79.99 for the first paid month, then N$149.99 a month;
+// 30 days' notice of a price revision.
 platformSettingsSchema.statics.DEFAULTS = Object.freeze({
     plans: {
         basic: {
-            label: 'Basic', trialDays: 30, introMonths: 6, introPriceCents: 6999, priceCents: 14999,
-            priceChangeNoticeDays: 14, commissionBps: 150, fixedFeeCents: 0,
+            label: 'Basic', trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999,
+            priceChangeNoticeDays: 30, commissionBps: 150, fixedFeeCents: 0,
         },
         standard: {
             label: 'Standard', trialDays: 0, introMonths: 0, introPriceCents: 0, priceCents: 0,
