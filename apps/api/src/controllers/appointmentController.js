@@ -39,7 +39,7 @@ const { checkCancellationWindow, DEFAULT_WINDOW_HOURS } = require('../utils/canc
 // double-book). bookingLockKey/withBookingLocks are shared with the waiting-list
 // promoter so both serialize on the same per-member-per-day key.
 const { withBookingLock, withBookingLocks, bookingLockKey, BookingBusyError } = require('../utils/lock');
-const { providerBookingBlock } = require('../utils/publicProvider');
+const { providerBookingBlock, actsForBusiness } = require('../utils/publicProvider');
 
 // Thrown inside a booking lock when the authoritative re-check finds the slot
 // was taken by the request that won the lock first.
@@ -1071,7 +1071,7 @@ exports.createAppointment = async (req, res) => {
         // A suspended (or removed) business takes no new bookings; its existing
         // bookings are left exactly as they are.
         {
-            const blocked = await providerBookingBlock(svc.provider);
+            const blocked = await providerBookingBlock(svc.provider, { byBusiness: actsForBusiness(req.user, svc.provider) });
             if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
         // Guest checkout: no signed-in user (optionalAuth left req.user null). A
@@ -1862,7 +1862,7 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // out back-to-back from startTime.
         const providerId = isStaffActor ? req.user.staffOf : req.user._id;
         {
-            const blocked = await providerBookingBlock(providerId);
+            const blocked = await providerBookingBlock(providerId, { byBusiness: true });
             if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
         // A member's booking lands in THEIR column (or, seeing the whole calendar,
@@ -3260,7 +3260,7 @@ exports.createGroupBooking = async (req, res) => {
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
         {
-            const blocked = await providerBookingBlock(svc.provider);
+            const blocked = await providerBookingBlock(svc.provider, { byBusiness: actsForBusiness(req.user, svc.provider) });
             if (blocked) return res.status(blocked.status).json({ success: false, code: blocked.code, message: blocked.message });
         }
 

@@ -165,7 +165,8 @@ describe('the monthly payments', () => {
         }} />);
         const box = screen.getByTestId('past-due');
         expect(box).toHaveTextContent('We will try again on 24 December 2026');
-        expect(box).toHaveTextContent('still unpaid on 30 December 2026, your plan is paused');
+        expect(box).toHaveTextContent('still unpaid on 30 December 2026, your plan is paused: clients cannot make new online bookings');
+        expect(box).toHaveTextContent('Your business stays listed');
         expect(screen.getByRole('heading', { name: 'Pay with another card' })).toBeInTheDocument();
         expect(screen.getByText(/for the month that is unpaid, so your plan is paid to 23 January 2027/)).toBeInTheDocument();
         await userEvent.click(screen.getByRole('checkbox', { name: /I agree to the plan terms/ }));
@@ -174,11 +175,13 @@ describe('the monthly payments', () => {
         await waitFor(() => expect(pay.goToPayGate).toHaveBeenCalledWith(checkout));
     });
 
-    it('paused: says the business is hidden and how to show it again', () => {
+    it('paused: no new online bookings, still listed, and how to switch them back on', () => {
         render(<PlanSection plan={{ ...active, status: 'paused', nextPaymentAt: null, canChangeCard: true, checkout: { kind: 'card', amountCents: 6999 } }} />);
         expect(screen.getByRole('heading', { name: 'Your plan is paused' })).toBeInTheDocument();
-        expect(screen.getByTestId('paused')).toHaveTextContent('not shown to clients');
-        expect(screen.getByText(/for a month starting today, and your business is shown to clients again/)).toBeInTheDocument();
+        expect(screen.getByTestId('paused')).toHaveTextContent('clients cannot make new online bookings');
+        expect(screen.getByTestId('paused')).toHaveTextContent('still listed, and you can still add bookings to your calendar yourself');
+        expect(screen.getByTestId('paused')).not.toHaveTextContent('not shown to clients');
+        expect(screen.getByText(/for a month starting today, and clients can book you online again/)).toBeInTheDocument();
     });
 
     it('replacing the card while paid up: pays the next month, says to when, and that the old card is deleted', () => {

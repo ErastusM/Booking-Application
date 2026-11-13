@@ -16,9 +16,10 @@ const mongoose = require('mongoose');
  *               charged and the plan ends at paidThrough
  *   past_due    a monthly payment did not go through: retried until
  *               retry.graceEndsAt (7 days), the business is still listed
- *   paused      still unpaid after the 7 days: the business is not shown to
- *               clients and takes no new bookings (User.billingPausedAt)
- *               until a month is paid with a card
+ *   paused      still unpaid after the 7 days: clients cannot make new online
+ *               bookings (User.billingPausedAt) until a month is paid with a
+ *               card; the business stays listed and keeps its dashboard,
+ *               calendar and data
  *   cancelled   the plan ended (cancelled, or the account was closed); the
  *               saved card is deleted at PayGate. A new plan can be started.
  *

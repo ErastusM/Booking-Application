@@ -9,9 +9,9 @@
  *  - A payment that does not go through makes the plan past due (still
  *    listed): it is tried again 1, 3 and 5 days after the first failure, and
  *    the owner can pay with another card meanwhile. Still unpaid 7 days after
- *    the first failure: the plan is paused, and the business is not shown to
- *    clients and takes no new bookings (utils/publicProvider) until a month
- *    is paid with a card.
+ *    the first failure: the plan is paused. Clients cannot make new online
+ *    bookings (utils/publicProvider) until a month is paid with a card; the
+ *    business stays listed and keeps its dashboard, calendar and data.
  *  - Price rises (the introductory price ending): the owner is told at least
  *    14 days before the first payment at the new price. A month whose rise
  *    was not told in time is charged at the old price.
@@ -273,13 +273,13 @@ const pauseOverdue = async (now = new Date()) => {
         await User.updateOne({ _id: sub.provider }, { $set: { billingPausedAt: now } });
         await recordFinance({ action: 'subscription.paused', provider: sub.provider, details: { subscription: String(sub._id) } });
         await billing.tellOwner(sub.provider, {
-            message: 'Your Bookplus plan is paused because this month is unpaid. Your business is not shown to clients and they cannot make new bookings until you pay with a card in Account, Your plan.',
+            message: 'Your Bookplus plan is paused because this month is unpaid. Clients cannot make new online bookings until you pay with a card in Account, Your plan.',
             subject: 'Your Bookplus plan is paused',
             heading: 'your plan is paused',
             lines: [
                 'Your Bookplus plan is paused because this month is still unpaid, 7 days after the payment from your saved card did not go through.',
-                'Your business is not shown to clients and they cannot make new bookings. Your existing bookings, clients and information are kept.',
-                'Pay with a card in Account, Your plan and your business is shown again straight away.',
+                'Clients cannot make new online bookings. Your business stays listed, and your dashboard, calendar, clients and booking history are kept; you can still add bookings to your calendar yourself.',
+                'Pay with a card in Account, Your plan and online bookings are back on straight away.',
             ],
         });
     }
@@ -288,8 +288,8 @@ const pauseOverdue = async (now = new Date()) => {
 
 /**
  * End a plan now: nothing more is charged, the saved card is deleted at
- * PayGate. A plan paused for non-payment stays paused (hidden) until a new
- * plan is paid for.
+ * PayGate. A plan paused for non-payment stays paused (no new online
+ * bookings) until a new plan is paid for.
  */
 const endPlan = async (subId, { reason = 'plan_ended', actor = null, now = new Date(), note = '' } = {}) => {
     const sub = await Subscription.findOneAndUpdate(

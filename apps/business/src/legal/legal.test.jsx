@@ -319,6 +319,10 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         expect(t).toMatch(/until you cancel/);
         expect(t).toMatch(/only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date/);
         expect(t).toMatch(/try again over the next 7 days/);
+        // The pause, as the specification has it: no new online bookings, still listed, nothing deleted.
+        expect(t).toMatch(/your plan is paused: clients cannot make new online bookings with you until the month is paid/);
+        expect(t).toMatch(/Your business stays listed, and your dashboard, calendar, clients, booking history and other information are kept; nothing is deleted because of non-payment/);
+        expect(t).not.toMatch(/no longer shown on the marketplace/);
         expect(t).toMatch(/at least 14 days in advance.*including when your introductory price ends/);
         expect(t).toMatch(/cancel your plan at any time in Account, Your plan.*until the end of the month you have already paid for/);
         expect(t).toMatch(/refund the difference to the card that was charged/);

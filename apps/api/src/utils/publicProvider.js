@@ -16,8 +16,10 @@
  *
  * A business whose Bookplus plan is paused for non-payment (billingPausedAt,
  * set and cleared only by services/subscriptionRenewals.js and a director's
- * "keep free") is hidden and takes no new bookings in exactly the same way;
- * its existing bookings, clients and data are untouched.
+ * "keep free") stays listed and visible, but clients cannot make new online
+ * bookings with it (providerBookingBlock, and its openings are left out of
+ * search). The business itself keeps its dashboard and calendar, and can
+ * still add bookings there; nothing is deleted.
  *
  * A service whose provider account no longer exists at all (hard-deleted before
  * the admin delete cleaned up after itself) is never public either: callers
@@ -32,16 +34,27 @@ const SUSPENDED = { isActive: false, deactivatedAt: null };
 const PLAN_PAUSED = { billingPausedAt: { $type: 'date' } };
 
 /** A User filter for providers clients may see, merged with `extra`. */
-const publicProviderFilter = (extra = {}) => ({ ...extra, role: 'provider', $nor: [SUSPENDED, PLAN_PAUSED] });
+const publicProviderFilter = (extra = {}) => ({ ...extra, role: 'provider', $nor: [SUSPENDED] });
 
-/** Is this loaded provider doc visible to clients? (needs role, isActive, deactivatedAt, billingPausedAt) */
-const isPublicProvider = (u) => !!u && u.role === 'provider' && !(u.isActive === false && !u.deactivatedAt) && !u.billingPausedAt;
+/** Is this loaded provider doc visible to clients? (needs role, isActive, deactivatedAt) */
+const isPublicProvider = (u) => !!u && u.role === 'provider' && !(u.isActive === false && !u.deactivatedAt);
+
+/** Can clients book this visible business online now? (needs billingPausedAt too) */
+const isBookableOnline = (u) => isPublicProvider(u) && !u.billingPausedAt;
 
 /** Set of string ids (out of `ids`) that belong to public providers — one query. */
 async function publicProviderIds(ids) {
     const list = [...new Set((ids || []).filter(Boolean).map(String))];
     if (!list.length) return new Set();
     const rows = await User.find(publicProviderFilter({ _id: { $in: list } })).select('_id').lean();
+    return new Set(rows.map((r) => String(r._id)));
+}
+
+/** The ids (out of `ids`) clients can book online now: public and not paused — one query. */
+async function bookableProviderIds(ids) {
+    const list = [...new Set((ids || []).filter(Boolean).map(String))];
+    if (!list.length) return new Set();
+    const rows = await User.find({ ...publicProviderFilter({ _id: { $in: list } }), $nor: [SUSPENDED, PLAN_PAUSED] }).select('_id').lean();
     return new Set(rows.map((r) => String(r._id)));
 }
 
@@ -58,24 +71,37 @@ async function teamBusinessSuspended(user) {
 const TEAM_SUSPENDED_MESSAGE = 'Your business’s Bookplus account has been suspended. Please contact the owner.';
 
 const UNAVAILABLE_MESSAGE = 'This business isn’t taking bookings on Bookplus right now.';
+const PAUSED_MESSAGE = 'This business isn’t taking online bookings right now. Please contact the business to book.';
 
 /**
  * null when new bookings may be made with this provider, otherwise the error
  * to send: { status, code, message }. Existing bookings are never touched.
+ * byBusiness: the business (owner or team) adding a booking to its own
+ * calendar, which a paused plan does not stop.
  */
-async function providerBookingBlock(providerId) {
+async function providerBookingBlock(providerId, { byBusiness = false } = {}) {
     if (!providerId) return null; // a global (admin) service has no business behind it
     const u = await User.findById(providerId).select('role isActive deactivatedAt billingPausedAt').lean();
-    if (isPublicProvider(u)) return null;
-    return { status: 403, code: 'provider_unavailable', message: UNAVAILABLE_MESSAGE };
+    if (!isPublicProvider(u)) return { status: 403, code: 'provider_unavailable', message: UNAVAILABLE_MESSAGE };
+    if (u.billingPausedAt && !byBusiness) return { status: 403, code: 'online_bookings_paused', message: PAUSED_MESSAGE };
+    return null;
 }
+
+/** Is this user the business (its owner or a team member) behind providerId? */
+const actsForBusiness = (user, providerId) => !!user && !!providerId && (
+    (user.role === 'provider' && String(user._id) === String(providerId))
+    || (user.role === 'staff' && String(user.staffOf) === String(providerId)));
 
 module.exports = {
     SUSPENDED,
     PLAN_PAUSED,
     publicProviderFilter,
     isPublicProvider,
+    isBookableOnline,
     publicProviderIds,
+    bookableProviderIds,
+    actsForBusiness,
+    PAUSED_MESSAGE,
     providerBookingBlock,
     teamBusinessSuspended,
     TEAM_SUSPENDED_MESSAGE,
