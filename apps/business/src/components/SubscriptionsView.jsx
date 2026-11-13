@@ -57,7 +57,7 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
         <div style={list} data-testid="finance-subscriptions">
             <p style={muted}>
                 {data.cardsOn
-                    ? 'Businesses add a card to start their plan (the first month is charged then), and the saved card is charged each month after that. A payment that does not go through is tried again for 7 days; then the plan is paused and the business is hidden from clients until it pays.'
+                    ? 'Businesses add a card to start their plan (the first month is charged then), and the saved card is charged each month after that. A payment that does not go through is tried again for 7 days; then the plan is paused: the business stays listed, but clients cannot book it online until it pays.'
                     : 'Billing is not switched on yet: nobody is charged.'}
                 {' '}Businesses from before {day(data.startedAt) || 'subscriptions started'} are
                 kept free until you move them; new businesses start a free trial when they sign up.
@@ -68,7 +68,7 @@ const SubscriptionsView = ({ isDirector, onLocked }) => {
                 { label: 'Trial ended', value: String(c.trial_ended || 0), sub: 'No card saved yet' },
                 { label: 'Paying', value: String(c.active || 0), sub: 'Card saved' },
                 { label: 'Payment failed', value: String(c.past_due || 0), sub: 'Being tried again' },
-                { label: 'Paused', value: String(c.paused || 0), sub: 'Hidden from clients' },
+                { label: 'Paused', value: String(c.paused || 0), sub: 'No new online bookings' },
                 { label: 'Plan ended', value: String(c.cancelled || 0) },
             ]} />
             {data.flagged > 0 && (

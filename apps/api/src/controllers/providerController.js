@@ -27,7 +27,7 @@ const { DEFAULT_WINDOW_HOURS } = require('../utils/cancellationPolicy');
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 // Fields needed to render the public provider profile (by id or by slug).
-const PROFILE_SELECT = 'name avatar providerCategory businessProfile portfolio phone email bookingPolicy';
+const PROFILE_SELECT = 'name avatar providerCategory businessProfile portfolio phone email bookingPolicy billingPausedAt';
 
 /**
  * GET /api/providers/:id/staff?serviceId=
@@ -487,6 +487,9 @@ async function buildProviderProfilePayload(provider) {
             avatar: provider.avatar,
             providerCategory: provider.providerCategory || null,
             currency: provider.businessProfile?.currency || 'NAD',
+            // false while the business's Basic plan is paused for non-payment:
+            // listed, but clients cannot book it online (utils/publicProvider).
+            takingOnlineBookings: !provider.billingPausedAt,
             // SECURITY: this payload is served on TWO unauthenticated routes
             // (GET /:id and GET /by-slug/:slug). Do NOT spread the whole
             // businessProfile subdocument — it also carries private onboarding

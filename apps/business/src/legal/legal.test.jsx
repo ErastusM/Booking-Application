@@ -248,35 +248,61 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         for (const [on, off] of docs('customer', S).map((d, i) => [d, docs('customer')[i]])) expect(textOf(on)).toBe(textOf(off));
     });
 
-    it('business terms: trial, prices fixed at the trial, first payment with 3D Secure, the monthly charge authority, failures, notice, cancelling, refunds', () => {
+    it('business terms follow the Business Subscription Terms (November 2026), clause by clause', () => {
         const terms = termsOfService('business', S);
         const ids = terms.sections.map((x) => x.id);
         expect(ids).toContain('plan');
         expect(ids.indexOf('plan')).toBeLessThan(ids.indexOf('fees'));
         const t = textOf(terms);
-        expect(t).toMatch(/kept free until we tell you otherwise\. We tell you in advance/);
-        expect(t).toMatch(/Nothing is charged during the trial, and you do not need a card to start it/);
-        expect(t).toMatch(/The prices that apply to you are fixed when your trial starts/);
-        expect(t).toMatch(/3D Secure check; Bookplus never sees or stores your card number/);
-        expect(t).toMatch(/your first paid month starts when the trial ends, so your trial is not shortened/);
+        // 1. The fee.
+        expect(t).toMatch(/standard fee of \*\*N\$149\.99 a month\*\* for each registered business account/);
+        // 2. 60 days free.
+        expect(t).toMatch(/first \*\*60 days free\*\* from when it registers/);
+        expect(t).toMatch(/Nothing is charged in that time, and you do not need a card to start it/);
+        expect(t).toMatch(/We remind you 7 days and 1 day before it ends\. If no month is paid when it ends, clients cannot make new online bookings with you until you pay your first month/);
+        // 3, 4. The introductory month and its discount, then the standard fee automatically.
+        expect(t).toMatch(/Your first paid month, the month after the free period, is \*\*N\$79\.99\*\*: 46\.67% off the standard monthly fee/);
+        expect(t).toMatch(/moves automatically to the standard fee of \*\*N\$149\.99 a month\*\* for every month that follows, unless you cancel or the fee is revised/);
+        // 5. Monthly in advance, renews automatically, a valid card, the authority.
+        expect(t).toMatch(/billed monthly in advance and renews automatically each month until you cancel/);
         expect(t).toMatch(/you authorise Bookplus to charge it every month\*\*, when your paid month renews/);
-        expect(t).toMatch(/until you cancel/);
+        expect(t).toMatch(/You must keep a valid card that PayGate supports/);
         expect(t).toMatch(/only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date/);
-        expect(t).toMatch(/try again over the next 7 days/);
-        expect(t).toMatch(/at least 14 days in advance.*including when your introductory price ends/);
-        expect(t).toMatch(/cancel your plan at any time in Account, Your plan.*until the end of the month you have already paid for/);
+        expect(t).toMatch(/3D Secure check; Bookplus never sees or stores your card number/);
+        expect(t).toMatch(/your first paid month starts when it ends, so your free period is not shortened/);
+        // 6. Reminders before each payment and before the introductory price ends.
+        expect(t).toMatch(/a few days before each monthly payment is taken, with the amount and the date/);
+        expect(t).toMatch(/We also tell you in advance when your introductory price ends/);
+        // 7. Five days' grace; the pause, as decided: no new online bookings, still listed, nothing deleted.
+        expect(t).toMatch(/give you \*\*5 days\*\* to pay what is due/);
+        expect(t).toMatch(/your plan is paused: clients cannot make new online bookings with you until it is paid/);
+        expect(t).toMatch(/Your business stays listed, and your dashboard, calendar, clients, booking history and other information are kept; nothing is deleted because of non-payment/);
+        expect(t).not.toMatch(/7 days to pay|over the next 7 days/);
+        // 8. Cancelling before the next payment; access to the end of the paid month.
+        expect(t).toMatch(/cancel your plan at any time before your next payment in Account, Your plan.*until the end of the month you have already paid for/);
+        // 9. No refunds once the month has started, unless the law requires.
+        expect(t).toMatch(/not refunded once the month it pays for has started, except where the law requires it/);
         expect(t).toMatch(/refund the difference to the card that was charged/);
+        // 10. 30 days' notice of a revised fee.
+        expect(t).toMatch(/at least \*\*30 days\*\* in advance, by email and in the app, before a revised fee applies to you/);
+        // 11, 12. Suspension; a pause does not cancel the plan or what is owed.
+        expect(t).toMatch(/suspend or restrict an account with payments overdue, or for fraud or a breach of these Terms/);
+        expect(t).toMatch(/does not cancel your subscription, and what is unpaid is still owed/);
+        expect(t).toMatch(/the oldest unpaid month is paid first/);
+        // 13. Shown before registering.
+        expect(t).toMatch(/Before you register we show you the free period, the introductory price and its discount, the standard monthly fee and your billing dates/);
+        expect(t).toMatch(/kept free until we tell you otherwise\. We tell you in advance/);
         expect(t).toMatch(/Closing your account cancels your plan/);
         expect(t).toMatch(/There is no booking fee/);
         expect(t).not.toMatch(/Using Bookplus without online payments has no fee/);
         expect(t).not.toMatch(/not liable|as is|indirect or consequential|governed by|jurisdiction|indemnif/i);
     });
 
-    it('the 14 days of notice in the terms is the plan setting\'s default', async () => {
+    it('the plan clauses use the starting prices of the API (PlatformSettings.DEFAULTS)', async () => {
         const fs = await import('node:fs');
         const path = await import('node:path');
         const src = fs.readFileSync(path.resolve(__dirname, '../../../api/src/models/PlatformSettings.js'), 'utf8');
-        expect(src).toMatch(/priceChangeNoticeDays: 14/);
+        expect(src).toMatch(/label: 'Basic', trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999,\s*priceChangeNoticeDays: 30,/);
     });
 
     it('privacy (business): the plan and its card token, why, PayGate, how long', () => {

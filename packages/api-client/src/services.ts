@@ -83,6 +83,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     // A business owner's own Bookplus plan ({ visible: false } until shown to businesses).
     subscriptionService: {
+        // What a new business would pay (public; { visible: false } until shown).
+        plan: () => API.get('/subscriptions/plan'),
         mine: () => API.get('/subscriptions/me'),
         // Add card and start plan: where to send the browser (PayGate's own
         // page, by a form POST of `fields`), then the result by reference.

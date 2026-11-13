@@ -46,6 +46,8 @@ const checkoutLimiter = rateLimit({
     message: { success: false, message: 'Too many card attempts. Please try again later.' },
 });
 
+// What a new business would pay, shown before it registers (public).
+router.get('/plan', c.publicPlan);
 // A business owner's own plan (team members have none of their own).
 router.get('/me', auth, owner, c.mine);
 router.post('/me/checkout', requireSubscriptionBilling, checkoutLimiter, auth, owner, c.startCheckout);

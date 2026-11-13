@@ -311,6 +311,8 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
     const cur = currencySymbol(provider.currency);
     const isOwner = user?._id === provider._id;
+    // A business whose Bookplus plan is paused for non-payment stays listed, but is not booked online.
+    const bookableOnline = provider.takingOnlineBookings !== false;
     // De-duped services across every category → lowest price for the Book bar.
     const allServices = (() => {
         const seen = new Set(); const out = [];
@@ -541,7 +543,12 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
             {/* Bottom room (index.css .provider-profile-body): the fixed "Book now"
                 bar's clearance only on phones, where that bar shows. */}
-            <div className={`container provider-profile-body${isOwner ? '' : ' has-book-bar'}`} style={{ paddingTop: '1.5rem' }}>
+            <div className={`container provider-profile-body${isOwner || !bookableOnline ? '' : ' has-book-bar'}`} style={{ paddingTop: '1.5rem' }}>
+                {!bookableOnline && !isOwner && (
+                    <div role="status" data-testid="online-bookings-paused" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem 1.1rem', marginBottom: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                        {(provider.businessProfile?.businessName || provider.name)} isn’t taking online bookings right now. Please contact the business to book.
+                    </div>
+                )}
                 <div className="provider-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Left — About, Services, Team, Reviews (Fresha page order) */}
@@ -765,7 +772,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                             {/* Desktop CTA — on mobile the fixed bottom "Book now" bar owns this
                                 job, so this in-card button is hidden there (see index.css) to avoid
                                 a redundant second Book button on the same screen. */}
-                            {!isOwner && (
+                            {!isOwner && bookableOnline && (
                                 <button
                                     onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)}
                                     className="btn-primary profile-details-book"
@@ -814,7 +821,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
             </div>
 
             {/* ── Sticky "Book now" bar (Fresha-style) — always reachable on mobile ── */}
-            {!isOwner && (
+            {!isOwner && bookableOnline && (
                 <div className="provider-book-bar" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 95, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', boxShadow: '0 -4px 20px rgba(4,5,5,0.10)' }}>
                     <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.8rem 1.5rem calc(0.8rem + env(safe-area-inset-bottom, 0px))' }}>
                         <div style={{ minWidth: 0 }}>

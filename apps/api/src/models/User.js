@@ -249,8 +249,8 @@ const userSchema = new mongoose.Schema(
         // Set when the user self-deactivates — signing in again reactivates the
         // account (distinct from an admin suspension, which stays blocked).
         deactivatedAt: { type: Date, default: null },
-        // The business's Bookplus plan is paused for non-payment: not shown to
-        // clients and no new bookings until a month is paid (utils/publicProvider).
+        // The business's Bookplus plan is paused for non-payment: still listed,
+        // but clients cannot book it online until a month is paid (utils/publicProvider).
         billingPausedAt: { type: Date, default: null },
         // Bookplus staff money roles (utils/financeRoles.js). Admin accounts only;
         // empty on an admin = both roles (the owner's original admin).

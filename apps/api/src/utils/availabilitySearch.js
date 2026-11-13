@@ -20,7 +20,7 @@ const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
 const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms, availabilityHasHours } = require('./staffBooking');
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
-const { publicProviderIds } = require('./publicProvider');
+const { bookableProviderIds } = require('./publicProvider');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const GRID_STEP = 30; // minutes between offered start times (plus each period's own opening time)
@@ -78,7 +78,8 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     });
 
     // Suspended businesses are never offered (utils/publicProvider).
-    const visible = await publicProviderIds([...byProvider.keys()]);
+    // Openings only for businesses clients can book online now (not suspended, plan not paused).
+    const visible = await bookableProviderIds([...byProvider.keys()]);
     let candidateIds = [...byProvider.keys()].filter((pid) => visible.has(pid));
     if (q && q.trim()) {
         const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
