@@ -31,15 +31,15 @@ describe('who is kept free and who is on a trial', () => {
         expect((await subs.forProvider(old)).status).toBe('exempt');
     });
 
-    it('a business that signs up after starts the 30-day trial then, at the plan\'s prices', async () => {
+    it('a business that signs up after starts the 60-day free period then, at the plan\'s prices', async () => {
         await subs.startedAt(new Date(Date.now() - 1000));
         const fresh = await makeProvider();
         const sub = await subs.forProvider(fresh);
         expect(sub).toMatchObject({
             status: 'trialing',
-            terms: { trialDays: 30, introMonths: 6, introPriceCents: 6999, priceCents: 14999 },
+            terms: { trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999 },
         });
-        expect(new Date(sub.trialEndsAt).getTime()).toBe(new Date(fresh.createdAt).getTime() + 30 * DAY);
+        expect(new Date(sub.trialEndsAt).getTime()).toBe(new Date(fresh.createdAt).getTime() + 60 * DAY);
         // One record per business.
         await subs.forProvider(fresh);
         expect(await Subscription.countDocuments({ provider: fresh._id })).toBe(1);
@@ -65,7 +65,7 @@ describe('GET /api/subscriptions/me', () => {
         const boss = await director();
         await request(app).put('/api/admin/finance/subscriptions/visibility').set(authHeader(boss)).send({ show: true, reason: 'Testing plans' }).expect(200);
         const res = await request(app).get('/api/subscriptions/me').set(authHeader(owner)).expect(200);
-        expect(res.body.data).toMatchObject({ visible: true, status: 'trialing', trialDaysLeft: 30, nextPriceCents: 6999 });
+        expect(res.body.data).toMatchObject({ visible: true, status: 'trialing', trialDaysLeft: 60, nextPriceCents: 7999 });
     });
 
     it('is only for business owners', async () => {
@@ -93,7 +93,7 @@ describe('admin: Money → Subscriptions', () => {
         expect((await move('trial', {})).status).toBe(400); // no reason
         const t = await move('trial', { reason: 'Pilot business' });
         expect(t.status).toBe(200);
-        expect(t.body.data).toMatchObject({ status: 'trialing', trialDaysLeft: 30 });
+        expect(t.body.data).toMatchObject({ status: 'trialing', trialDaysLeft: 60 });
         expect((await move('trial', { reason: 'again' })).status).toBe(409);
 
         const k = await move('keep-free', { reason: 'Partner' });
@@ -114,5 +114,15 @@ describe('admin: Money → Subscriptions', () => {
         const boss = await director();
         expect((await request(app).post('/api/admin/finance/subscriptions/0123456789abcdef01234567/trial').set(authHeader(boss)).send({ reason: 'x' })).status).toBe(404);
         expect((await request(app).post('/api/admin/finance/subscriptions/not-an-id/trial').set(authHeader(boss)).send({ reason: 'x' })).status).toBe(404);
+    });
+});
+
+describe('GET /api/subscriptions/plan (before registering)', () => {
+    it('public: hidden until plans are shown, then the free period, introductory price and discount, and the standard price', async () => {
+        expect((await request(app).get('/api/subscriptions/plan').expect(200)).body.data).toEqual({ visible: false });
+        const boss = await director();
+        await request(app).put('/api/admin/finance/subscriptions/visibility').set(authHeader(boss)).send({ show: true, reason: 'Testing plans' }).expect(200);
+        const res = await request(app).get('/api/subscriptions/plan').expect(200);
+        expect(res.body.data).toEqual({ visible: true, currency: 'NAD', trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999, discountPct: 46.67 });
     });
 });

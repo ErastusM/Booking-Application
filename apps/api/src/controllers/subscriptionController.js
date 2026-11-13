@@ -50,6 +50,34 @@ exports.mine = async (req, res) => {
     }
 };
 
+// GET /api/subscriptions/plan (public): what a new business would pay, shown
+// before it registers (Business Subscription Terms, "Pricing transparency").
+// Hidden ({ visible: false }) until the owner of Bookplus shows plans to
+// businesses.
+exports.publicPlan = async (req, res) => {
+    try {
+        const settings = await pricing.getSettings();
+        if (!settings.subscriptions?.showToBusinesses) return res.json({ success: true, data: { visible: false } });
+        const b = settings.plans?.basic || {};
+        const intro = (b.introMonths || 0) > 0 && b.introPriceCents < b.priceCents;
+        res.json({
+            success: true,
+            data: {
+                visible: true,
+                currency: 'NAD',
+                trialDays: b.trialDays || 0,
+                introMonths: intro ? b.introMonths : 0,
+                introPriceCents: intro ? b.introPriceCents : null,
+                priceCents: b.priceCents || 0,
+                // The introductory discount on the standard price, in percent (2 decimals).
+                discountPct: intro && b.priceCents > 0 ? Math.round(((b.priceCents - b.introPriceCents) / b.priceCents) * 10000) / 100 : 0,
+            },
+        });
+    } catch {
+        fail(res, 500, 'Internal server error');
+    }
+};
+
 // GET /api/admin/finance/subscriptions
 exports.list = async (req, res) => {
     try {

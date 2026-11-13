@@ -17,11 +17,12 @@ const mongoose = require('mongoose');
  *               cancelAtPeriodEnd: the owner cancelled; nothing more is
  *               charged and the plan ends at paidThrough
  *   past_due    a monthly payment did not go through: retried until
- *               retry.graceEndsAt (7 days), the business is still listed
- *   paused      still unpaid after the 7 days: clients cannot make new online
- *               bookings (User.billingPausedAt) until a month is paid with a
- *               card; the business stays listed and keeps its dashboard,
- *               calendar and data
+ *               retry.graceEndsAt (5 days), the business is still listed
+ *   paused      still unpaid after the 5 days: clients cannot make new online
+ *               bookings (User.billingPausedAt) until the unpaid month is paid
+ *               with a card (a pause does not cancel what is owed: months owed
+ *               are paid oldest first); the business stays listed and keeps
+ *               its dashboard, calendar and data
  *   cancelled   the plan ended (cancelled, or the account was closed); the
  *               saved card is deleted at PayGate. Clients cannot make new
  *               online bookings until a new plan is paid for.
@@ -95,9 +96,16 @@ const subscriptionSchema = new mongoose.Schema({
         d7SentAt: { type: Date, default: null },
         d1SentAt: { type: Date, default: null },
     },
-    // The 14 days' notice of a price rise (the introductory price ending),
-    // given for the monthly payment due at forPaidThrough.
+    // The notice of a price rise (the introductory price ending), given for
+    // the monthly payment due at forPaidThrough.
     priceNotice: {
+        forPaidThrough: { type: Date, default: null },
+        sentAt: { type: Date, default: null },
+    },
+    // The reminder a few days before each monthly charge (Business
+    // Subscription Terms, "Payment notifications"), for the payment due at
+    // forPaidThrough.
+    chargeReminder: {
         forPaidThrough: { type: Date, default: null },
         sentAt: { type: Date, default: null },
     },

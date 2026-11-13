@@ -16,6 +16,19 @@ import { FEATURES } from '../features.mjs';
 
 export const TERMS_LAST_UPDATED = '27 September 2026';
 
+// The Basic plan's prices in the plan clauses (Business Subscription Terms,
+// November 2026). Equal to the API's PlatformSettings.DEFAULTS (a unit test
+// there checks it); an existing business keeps the prices it registered with.
+export const PLAN_TERMS = Object.freeze({
+    trialDays: 60,
+    introMonths: 1,
+    introPriceCents: 7999,
+    priceCents: 14999,
+    priceChangeNoticeDays: 30,
+    discountText: '46.67%',
+});
+const nad = (cents) => `N$${(cents / 100).toFixed(2)}`;
+
 const op = operatorName(COMPANY);
 // companyValue-based: a missing or placeholder address is never shown.
 const mail = mailLink('email');
@@ -228,25 +241,32 @@ const businessSections = (W, P, S) => [
     // charges (subscriptions step 3) must build exactly as written; confirm
     // them with the owner and the lawyer before switching S on.
     S ? { id: 'plan', title: 'Your Bookplus plan', blocks: [
-        'Bookplus for Business is paid for with a monthly subscription, the **Basic plan**, paid by card. Your plan, its prices and its dates are always shown in Account, Your plan.',
+        // Business Subscription Terms (November 2026). The amounts are
+        // PLAN_TERMS above; keep them equal to PlatformSettings.DEFAULTS
+        // (apps/api, checked by a unit test).
+        `Bookplus for Business is paid for with a monthly subscription, the **Basic plan**, at a standard fee of **${nad(PLAN_TERMS.priceCents)} a month** for each registered business account, paid by card. Your plan, its prices and its dates are always shown in Account, Your plan.`,
         { list: [
-            '**Businesses kept free.** A business that used Bookplus before subscriptions started is kept free until we tell you otherwise. We tell you in advance, by email and in the app, and you then start a free trial like a new business.',
-            '**Free trial.** A new business starts a free trial when it registers, for the number of days shown in Account, Your plan. Nothing is charged during the trial, and you do not need a card to start it. We remind you 7 days and 1 day before it ends. If no month is paid when the trial ends, clients cannot make new online bookings with you until you pay your first month; your business stays listed and nothing is deleted.',
-            '**Prices.** The Basic plan has an introductory monthly price for its first months, then the standard monthly price. The prices that apply to you are fixed when your trial starts and shown in Account, Your plan; a later change to our price list does not change them without notice (see “Price changes” below). Prices are in **Namibian Dollars (N$)**.',
-            '**Starting your plan.** You start the plan by adding a card in Account, Your plan and paying your first month. You enter your card on **PayGate**’s secure page, with your bank’s 3D Secure check; Bookplus never sees or stores your card number or security code. If you add a card during your free trial, your first paid month starts when the trial ends, so your trial is not shortened.',
-            '**Monthly payments from your saved card.** By adding your card **you authorise Bookplus to charge it every month**, when your paid month renews, for the monthly price of your plan that applies at the time, until you cancel. PayGate keeps your card for these payments; Bookplus keeps only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date. Each payment is shown in Account, Your plan.',
-            // DECISION: the retry window and what pausing means. Built as written
-            // (services/subscriptionRenewals.js): tries 1, 3 and 5 days after.
-            '**If a payment does not go through,** we tell you by email and in the app, and try again over the next 7 days. You can pay with another card in that time, and your account and information stay available. If the month is still unpaid after 7 days, your plan is paused: clients cannot make new online bookings with you until the month is paid. Your business stays listed, and your dashboard, calendar, clients, booking history and other information are kept; nothing is deleted because of non-payment. Online bookings are switched back on as soon as the month is paid.',
-            '**Price changes.** We tell you at least 14 days in advance, by email and in the app, before the price you pay goes up, including when your introductory price ends. If you do not accept a new price, you can cancel before it applies.',
-            // DECISION: cancelling takes effect at the end of the paid month; no
-            // part-month refunds. Built as written; cancelling with a month unpaid
-            // ends the plan at once.
-            '**Cancelling.** You can cancel your plan at any time in Account, Your plan. Your card is not charged again, and your plan stays active until the end of the month you have already paid for. After that, clients cannot make new online bookings with you until you start a plan again; your business stays listed and your information is kept. We do not refund part of a month already paid, unless the law requires it.',
-            '**Charged in error.** If we charge you more than we should, or after you cancelled, we refund the difference to the card that was charged. Please contact us before disputing a plan payment with your bank: most problems are solved faster that way.',
-            // DECISION: deleting the saved card at PayGate when the plan ends.
-            // Built as written, and also when a card is replaced.
-            '**Your saved card.** You can replace it at any time in Account, Your plan: you pay your next month with the new card, and it is used from then on. When your plan ends, you replace your card or you delete your account, we ask PayGate to delete the saved card.',
+            '**Businesses kept free.** A business that used Bookplus before subscriptions started is kept free until we tell you otherwise. We tell you in advance, by email and in the app, and you then start the free period like a new business.',
+            `**Free introductory period.** A new business has its first **${PLAN_TERMS.trialDays} days free** from when it registers, with the Bookplus for Business features available to it under these Terms. Nothing is charged in that time, and you do not need a card to start it. We remind you 7 days and 1 day before it ends. If no month is paid when it ends, clients cannot make new online bookings with you until you pay your first month; your business stays listed and nothing is deleted.`,
+            `**Introductory price.** Your first paid month, the month after the free period, is **${nad(PLAN_TERMS.introPriceCents)}**: ${PLAN_TERMS.discountText} off the standard monthly fee. After that first paid month your plan moves automatically to the standard fee of **${nad(PLAN_TERMS.priceCents)} a month** for every month that follows, unless you cancel or the fee is revised as set out below.`,
+            '**Your prices are fixed when you register.** The prices that apply to you are the ones shown when you register and in Account, Your plan. A later change to our price list does not change them unless we tell you first (see “Price changes”). Prices are in **Namibian Dollars (N$)**. Before you register we show you the free period, the introductory price and its discount, the standard monthly fee and your billing dates.',
+            '**Starting your plan.** You start the plan by adding a card in Account, Your plan and paying your first month. You enter your card on **PayGate**’s secure page, with your bank’s 3D Secure check; Bookplus never sees or stores your card number or security code. If you add a card during your free period, your first paid month starts when it ends, so your free period is not shortened.',
+            '**Monthly payments in advance.** Your plan is billed monthly in advance and renews automatically each month until you cancel. By adding your card **you authorise Bookplus to charge it every month**, when your paid month renews, for the monthly fee of your plan that applies at the time. You must keep a valid card that PayGate supports; you can replace it at any time. PayGate keeps your card for these payments; Bookplus keeps only PayGate’s reference to it and the card’s brand, last 4 digits and expiry date. Each payment is shown in Account, Your plan.',
+            // services/subscriptionRenewals.js: remindUpcomingCharges (3 days
+            // before each charge) and notifyPriceRises (the introductory price ending).
+            '**Reminders before each payment.** We tell you by email and in the app a few days before each monthly payment is taken, with the amount and the date. We also tell you in advance when your introductory price ends and the standard monthly fee starts.',
+            // services/subscriptionBilling.js: tries 1, 2 and 4 days after, paused after 5.
+            '**If a payment does not go through,** we tell you by email and in the app, try your card again, and give you **5 days** to pay what is due. You can pay with another card in that time, and your account and information stay available. If it is still unpaid after the 5 days, your plan is paused: clients cannot make new online bookings with you until it is paid. Your business stays listed, and your dashboard, calendar, clients, booking history and other information are kept; nothing is deleted because of non-payment. Online bookings are switched back on as soon as it is paid.',
+            // Unpaid months are paid oldest first (subscriptionBilling.cardPeriod).
+            '**A pause does not end your plan.** Pausing your plan for non-payment does not cancel your subscription, and what is unpaid is still owed. When you pay, the oldest unpaid month is paid first, and any other months owed are then charged to your card in turn. If you do not want to continue, you can cancel (see “Cancelling”).',
+            `**Price changes.** We may revise our subscription fees. We tell you at least **${PLAN_TERMS.priceChangeNoticeDays} days** in advance, by email and in the app, before a revised fee applies to you. If you do not accept it, you can cancel before it applies.`,
+            // Cancelling takes effect at the end of the paid month; cancelling with
+            // a month unpaid ends the plan at once.
+            '**Cancelling.** You can cancel your plan at any time before your next payment in Account, Your plan. Your card is not charged again, and your plan stays active until the end of the month you have already paid for. After that, clients cannot make new online bookings with you until you start a plan again; your business stays listed and your information is kept.',
+            '**Refunds.** A monthly payment is not refunded once the month it pays for has started, except where the law requires it. If we charge you more than we should, or after you cancelled, we refund the difference to the card that was charged. Please contact us before disputing a plan payment with your bank: most problems are solved faster that way.',
+            '**Suspending accounts.** We may suspend or restrict an account with payments overdue, or for fraud or a breach of these Terms (see also “Suspending or closing accounts”).',
+            // Deleting the saved card at PayGate when the plan ends or a card is replaced.
+            '**Your saved card.** You can replace it at any time in Account, Your plan: you pay your next month with the new card (or the oldest month owed), and it is used from then on. When your plan ends, you replace your card or you delete your account, we ask PayGate to delete the saved card.',
         ] },
     ] } : null,
     { id: 'fees', title: 'Fees', blocks: S

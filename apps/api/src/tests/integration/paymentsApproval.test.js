@@ -80,7 +80,7 @@ describe('the business applies', () => {
         expect(first.status).toBe(200);
         expect(first.body.data).toMatchObject({ status: 'draft', editable: true, canSubmit: false, takingPayments: false });
         expect(first.body.data.plans).toEqual(expect.arrayContaining([
-            expect.objectContaining({ key: 'basic', trialDays: 30, introMonths: 6, introPriceCents: 6999, priceCents: 14999, commissionBps: 150, fixedFeeCents: 0 }),
+            expect.objectContaining({ key: 'basic', trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999, commissionBps: 150, fixedFeeCents: 0 }),
             expect.objectContaining({ key: 'standard', priceCents: 0, commissionBps: 300, fixedFeeCents: 150 }),
         ]));
         expect(first.body.data.processingFee).toMatchObject({ known: false, payer: 'business' });

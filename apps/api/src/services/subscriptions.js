@@ -16,6 +16,29 @@ const pricing = require('./pricing');
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/** The day a month after `from` (the 31st becomes the last day of a shorter month). */
+const addMonth = (from) => {
+    const d = new Date(from);
+    const day = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, last));
+    return d;
+};
+
+/**
+ * Months unpaid: from the date the plan is paid to, how many months have
+ * started by now (Business Subscription Terms, "Subscription continuity": a
+ * suspension does not cancel what is owed). 0 when paid up.
+ */
+const unpaidMonths = (paidThrough, now = new Date()) => {
+    if (!paidThrough) return 0;
+    let n = 0;
+    for (let d = new Date(paidThrough); d <= now && n < 120; d = addMonth(d)) n += 1;
+    return n;
+};
+
 /** When subscriptions started (set once, the first time it is asked). */
 const startedAt = async (now = new Date()) => {
     const settings = await pricing.getSettings();
@@ -63,6 +86,8 @@ const describe = (sub, now = new Date()) => {
         nextAttemptAt: status === 'past_due' ? sub.retry?.nextAttemptAt || null : null,
         graceEndsAt: status === 'past_due' ? sub.retry?.graceEndsAt || null : null,
         pausedAt: status === 'paused' ? sub.pausedAt || null : null,
+        // Months owed while past due or paused: each is paid in turn, oldest first.
+        unpaidMonths: ['past_due', 'paused'].includes(status) ? unpaidMonths(sub.paidThrough, now) : 0,
         // Clients cannot make new online bookings: unpaid month, trial ended unpaid, or no plan.
         onlineBookingsPaused: ['paused', 'trial_ended', 'cancelled'].includes(status) && !!sub.pausedAt,
     };
@@ -147,4 +172,4 @@ const keepFree = async (providerId, { by, note = '' } = {}, now = new Date()) =>
     return { ok: true, subscription: describe(await Subscription.findById(sub._id).lean(), now) };
 };
 
-module.exports = { startedAt, describe, forProvider, listAll, startTrial, keepFree };
+module.exports = { startedAt, addMonth, unpaidMonths, describe, forProvider, listAll, startTrial, keepFree };

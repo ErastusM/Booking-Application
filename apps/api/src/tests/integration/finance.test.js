@@ -177,7 +177,7 @@ describe('pricing settings and the launch checklist', () => {
         const dir = await director();
         const r = await request(app).get('/api/admin/finance/settings').set(financeHeader(fin));
         expect(r.status).toBe(200);
-        expect(r.body.data.settings.plans.basic).toMatchObject({ trialDays: 30, introMonths: 6, introPriceCents: 6999, priceCents: 14999, commissionBps: 150, fixedFeeCents: 0 });
+        expect(r.body.data.settings.plans.basic).toMatchObject({ trialDays: 60, introMonths: 1, introPriceCents: 7999, priceCents: 14999, commissionBps: 150, fixedFeeCents: 0 });
         expect(r.body.data.settings.plans.standard).toMatchObject({ priceCents: 0, commissionBps: 300, fixedFeeCents: 150 });
         // Nothing is ready until PayGate's real fees and every approval are in.
         expect(r.body.data.launch.ready).toBe(false);

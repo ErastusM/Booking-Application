@@ -174,7 +174,7 @@ describe('the monthly payments', () => {
         expect(box).toHaveTextContent('still unpaid on 30 December 2026, your plan is paused: clients cannot make new online bookings');
         expect(box).toHaveTextContent('Your business stays listed');
         expect(screen.getByRole('heading', { name: 'Pay with another card' })).toBeInTheDocument();
-        expect(screen.getByText(/for the month that is unpaid, so your plan is paid to 23 January 2027/)).toBeInTheDocument();
+        expect(screen.getByText(/for the oldest month that is unpaid, so your plan is paid to 23 January 2027/)).toBeInTheDocument();
         await userEvent.click(screen.getByRole('checkbox', { name: /I agree to the plan terms/ }));
         await userEvent.click(screen.getByRole('button', { name: 'Pay with the new card' }));
         expect(svc.subscriptionService.startCheckout).toHaveBeenCalledWith(true);
@@ -182,12 +182,16 @@ describe('the monthly payments', () => {
     });
 
     it('paused: no new online bookings, still listed, and how to switch them back on', () => {
-        render(<PlanSection plan={{ ...active, status: 'paused', nextPaymentAt: null, canChangeCard: true, checkout: { kind: 'card', amountCents: 6999 } }} />);
+        render(<PlanSection plan={{ ...active, status: 'paused', nextPaymentAt: null, unpaidMonths: 2, canChangeCard: true, checkout: { kind: 'card', amountCents: 6999, paidThroughAfter: '2027-01-14T10:00:00Z' } }} />);
         expect(screen.getByRole('heading', { name: 'Your plan is paused' })).toBeInTheDocument();
         expect(screen.getByTestId('paused')).toHaveTextContent('clients cannot make new online bookings');
         expect(screen.getByTestId('paused')).toHaveTextContent('still listed, and you can still add bookings to your calendar yourself');
         expect(screen.getByTestId('paused')).not.toHaveTextContent('not shown to clients');
-        expect(screen.getByText(/for a month starting today, and clients can book you online again/)).toBeInTheDocument();
+        // A pause does not cancel what is owed: the oldest unpaid month first, then the rest in turn.
+        expect(screen.getByTestId('paused')).toHaveTextContent('2 months are unpaid');
+        expect(screen.getByTestId('paused')).toHaveTextContent('Your plan is not cancelled, and what is unpaid is still owed');
+        expect(screen.getByText(/for the oldest month that is unpaid, so your plan is paid to 14 January 2027, and clients can book you online again/)).toBeInTheDocument();
+        expect(screen.getByText(/The other 1 month owed is then charged to the new card in turn/)).toBeInTheDocument();
     });
 
     it('replacing the card while paid up: pays the next month, says to when, and that the old card is deleted', () => {
