@@ -312,6 +312,8 @@ describe('paying for a Bookplus plan in the legal text (business only)', () => {
         const t = textOf(terms);
         expect(t).toMatch(/kept free until we tell you otherwise\. We tell you in advance/);
         expect(t).toMatch(/Nothing is charged during the trial, and you do not need a card to start it/);
+        expect(t).toMatch(/We remind you 7 days and 1 day before it ends\. If no month is paid when the trial ends, clients cannot make new online bookings with you until you pay your first month/);
+        expect(t).toMatch(/After that, clients cannot make new online bookings with you until you start a plan again/);
         expect(t).toMatch(/The prices that apply to you are fixed when your trial starts/);
         expect(t).toMatch(/3D Secure check; Bookplus never sees or stores your card number/);
         expect(t).toMatch(/your first paid month starts when the trial ends, so your trial is not shortened/);

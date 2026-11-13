@@ -287,7 +287,10 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
             {plan.status === 'trialing' && (
                 <div style={card}>
                     <h3 style={h3}>Free trial: {plan.trialDaysLeft} day{plan.trialDaysLeft === 1 ? '' : 's'} left</h3>
-                    <p style={p}>Your free trial ends on {day(plan.trialEndsAt)}. Nothing is charged during the trial.</p>
+                    <p style={p}>
+                        Your free trial ends on {day(plan.trialEndsAt)}. Nothing is charged during the trial. To keep taking online bookings
+                        after it, add a card before then; your first paid month starts when the trial ends.
+                    </p>
                 </div>
             )}
 
@@ -299,6 +302,12 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                             ? 'Add a card to keep using Bookplus on the Basic plan.'
                             : 'Nothing is charged yet. We will let you know before card payments for plans start.'}
                     </p>
+                    {plan.onlineBookingsPaused && (
+                        <p style={{ ...p, marginTop: '0.6rem' }} data-testid="bookings-paused">
+                            Clients cannot make new online bookings with you until you pay your first month. Your business is still listed, you can
+                            still add bookings to your calendar yourself, and your bookings, clients and information are kept.
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -359,6 +368,12 @@ const PlanSection = ({ plan, checkoutRef = '', onChanged }) => {
                         {plan.endedAt ? <>Your plan ended on {day(plan.endedAt)}. </> : null}
                         Nothing more is charged. {plan.canAddCard ? 'You can start it again below.' : ''}
                     </p>
+                    {plan.onlineBookingsPaused && (
+                        <p style={{ ...p, marginTop: '0.6rem' }} data-testid="bookings-paused">
+                            Clients cannot make new online bookings with you until you start your plan again. Your business is still listed and
+                            your information is kept.
+                        </p>
+                    )}
                 </div>
             )}
 

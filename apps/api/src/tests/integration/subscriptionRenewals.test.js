@@ -376,9 +376,9 @@ describe('cancelling and keeping the plan', () => {
         expect(gw.deleted).toEqual([FIRST_VAULT]);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.ended' })).toBe(1);
         expect(await FinancialAuditLog.countDocuments({ action: 'subscription.card_deleted' })).toBe(1);
-        // Still listed (ending a plan is not a pause), and a new plan can be started.
-        expect(await providerBookingBlock(owner._id)).toBeNull();
-        expect(await me(owner)).toMatchObject({ status: 'cancelled', canAddCard: true, checkout: { kind: 'first' } });
+        // No plan: still listed, but no new online bookings until a plan is paid for again.
+        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'online_bookings_paused' });
+        expect(await me(owner)).toMatchObject({ status: 'cancelled', onlineBookingsPaused: true, canAddCard: true, checkout: { kind: 'first' } });
     });
 
     it('kept before the paid month is over: the monthly payments carry on', async () => {
@@ -419,6 +419,65 @@ describe('cancelling and keeping the plan', () => {
         expect((await cancel(owner)).status).toBe(404);
         expect((await keep(owner)).status).toBe(404);
         expect((await request(app).get('/api/subscriptions/me/payments').set(authHeader(owner))).status).toBe(404);
+    });
+});
+
+describe('the free trial ending', () => {
+    /** A business on its trial, ending `days` from now. */
+    const onTrial = async (days) => {
+        await subs.startedAt(new Date(Date.now() - 1000));
+        await showPlans();
+        const owner = await makeProvider();
+        await subs.forProvider(owner);
+        await Subscription.updateOne({ provider: owner._id }, { $set: { trialEndsAt: new Date(Date.now() + days * DAY) } });
+        return owner;
+    };
+
+    it('reminds the owner 7 days and 1 day before, once each', async () => {
+        const owner = await onTrial(10);
+        expect(await renewals.remindTrialsEnding(new Date())).toBe(0);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 3 * DAY + 60000))).toBe(1);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 4 * DAY))).toBe(0);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 9 * DAY + 60000))).toBe(1);
+        expect(await renewals.remindTrialsEnding(at(new Date(), 9 * DAY + 120000))).toBe(0);
+        const notes = await Notification.find({ user: owner._id, message: /free trial ends on/ }).lean();
+        expect(notes).toHaveLength(2);
+    });
+
+    it('ended with no month paid: no new online bookings until the first month is paid, then back on', async () => {
+        const owner = await onTrial(1);
+        expect(await renewals.pauseEndedTrials(new Date())).toBe(0); // not ended yet
+        const after = at(new Date(), DAY + 60000);
+        expect(await renewals.pauseEndedTrials(after)).toBe(1);
+        expect(await renewals.pauseEndedTrials(after)).toBe(0); // once
+        expect(await sub(owner)).toMatchObject({ status: 'trial_ended', pausedAt: expect.any(Date) });
+        expect(await providerBookingBlock(owner._id)).toMatchObject({ code: 'online_bookings_paused' });
+        expect(await providerBookingBlock(owner._id, { byBusiness: true })).toBeNull();
+        expect((await request(app).get(`/api/providers/${owner._id}`)).status).toBe(200);
+        expect(await me(owner)).toMatchObject({ status: 'trial_ended', onlineBookingsPaused: true, canAddCard: true });
+        expect(await FinancialAuditLog.countDocuments({ action: 'subscription.trial_ended_paused' })).toBe(1);
+        expect(await Notification.countDocuments({ user: owner._id, message: /free trial has ended/ })).toBe(1);
+
+        const { reference } = (await startCheckout(owner).expect(201)).body.data;
+        gw.setStatus(reference, 1);
+        await notify(gw.notifyBody(reference)).expect(200);
+        expect(await sub(owner)).toMatchObject({ status: 'active', pausedAt: null });
+        expect(await providerBookingBlock(owner._id)).toBeNull();
+    });
+
+    it('a card added during the trial: nothing is paused when it ends', async () => {
+        const { owner } = await paidOwner();
+        await Subscription.updateOne({ provider: owner._id }, { $set: { trialEndsAt: new Date(Date.now() - 1000) } });
+        expect(await renewals.pauseEndedTrials(new Date())).toBe(0);
+        expect(await providerBookingBlock(owner._id)).toBeNull();
+    });
+
+    it('switched off: the job does nothing to trials', async () => {
+        const owner = await onTrial(-1);
+        delete process.env.SUBSCRIPTION_BILLING_ENABLED;
+        await renewals.runBillingTick(new Date());
+        expect((await sub(owner)).pausedAt).toBeNull();
+        expect(await providerBookingBlock(owner._id)).toBeNull();
     });
 });
 

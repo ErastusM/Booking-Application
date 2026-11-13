@@ -46,6 +46,12 @@ describe('PlanSection', () => {
         expect(screen.getByText(/Nothing is charged yet/)).toBeInTheDocument();
     });
 
+    it('trial ended with no month paid: says online bookings are off until the first month is paid', () => {
+        render(<PlanSection plan={{ status: 'trial_ended', terms, onlineBookingsPaused: true, canAddCard: true, nextPriceCents: 6999 }} />);
+        expect(screen.getByTestId('bookings-paused')).toHaveTextContent('Clients cannot make new online bookings with you until you pay your first month');
+        expect(screen.getByTestId('bookings-paused')).toHaveTextContent('Your business is still listed');
+    });
+
     it('no "Add card" while card payments for plans are not switched on', () => {
         render(<PlanSection plan={{ ...trial, canAddCard: false }} />);
         expect(screen.queryByRole('button', { name: 'Add card and start plan' })).not.toBeInTheDocument();
