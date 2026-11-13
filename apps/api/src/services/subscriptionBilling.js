@@ -548,12 +548,18 @@ const NOTIFY_KEEP = new Set([
     'PAYGATE_ID', 'PAY_REQUEST_ID', 'REFERENCE', 'TRANSACTION_STATUS', 'RESULT_CODE', 'AUTH_CODE', 'CURRENCY',
     'AMOUNT', 'RESULT_DESC', 'TRANSACTION_ID', 'PAY_METHOD', 'PAY_METHOD_DETAIL',
 ]);
+// Identifiers kept exactly as they are: our own payment reference (BS + 30 hex)
+// and PayGate's request id (a UUID). Either can contain a long run of digits by
+// chance, which the card-number mask below would otherwise cut.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isIdentifier = (k, v) => (k === 'REFERENCE' && REFERENCE_RE.test(v)) || (k === 'PAY_REQUEST_ID' && UUID_RE.test(v));
 /** Known, non-sensitive notify fields only (never a vault token or card data). */
 const sanitizeNotify = (pairs) => {
     const out = {};
     for (const [k, v] of pairs || []) {
         if (!NOTIFY_KEEP.has(k)) continue;
-        out[k] = String(v == null ? '' : v).slice(0, 200).replace(/\d{12,19}/g, (d) => `****${d.slice(-4)}`);
+        const text = String(v == null ? '' : v).slice(0, 200);
+        out[k] = isIdentifier(k, text) ? text : text.replace(/\d{12,19}/g, (d) => `****${d.slice(-4)}`);
     }
     return out;
 };
