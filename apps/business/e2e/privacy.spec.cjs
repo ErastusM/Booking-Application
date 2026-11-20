@@ -17,7 +17,11 @@ test.describe('first visit', () => {
             Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
         });
 
+        // Not on the sign-in page (it covered Sign In on phones); the legal pages ask.
         await page.goto('/login');
+        await page.waitForTimeout(800);
+        await expect(page.getByTestId('cookie-banner')).toBeHidden();
+        await page.goto('/terms');
         await expect(page.getByTestId('cookie-banner')).toBeVisible();
         await page.goto('/register');
         await hide();
@@ -26,6 +30,7 @@ test.describe('first visit', () => {
         expect(events).toHaveLength(0);
         expect(await page.evaluate(() => localStorage.getItem('bp_sid'))).toBeNull();
 
+        await page.getByTestId('cookie-settings-link').click();
         await page.getByTestId('consent-analytics').click();
         const req = page.waitForRequest((r) => r.url().includes('/api/events') && r.method() === 'POST', { timeout: 20_000 });
         await page.goto('/login');
@@ -34,6 +39,21 @@ test.describe('first visit', () => {
         const body = JSON.parse((await req).postData());
         expect(body.app).toBe('business');
         expect(body.sessionId).toBe(await page.evaluate(() => localStorage.getItem('bp_sid')));
+    });
+});
+
+test.describe('first visit on a phone', () => {
+    test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 390, height: 664 } });
+
+    test('the banner never covers the sign-in, sign-up or password buttons', async ({ page }) => {
+        for (const path of ['/login', '/register', '/forgot-password', '/bkplus-command/login']) {
+            await page.goto(path);
+            await page.waitForTimeout(800);
+            await expect(page.getByTestId('cookie-banner')).toBeHidden();
+        }
+        await page.goto('/login');
+        await expect(page.getByRole('button', { name: /Sign In/ })).toBeInViewport();
+        await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeInViewport();
     });
 });
 

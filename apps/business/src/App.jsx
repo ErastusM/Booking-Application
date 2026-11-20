@@ -183,16 +183,19 @@ function SkipLink() {
 }
 
 // The business app is a tool, not a website: the cookie banner appears by itself
-// only to signed-out visitors on its public pages (login, sign-up, legal pages,
-// emailed-link pages). Signed-in owners and staff are never interrupted on their
-// dashboard; they choose from Account → Legal → "Cookie settings" (which opens
-// the banner anywhere). Until a choice exists, analytics stays off.
-const PUBLIC_PATHS = ['/login', '/register', '/terms', '/privacy-policy', '/forgot-password', '/reset-password', '/verify-email', '/accept-invite', '/auth/callback', '/bkplus-command/login'];
+// only to signed-out visitors on the legal pages. Not on the sign-in, sign-up,
+// password, invite or email-link pages: on a phone it covered their Sign In,
+// Google and send buttons. Signed-in owners and staff are never interrupted on
+// their dashboard; anyone can choose from "Cookie settings" (the footer on the
+// sign-in and legal pages, or Account → Legal), which opens the banner anywhere.
+// Until a choice exists,
+// analytics stays off.
+const AUTO_BANNER_PATHS = ['/terms', '/privacy-policy', '/legal'];
 function CookieBannerGate() {
     const { user } = useAuthContext();
     const { pathname } = useLocation();
-    const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-    return <CookieBanner canAutoShow={!user && isPublic} />;
+    const onLegalPage = AUTO_BANNER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return <CookieBanner canAutoShow={!user && onLegalPage} />;
 }
 
 export default function App() {
