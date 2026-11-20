@@ -53,7 +53,7 @@ const {
     cancelAppointmentByToken,
     rescheduleAppointmentByToken,
 } = require('../controllers/appointmentController');
-const { auth, authorize, optionalAuth, allow } = require('../middleware/auth');
+const { auth, authorize, optionalAuth, refuseStaleSession, allow } = require('../middleware/auth');
 const {
     createAppointmentRules,
     updateAppointmentStatusRules,
@@ -74,7 +74,9 @@ router.post('/manage/:token/reschedule', rescheduleAppointmentByToken);
 // Guest checkout: no-login bookings allowed. optionalAuth attaches req.user when
 // signed in; the controller enforces guest contact fields when it's absent, and
 // still gates provider-only powers (walk-ins, book-on-behalf) on req.user.role.
-router.post('/', optionalAuth, guestBookingLimiter, accountBookingLimiter, createAppointmentRules, createAppointment);
+// An expired session token is refused (401) rather than booked as a guest: the
+// app renews the session and sends the booking again.
+router.post('/', optionalAuth, refuseStaleSession, guestBookingLimiter, accountBookingLimiter, createAppointmentRules, createAppointment);
 // Provider-built multi-service booking ("Add service" flow) — provider-only.
 // The owner, or a team member whose access includes bookings:create — the same
 // "+ Add service" and Group booking the owner has. The controllers hold a member

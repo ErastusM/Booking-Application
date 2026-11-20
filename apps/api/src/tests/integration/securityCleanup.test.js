@@ -42,12 +42,17 @@ describe('refresh tokens: one httpOnly cookie per side, never in a body', () => 
         expect(c.body.data.refreshToken).toBeUndefined();
         const jar = [cookieHeader(c, 'bp_rt_c'), cookieHeader(b, 'bp_rt_b')].join('; ');
 
+        // Each side renews from its own cookie, as its own account. (A cookie
+        // under a day old is kept, so the renewal sends back only a session token.)
+        const idOf = (res) => require('jsonwebtoken').decode(res.body.data.token).id;
         const asBusiness = await request(app).post('/api/auth/refresh').set('Cookie', jar).send({ accountType: 'business' });
         expect(asBusiness.status).toBe(200);
-        expect(cookieHeader(asBusiness, 'bp_rt_b')).toBeTruthy();
+        expect(String(idOf(asBusiness))).toBe(String(business._id));
+        expect(cookieHeader(asBusiness, 'bp_rt_c')).toBeNull();
         const asCustomer = await request(app).post('/api/auth/refresh').set('Cookie', jar).send({ accountType: 'customer' });
         expect(asCustomer.status).toBe(200);
-        expect(cookieHeader(asCustomer, 'bp_rt_c')).toBeTruthy();
+        expect(String(idOf(asCustomer))).toBe(String(customer._id));
+        expect(cookieHeader(asCustomer, 'bp_rt_b')).toBeNull();
     });
 
     it('prefers a good cookie over a stale token an older app version kept in storage', async () => {

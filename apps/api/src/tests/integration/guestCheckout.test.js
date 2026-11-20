@@ -88,6 +88,24 @@ describe('POST /api/appointments — guest checkout', () => {
         expect(res.body.data.guestEmail).toBeNull();
     });
 
+    it('refuses a signed-in client whose session token expired (401), so the app renews it instead of booking them as a guest', async () => {
+        const jwt = require('jsonwebtoken');
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const expired = jwt.sign({ id: customer._id, tokenVersion: customer.tokenVersion ?? 0, iat: Math.floor(Date.now() / 1000) - 3600 },
+            process.env.JWT_SECRET, { expiresIn: '15m' });
+
+        const res = await request(app)
+            .post('/api/appointments')
+            .set('Authorization', `Bearer ${expired}`)
+            .send(bookingBody(svc));
+
+        expect(res.status).toBe(401);
+        expect(res.body.code).toBe('session_expired');
+        expect(await Appointment.countDocuments()).toBe(0);
+    });
+
     it('lets a guest manage their booking via the token (no login)', async () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id);
