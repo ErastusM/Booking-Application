@@ -35,6 +35,10 @@ test('nothing is tracked before consent; tracking starts after "Accept analytics
     expect(events).toHaveLength(0);
     expect(await sid(page)).toBeNull();
 
+    // Not on the sign-in page (it covered the Sign In button on phones); the next page asks again.
+    await expect(banner).toBeHidden();
+    await page.goto('/about');
+    await expect(banner).toBeVisible();
     await page.getByTestId('consent-analytics').click();
     await expect(banner).toBeHidden();
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('bp_consent')));
@@ -106,4 +110,22 @@ test.describe('on a phone', () => {
         const z = await banner.evaluate((el) => Number(getComputedStyle(el).zIndex));
         expect(z).toBeLessThan(1100); // modals and dialogs are 1100+
     });
+});
+
+test('on a phone, the banner never hides the sign-in or sign-up buttons', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 664 });
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: 'Sign In' })).toBeVisible();
+    await page.waitForTimeout(800);
+    await expect(page.getByTestId('cookie-banner')).toBeHidden();
+    await expect(page.getByRole('button', { name: /Sign In/ })).toBeInViewport();
+    await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeInViewport();
+
+    await page.goto('/register');
+    await page.waitForTimeout(800);
+    await expect(page.getByTestId('cookie-banner')).toBeHidden();
+
+    // Still asked on the next ordinary page, and "Cookie settings" still works anywhere.
+    await page.goto('/about');
+    await expect(page.getByTestId('cookie-banner')).toBeVisible();
 });

@@ -50,6 +50,17 @@ const FooterGate = () => {
     return FOOTER_PATHS.includes(pathname) ? <Footer /> : null;
 };
 
+// The cookie banner doesn't pop up by itself on the sign-in and sign-up pages:
+// on a phone it covered the Sign In and Google buttons, and clients thought
+// there was no way to sign in. It appears on the next page instead. Nothing is
+// tracked until "Accept analytics" either way, and "Cookie settings" still
+// opens it here.
+const NO_AUTO_BANNER_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/auth/callback', '/complete-profile'];
+const CookieBannerGate = () => {
+    const { pathname } = useLocation();
+    return <CookieBanner canAutoShow={!NO_AUTO_BANNER_PATHS.includes(pathname.replace(/\/+$/, '') || '/')} />;
+};
+
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: '36px', height: '36px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -183,7 +194,7 @@ function App() {
                         <AppRoutes />
                         <FooterGate />
                         {/* Analytics runs only after "Accept analytics" here. */}
-                        <CookieBanner />
+                        <CookieBannerGate />
                     </ConfirmProvider>
                 </ToastProvider>
             </AuthProvider>
