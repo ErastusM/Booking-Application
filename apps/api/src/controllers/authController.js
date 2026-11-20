@@ -19,7 +19,16 @@ const mfa = require('../utils/mfa');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
-const MAX_REFRESH_JTIS = 10;
+const MAX_REFRESH_JTIS = 20;
+
+// A renewal replaces the refresh token (and records a new id) at most once a
+// day per device. The session token lasts 15 minutes, so replacing it on every
+// renewal pushed a new id every 15 minutes per open tab, and a client's other
+// devices fell out of the list above within hours and were signed out. In
+// between, a renewal only issues a new session token; the refresh cookie (30
+// days) stays as it is.
+const ROTATE_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
+exports.ROTATE_REFRESH_AFTER_MS = ROTATE_REFRESH_AFTER_MS;
 
 // A fixed, never-matching bcrypt hash at the model's own cost (User.BCRYPT_ROUNDS).
 // Used to spend one bcrypt comparison on the "email doesn't exist" login path so
@@ -860,6 +869,15 @@ exports.refresh = async (req, res) => {
             // A session that passed two-step sign-in keeps that (and when it
             // happened) across renewals, while the account still has it on.
             const claims = user.mfa?.enabled && decoded.mfa === true ? { mfa: true, mfaAt: decoded.mfaAt } : {};
+            // Keep this app's own refresh cookie while it is under a day old and
+            // tracked: just a new session token. A token sent in the body (an
+            // older app's stored copy) or an untracked one is always replaced, so
+            // it moves into the cookie and onto the tracked list.
+            const fromOwnCookie = scoped && refreshToken === readCookie(req, refreshCookieName(accountType));
+            const young = decoded.iat && (Date.now() - decoded.iat * 1000) < ROTATE_REFRESH_AFTER_MS;
+            if (fromOwnCookie && young && decoded.jti) {
+                return res.status(200).json({ success: true, data: { token: generateToken(user._id, user.tokenVersion, claims) } });
+            }
             const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user, claims);
             setRefreshCookie(res, newRefreshToken, user);
             // Never in the body: the cookie carries it.

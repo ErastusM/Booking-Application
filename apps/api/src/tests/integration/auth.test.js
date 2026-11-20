@@ -294,10 +294,11 @@ describe('POST /api/auth/refresh', () => {
     it('evicts old refresh tokens once the capped jti list rolls over', async () => {
         const { refreshToken } = await loginAndGetTokens();
 
-        // Each refresh appends a new jti; the list is capped at 10. After 10
+        // Each rotation appends a new jti; the list is capped at 20. After 20
         // rotations the ORIGINAL login token has aged out and must be rejected.
+        // (A token sent in the body is always rotated, so it moves to the cookie.)
         let current = refreshToken;
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 20; i++) {
             const r = await request(app).post('/api/auth/refresh').send({ refreshToken: current });
             expect(r.status).toBe(200);
             current = refreshCookieOf(r);
@@ -305,6 +306,44 @@ describe('POST /api/auth/refresh', () => {
         const evicted = await request(app).post('/api/auth/refresh').send({ refreshToken });
         expect(evicted.status).toBe(401);
         expect(evicted.body.message).toMatch(/revoked/i);
+    });
+
+    describe('renewing from the app\'s own cookie', () => {
+        const fromCookie = (rt) => request(app).post('/api/auth/refresh')
+            .set('Cookie', `bp_rt_c=${encodeURIComponent(rt)}`).send({ accountType: 'customer' });
+
+        it('keeps a refresh cookie under a day old: a new session token, no new refresh token', async () => {
+            const { refreshToken } = await loginAndGetTokens();
+            const before = (await User.findOne({ email: creds.email }).select('+refreshTokenJtis')).refreshTokenJtis.length;
+            // A tab renewing every 15 minutes all day long.
+            for (let i = 0; i < 30; i++) {
+                const r = await fromCookie(refreshToken);
+                expect(r.status).toBe(200);
+                expect(r.body.data.token).toBeTruthy();
+                expect(refreshCookieOf(r)).toBeNull();
+            }
+            const after = (await User.findOne({ email: creds.email }).select('+refreshTokenJtis')).refreshTokenJtis.length;
+            expect(after).toBe(before);
+            // So a second device's session is still there.
+            expect((await fromCookie(refreshToken)).status).toBe(200);
+        });
+
+        it('replaces a refresh cookie once it is a day old', async () => {
+            const { refreshToken } = await loginAndGetTokens();
+            const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+            const dayOld = jwt.sign({ ...decoded, iat: decoded.iat - 25 * 60 * 60 }, process.env.REFRESH_TOKEN_SECRET);
+            const r = await fromCookie(dayOld);
+            expect(r.status).toBe(200);
+            const next = refreshCookieOf(r);
+            expect(next).toBeTruthy();
+            expect((await fromCookie(next)).status).toBe(200);
+        });
+
+        it('still refuses a signed-out session', async () => {
+            const { token, refreshToken } = await loginAndGetTokens();
+            await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`).expect(200);
+            expect((await fromCookie(refreshToken)).status).toBe(401);
+        });
     });
 
     it('rejects a validly-signed refresh token with no tokenVersion (it would survive every revocation)', async () => {

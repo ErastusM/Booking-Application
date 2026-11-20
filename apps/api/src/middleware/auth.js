@@ -85,11 +85,22 @@ exports.auth = async (req, res, next) => {
 // For routes that serve BOTH signed-in and guest visitors (e.g. guest checkout).
 exports.optionalAuth = async (req, res, next) => {
     req.user = null;
+    req.staleSession = false;
     try {
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) return next();
 
-        const decoded = exports.verifySessionToken(token);
+        let decoded;
+        try {
+            decoded = exports.verifySessionToken(token);
+        } catch (err) {
+            // An expired session token: the app can renew it from its refresh
+            // cookie. Routes that act on the signer's behalf (a booking) refuse it
+            // with refuseStaleSession, so the app renews and retries instead of the
+            // request silently going through as a guest.
+            if (err?.name === 'TokenExpiredError') req.staleSession = true;
+            return next();
+        }
         const user = await User.findById(decoded.id);
         // Only attach a fully-valid, active, non-revoked session (for an admin,
         // one that passed two-step sign-in); otherwise stay anonymous.
@@ -100,7 +111,19 @@ exports.optionalAuth = async (req, res, next) => {
             req.user = user;
         }
     } catch {
-        // Malformed/expired token → treat as a guest, don't error.
+        // Malformed token or lookup failure → treat as a guest, don't error.
+    }
+    next();
+};
+
+// After optionalAuth, on a route where a signed-in person must not be treated as
+// a guest (creating a booking): an expired session token gets a 401, which the
+// app answers by renewing the session and sending the request again. Without
+// this, a client who had the booking page open for over 15 minutes was asked
+// for guest details or sent to sign in.
+exports.refuseStaleSession = (req, res, next) => {
+    if (req.staleSession) {
+        return res.status(401).json({ success: false, code: 'session_expired', message: 'Your session has expired. Please sign in again.' });
     }
     next();
 };
