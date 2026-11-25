@@ -1,10 +1,10 @@
 /**
- * A fake PayGate PayHost for integration tests, plugged in through
- * paygate.setTransport(). It answers WebPaymentRequest / QueryRequest /
- * RefundRequest and the PayVault requests (saving a card with a payment,
- * charging a saved card with a CardPaymentRequest, DeleteVaultRequest) in
- * PayHost's own format (as seen on PayGate's test gateway), and lets a test
- * decide what PayGate "knows" about each transaction.
+ * A fake PayGate for integration tests, plugged in through
+ * paygate.setTransport(). Terminal 1 speaks PayWeb 3 (initiate.trans and
+ * query.trans, saving the card with VAULT=1); terminal 2 speaks PayHost
+ * (charging a saved card with a CardPaymentRequest, DeleteVaultRequest,
+ * QueryRequest). Both in PayGate's own formats as seen on its test gateway.
+ * A test decides what PayGate "knows" about each transaction.
  */
 const crypto = require('crypto');
 const paygate = require('../../services/paygate');
@@ -17,6 +17,7 @@ const RECURRING_KEY = 'test-recurring-key';
 const KEY_FOR = { [PAYGATE_ID]: KEY, [RECURRING_ID]: RECURRING_KEY };
 
 const md5 = (s) => crypto.createHash('md5').update(s).digest('hex');
+const signed = (pairs, key) => new URLSearchParams([...pairs, ['CHECKSUM', md5(pairs.map(([, v]) => v).join('') + key)]]).toString();
 const tag = (body, name) => (body.match(new RegExp(`<${name}>([^<]*)</${name}>`)) || [])[1];
 
 const soap = (inner) => `<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns2="http://www.paygate.co.za/PayHOST"><SOAP-ENV:Body>${inner}</SOAP-ENV:Body></SOAP-ENV:Envelope>`;
@@ -49,7 +50,9 @@ const createFakePaygate = () => {
         },
         install() {
             process.env.PAYGATE_ID = PAYGATE_ID;
-            process.env.PAYGATE_PASSWORD = KEY;
+            // Terminal 1 has a PayWeb 3 key only (no PayHost password).
+            process.env.PAYGATE_ENCRYPTION_KEY = KEY;
+            delete process.env.PAYGATE_PASSWORD;
             process.env.PAYGATE_RECURRING_ID = RECURRING_ID;
             process.env.PAYGATE_RECURRING_PASSWORD = RECURRING_KEY;
             paygate.setTransport(gw.transport);
@@ -63,14 +66,51 @@ const createFakePaygate = () => {
             for (const w of ['vault', 'charge', 'deleteVault']) paygate.setWire(w, null);
             delete process.env.PAYGATE_RECURRING_ID;
             delete process.env.PAYGATE_RECURRING_PASSWORD;
+            delete process.env.PAYGATE_ENCRYPTION_KEY;
         },
         reset() {
-            gw.tx.clear(); gw.calls.length = 0; gw.initFail = false; gw.refundFail = false;
+            gw.tx.clear(); gw.calls.length = 0; gw.initFail = false; gw.refundFail = false; gw.sessionKey = null;
             gw.chargeOutcome = 1; gw.chargeOutcomeFor.clear(); gw.deleteFail = false; gw.deleted.length = 0;
         },
         charges() { return gw.calls.filter((c) => c.body.includes('<CardPaymentRequest>')); },
-        async transport({ soapAction, body }) {
-            gw.calls.push({ soapAction, body });
+        /** PayWeb 3 sessions opened (terminal 1), each with its posted fields. */
+        sessions() { return gw.calls.filter((c) => /\/initiate\.trans$/.test(c.endpoint || '')).map((c) => ({ ...c, fields: Object.fromEntries(new URLSearchParams(c.body)) })); },
+        async transport({ endpoint = '', soapAction, body, contentType }) {
+            gw.calls.push({ endpoint, soapAction, body, contentType });
+            if (/\/initiate\.trans$/.test(endpoint)) {
+                if (gw.initFail) return { status: 200, body: 'ERROR=PGID_NOT_EN' };
+                const posted = [...new URLSearchParams(body)];
+                const f = Object.fromEntries(posted);
+                // Like PayGate: a request not signed with the terminal's PayWeb 3 key is refused.
+                const termKey = KEY_FOR[f.PAYGATE_ID] || KEY;
+                if (md5(posted.filter(([k]) => k !== 'CHECKSUM').map(([, v]) => v).join('') + termKey) !== f.CHECKSUM) return { status: 200, body: 'ERROR=DATA_CHK' };
+                n += 1;
+                const payRequestId = `${crypto.randomBytes(4).toString('hex').toUpperCase()}-${String(n).padStart(4, '0')}-4A97-ACF6-7219B5A8${String(n).padStart(4, '0')}`;
+                const terminalId = f.PAYGATE_ID || PAYGATE_ID;
+                gw.tx.set(payRequestId, {
+                    reference: f.REFERENCE, amountCents: Number(f.AMOUNT), currency: f.CURRENCY, code: 0, transactionId: String(18690000 + n),
+                    terminalId, saveCard: f.VAULT === '1',
+                });
+                return { status: 200, body: signed([['PAYGATE_ID', terminalId], ['PAY_REQUEST_ID', payRequestId], ['REFERENCE', f.REFERENCE]], gw.sessionKey || termKey) };
+            }
+            if (/\/query\.trans$/.test(endpoint)) {
+                const f = Object.fromEntries(new URLSearchParams(body));
+                const t = gw.tx.get(f.PAY_REQUEST_ID);
+                if (!t) return { status: 200, body: 'ERROR=NO_TRANS_DATA' };
+                const withVault = t.saveCard && (t.code === 1 || t.vaultOnFail) && !t.noVault;
+                return {
+                    status: 200,
+                    body: signed([
+                        ['PAYGATE_ID', t.terminalId], ['PAY_REQUEST_ID', f.PAY_REQUEST_ID], ['REFERENCE', t.referenceOverride || t.reference],
+                        ['TRANSACTION_STATUS', String(t.code)], ['RESULT_CODE', t.code === 1 ? '990017' : '900003'], ['AUTH_CODE', t.code === 1 ? 'X1Y2Z3' : ''],
+                        ['CURRENCY', t.currencyOverride || t.currency], ['AMOUNT', String(t.amountOverride ?? t.amountCents)],
+                        ['RESULT_DESC', t.code === 1 ? 'Auth Done' : 'Insufficient Funds'], ['TRANSACTION_ID', t.transactionId], ['RISK_INDICATOR', 'AX'],
+                        ['PAY_METHOD', 'CC'], ['PAY_METHOD_DETAIL', 'Visa'],
+                        ['VAULT_ID', withVault ? (t.vaultId || 'a1b2c3d4-e5f6-4711-8899-aabbccddeeff') : ''],
+                        ['PAYVAULT_DATA_1', withVault ? (t.masked || '400000xxxxxx0002') : ''], ['PAYVAULT_DATA_2', withVault ? '122030' : ''],
+                    ], KEY_FOR[t.terminalId] || KEY),
+                };
+            }
             if (body.includes('<WebPaymentRequest>')) {
                 if (gw.initFail) {
                     return { status: 500, body: soap('<SOAP-ENV:Fault><faultcode>SOAP-ENV:Server</faultcode><faultstring>Service unavailable</faultstring></SOAP-ENV:Fault>') };
@@ -117,7 +157,11 @@ const createFakePaygate = () => {
             if (body.includes('<QueryRequest>')) {
                 const id = tag(body, 'PayRequestId');
                 const t = gw.tx.get(id);
-                if (!t) return { status: 200, body: soap('<ns2:SingleFollowUpResponse><ns2:QueryResponse><ns2:Status><ns2:StatusName>Error</ns2:StatusName><ns2:ResultCode>900001</ns2:ResultCode></ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse>') };
+                const status = (code, desc) => ({ status: 200, body: soap(`<ns2:SingleFollowUpResponse><ns2:QueryResponse><ns2:Status><ns2:StatusName>Error</ns2:StatusName><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>${code}</ns2:ResultCode><ns2:ResultDescription>${desc}</ns2:ResultDescription></ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse>`) });
+                // Like PayHost: a wrong PayHost key is refused first (11), then an unknown transaction (401).
+                const id2 = tag(body, 'PayGateId');
+                if (KEY_FOR[id2] && tag(body, 'Password') !== KEY_FOR[id2]) return status(11, 'Incorrect Credentials Supplied');
+                if (!t) return status(401, 'Requested Transaction Does Not Exist');
                 return {
                     status: 200,
                     body: soap(`<ns2:SingleFollowUpResponse><ns2:QueryResponse><ns2:Status><ns2:TransactionId>${t.transactionId}</ns2:TransactionId><ns2:Reference>${t.referenceOverride || t.reference}</ns2:Reference><ns2:StatusName>Completed</ns2:StatusName><ns2:PayRequestId>${id}</ns2:PayRequestId><ns2:TransactionStatusCode>${t.code}</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>${['Not Done', 'Approved', 'Declined', 'Cancelled', 'User Cancelled', 'Received by PayGate'][t.code] || 'Unknown'}</ns2:TransactionStatusDescription><ns2:ResultCode>${t.code === 1 ? '990017' : '900003'}</ns2:ResultCode><ns2:ResultDescription>${t.code === 1 ? 'Auth Done' : 'Insufficient Funds'}</ns2:ResultDescription><ns2:Currency>${t.currencyOverride || t.currency}</ns2:Currency><ns2:Amount>${t.amountOverride ?? t.amountCents}</ns2:Amount><ns2:PaymentType><ns2:Method>CC</ns2:Method><ns2:Detail>Visa</ns2:Detail></ns2:PaymentType>${t.saveCard && (t.code === 1 || t.vaultOnFail) && !t.noVault ? `<ns2:VaultId>${t.vaultId || 'a1b2c3d4-e5f6-4711-8899-aabbccddeeff'}</ns2:VaultId><ns2:PayVaultData><ns2:name>cardNumber</ns2:name><ns2:value>${t.masked || '400000xxxxxx0002'}</ns2:value></ns2:PayVaultData><ns2:PayVaultData><ns2:name>expDate</ns2:name><ns2:value>122030</ns2:value></ns2:PayVaultData>` : ''}</ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse>`),

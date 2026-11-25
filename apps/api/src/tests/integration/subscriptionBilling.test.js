@@ -107,15 +107,16 @@ describe('add card and start plan', () => {
         const res = await startCheckout(owner);
         expect(res.status).toBe(201);
         expect(res.body.data).toMatchObject({ amountCents: 7999, currency: 'NAD', method: 'POST', redirectUrl: expect.stringMatching(/^https:\/\//) });
-        expect(Object.keys(res.body.data.fields)).toEqual(['PAYGATE_ID', 'PAY_REQUEST_ID', 'REFERENCE', 'CHECKSUM']);
+        // PayWeb 3: the browser posts exactly these two fields to PayGate's page.
+        expect(res.body.data.redirectUrl).toBe('https://secure.paygate.co.za/payweb3/process.trans');
+        expect(Object.keys(res.body.data.fields)).toEqual(['PAY_REQUEST_ID', 'CHECKSUM']);
         expect(res.body.data.reference).toMatch(billing.REFERENCE_RE);
 
-        const sent = gw.calls[0].body;
-        expect(sent).toContain(`<PayGateId>${PAYGATE_ID}</PayGateId>`);
-        expect(sent).toMatch(/<\/Customer><Vault>true<\/Vault><Redirect>/);
-        expect(sent).toContain('</Order><Recurring><InitialAuth>true</InitialAuth><RecurringTransactionType>RECURRING</RecurringTransactionType><InitiatedType>CARD_HOLDER</InitiatedType></Recurring>');
-        expect(sent).toContain('/api/subscriptions/paygate/notify');
-        expect(sent).toContain('<Amount>7999</Amount>');
+        const [session] = gw.sessions();
+        expect(session.fields).toMatchObject({
+            PAYGATE_ID, REFERENCE: res.body.data.reference, AMOUNT: '7999', CURRENCY: 'NAD', COUNTRY: 'NAM', VAULT: '1',
+            NOTIFY_URL: expect.stringContaining('/api/subscriptions/paygate/notify'), RETURN_URL: expect.stringContaining('/api/subscriptions/paygate/return'),
+        });
 
         const log = await FinancialAuditLog.find({ action: 'subscription.checkout_start' }).lean();
         expect(log).toHaveLength(1);

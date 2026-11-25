@@ -1,22 +1,29 @@
 /**
- * PayGate PayHost (SOAP 1.1) — the only module that knows PayHost's wire format.
+ * PayGate — the only module that knows PayGate's wire formats. Bookplus takes
+ * card payments only for business subscriptions, on two terminals:
  *
- * Bookplus takes card payments only for business subscriptions. It uses the
- * hosted payment page: we ask PayHost for a payment session
- * (WebPaymentRequest), the browser auto-posts the returned fields to PayGate's
- * page, the business owner types their card THERE (Bookplus never sees card
- * data — PCI SAQ-A), and PayGate tells us the outcome through the ReturnUrl (browser) and
- * NotifyUrl (server-to-server). Neither callback is trusted on its own: the
- * outcome is always read back with a server-side Query (QueryRequest).
+ *  - tokenize (terminal 1, "One time and tokenization", 3D Secure): PayWeb 3.
+ *    The owner pays on PayGate's hosted page: we open a session
+ *    (initiate.trans, VAULT=1 so the card is saved), the browser auto-posts
+ *    PAY_REQUEST_ID and CHECKSUM to process.trans, the owner types their card
+ *    THERE (Bookplus never sees card data — PCI SAQ-A), and PayGate tells us
+ *    the outcome through the RETURN_URL (browser) and NOTIFY_URL
+ *    (server-to-server). Neither callback is trusted on its own: the outcome
+ *    is always read back with a server-side query (query.trans), which also
+ *    carries the saved card (VAULT_ID, PAYVAULT_DATA_1/2).
+ *  - recurring (terminal 2, "NON3DS"): PayHost (SOAP 1.1). Charging a saved
+ *    card each month with nobody present (CardPaymentRequest with the
+ *    VaultId), and deleting saved cards (DeleteVaultRequest).
  *
- * Everything here is pure (builders, parser, checksum) except `send`, which goes
- * through an injectable transport so tests never touch the network.
+ * Everything here is pure (builders, parsers, checksums) except the transport,
+ * which is injectable so tests never touch the network.
  *
- * Secrets: PAYGATE_PASSWORD is the PayHost password and, unless
- * PAYGATE_ENCRYPTION_KEY is set, also the key PayGate signs its messages with
- * (the terminal's "Encryption Key"). It is only ever placed inside the request
- * body sent to PayGate; nothing in this module logs a request body, a password
- * or a checksum.
+ * Secrets: PAYGATE_ENCRYPTION_KEY is terminal 1's PayWeb 3 key (it signs
+ * every PayWeb 3 request and answer; PAYGATE_PASSWORD is read as a fallback).
+ * PAYGATE_RECURRING_PASSWORD is terminal 2's PayHost key, and
+ * PAYGATE_RECURRING_ENCRYPTION_KEY its PayWeb 3 key, which signs its notify
+ * posts. Keys are only ever placed inside requests sent to PayGate; nothing in
+ * this module logs a request body, a key or a checksum.
  */
 const https = require('https');
 const crypto = require('crypto');
@@ -47,18 +54,21 @@ class PaygateError extends Error {
     }
 }
 
-// PayHost terminals, each with its own id, password and signing key
-// (docs/PAYMENTS_GO_LIVE.md, section 4):
-//  - tokenize  terminal 1, "One time and tokenization" (3D Secure): payments
-//              where the payer is present (a business's
-//              first plan payment or a new card, which PayHost saves in its
-//              vault). The PAYGATE_* variables.
-//  - recurring terminal 2, "NON3DS": charging a business's saved card each
-//              month, with nobody present. The PAYGATE_RECURRING_* variables.
+// The two terminals (docs/PAYMENTS_GO_LIVE.md, section 3), as PayGate set
+// them up:
+//  - tokenize  terminal 1, "One time and tokenization" (3D Secure), PayWeb 3
+//              only: payments where the payer is present (a business's first
+//              plan payment or a new card, saved in PayVault). Its PayWeb 3
+//              key is PAYGATE_ENCRYPTION_KEY (PAYGATE_PASSWORD as a fallback).
+//  - recurring terminal 2, "NON3DS", PayHost: charging a business's saved
+//              card each month, with nobody present, and deleting saved cards.
+//              PAYGATE_RECURRING_PASSWORD is its PayHost key,
+//              PAYGATE_RECURRING_ENCRYPTION_KEY its PayWeb 3 key.
 const TERMINALS = Object.freeze({
-    tokenize: { id: 'PAYGATE_ID', password: 'PAYGATE_PASSWORD', key: 'PAYGATE_ENCRYPTION_KEY' },
-    recurring: { id: 'PAYGATE_RECURRING_ID', password: 'PAYGATE_RECURRING_PASSWORD', key: 'PAYGATE_RECURRING_ENCRYPTION_KEY' },
+    tokenize: { protocol: 'payweb3', id: 'PAYGATE_ID', password: 'PAYGATE_PASSWORD', key: 'PAYGATE_ENCRYPTION_KEY' },
+    recurring: { protocol: 'payhost', id: 'PAYGATE_RECURRING_ID', password: 'PAYGATE_RECURRING_PASSWORD', key: 'PAYGATE_RECURRING_ENCRYPTION_KEY' },
 });
+const DEFAULT_PAYWEB_URL = 'https://secure.paygate.co.za/payweb3';
 const DEFAULT_TERMINAL = 'tokenize';
 const terminalVars = (terminal) => {
     const t = TERMINALS[terminal];
@@ -69,7 +79,9 @@ const terminalVars = (terminal) => {
 const config = (terminal = DEFAULT_TERMINAL) => {
     const t = terminalVars(terminal);
     return {
+        protocol: t.protocol,
         endpoint: process.env.PAYGATE_ENDPOINT || DEFAULT_ENDPOINT,
+        paywebUrl: String(process.env.PAYGATE_PAYWEB_URL || DEFAULT_PAYWEB_URL).replace(/\/+$/, ''),
         paygateId: process.env[t.id] || '',
         password: process.env[t.password] || '',
         // The key PayGate signs callbacks and session fields with. The same as the
@@ -77,9 +89,10 @@ const config = (terminal = DEFAULT_TERMINAL) => {
         checksumKey: process.env[t.key] || process.env[t.password] || '',
     };
 };
+/** Set up on the server: a PayWeb 3 terminal needs its id and key, a PayHost one its id and PayHost key. */
 const isConfigured = (terminal = DEFAULT_TERMINAL) => {
     const c = config(terminal);
-    return !!(c.paygateId && c.password);
+    return c.protocol === 'payweb3' ? !!(c.paygateId && c.checksumKey) : !!(c.paygateId && c.password);
 };
 
 /* ───────────────────────── vault (saved cards, PayVault) ─────────────────────────
@@ -564,11 +577,142 @@ const verifySessionChecksum = (fields, key = config().checksumKey) => {
     return safeEqualHex(md5(`${fields.PAYGATE_ID || ''}${fields.PAY_REQUEST_ID || ''}${fields.REFERENCE || ''}${key}`), fields.CHECKSUM);
 };
 
+/* ───────────────────────────── PayWeb 3 (terminal 1) ─────────────────────────────
+ *
+ * Checked on PayGate's test gateway with its public test account
+ * (10011072130, key "secret"), 2026-11-25:
+ *   initiate.trans  PAYGATE_ID, REFERENCE, AMOUNT (cents), CURRENCY,
+ *                   RETURN_URL, TRANSACTION_DATE, LOCALE, COUNTRY, EMAIL,
+ *                   NOTIFY_URL, VAULT=1, CHECKSUM = md5(the values in that
+ *                   order + key). Answer: PAYGATE_ID, PAY_REQUEST_ID,
+ *                   REFERENCE, CHECKSUM = md5(those three + key); or ERROR=…
+ *   process.trans   the browser posts PAY_REQUEST_ID and CHECKSUM.
+ *   query.trans     PAYGATE_ID, PAY_REQUEST_ID, REFERENCE, CHECKSUM. Answer:
+ *                   TRANSACTION_STATUS, RESULT_CODE, AUTH_CODE, CURRENCY,
+ *                   AMOUNT, RESULT_DESC, TRANSACTION_ID, RISK_INDICATOR,
+ *                   PAY_METHOD, PAY_METHOD_DETAIL (the brand), VAULT_ID,
+ *                   PAYVAULT_DATA_1 (400000xxxxxx0002), PAYVAULT_DATA_2
+ *                   (MMYYYY), CHECKSUM = md5(every value in order + key).
+ * A card can be saved even when the payment is not approved: the VAULT_ID is
+ * only kept once it is (subscriptionBilling deletes the others).
+ */
+
+const pad2 = (n) => String(n).padStart(2, '0');
+/** PayWeb 3's TRANSACTION_DATE: "YYYY-MM-DD HH:mm:ss" (UTC). */
+const paywebDate = (d = new Date()) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+
+/** Sign ordered [name, value] pairs: md5 of the values in order, then the key. */
+const signPairs = (pairs, key) => [...pairs, ['CHECKSUM', md5(pairs.map(([, v]) => String(v)).join('') + key)]];
+
+/** The initiate.trans request, as ordered pairs (CHECKSUM last). */
+const buildPayWebInitiate = ({
+    paygateId, key, reference, amountCents, currency = 'NAD', returnUrl, notifyUrl, email = '',
+    country = 'NAM', locale = 'en-za', vault = true, now = new Date(),
+}) => {
+    assertCents(amountCents);
+    const pairs = [
+        ['PAYGATE_ID', paygateId], ['REFERENCE', reference], ['AMOUNT', String(amountCents)], ['CURRENCY', currency],
+        ['RETURN_URL', returnUrl], ['TRANSACTION_DATE', paywebDate(now)], ['LOCALE', locale], ['COUNTRY', country],
+        ['EMAIL', email], ['NOTIFY_URL', notifyUrl],
+    ];
+    if (vault) pairs.push(['VAULT', '1']);
+    return signPairs(pairs, key);
+};
+
+/** The query.trans request, as ordered pairs. */
+const buildPayWebQuery = ({ paygateId, key, payRequestId, reference }) => signPairs(
+    [['PAYGATE_ID', paygateId], ['PAY_REQUEST_ID', payRequestId], ['REFERENCE', reference]], key,
+);
+
+const formPairs = (body) => {
+    const out = [];
+    for (const [k, v] of new URLSearchParams(String(body || '').trim())) out.push([k, v]);
+    return out;
+};
+const pairValue = (pairs, name) => (pairs.find(([k]) => k === name) || [])[1];
+
+/**
+ * Parse initiate.trans's answer. PayGate signs it with the terminal's key; an
+ * answer that doesn't verify is refused (results signed with another key
+ * would all be rejected later).
+ * → { ok: true, redirectUrl, fields: { PAY_REQUEST_ID, CHECKSUM }, payRequestId, reference, session }
+ * → { ok: false, error: { code, message, resultCode } }
+ */
+const parsePayWebInitiate = (body, { key, paywebUrl = DEFAULT_PAYWEB_URL } = {}) => {
+    const pairs = formPairs(body);
+    const error = pairValue(pairs, 'ERROR');
+    if (error) {
+        const known = {
+            DATA_CHK: 'the checksum did not match: check the terminal’s PayWeb 3 key',
+            PGID_NOT_EN: 'this PayGate ID is not enabled for PayWeb 3',
+            DATA_PAY_REQ_ID: 'the request was refused',
+        };
+        return { ok: false, error: { code: 'GATEWAY_ERROR', message: known[error] ? `PayGate refused it: ${known[error]}` : `PayGate refused it (${error})`, resultCode: error } };
+    }
+    const session = Object.fromEntries(pairs);
+    if (!session.PAY_REQUEST_ID || !session.CHECKSUM) {
+        return { ok: false, error: { code: 'BAD_RESPONSE', message: 'PayGate did not return a payment session' } };
+    }
+    if (!verifySessionChecksum(session, key)) {
+        return { ok: false, error: { code: 'BAD_CHECKSUM', message: 'PayGate’s answer was not signed with the key Bookplus has for this terminal' } };
+    }
+    return {
+        ok: true,
+        redirectUrl: `${paywebUrl}/process.trans`,
+        // Exactly what the browser posts to PayGate's page.
+        fields: { PAY_REQUEST_ID: session.PAY_REQUEST_ID, CHECKSUM: session.CHECKSUM },
+        payRequestId: session.PAY_REQUEST_ID,
+        reference: session.REFERENCE || null,
+        session,
+    };
+};
+
+const STATUS_TEXT = ['Not Done', 'Approved', 'Declined', 'Cancelled', 'User Cancelled', 'Received by PayGate', null, 'Settlement Voided'];
+
+/**
+ * Parse query.trans's answer into the same shape as a PayHost Query
+ * (transactionStatusCode is the number to act on, see TX), with the saved
+ * card in `vault`. The answer must verify against the terminal's key.
+ */
+const parsePayWebQuery = (body, { key } = {}) => {
+    const pairs = formPairs(body);
+    const error = pairValue(pairs, 'ERROR');
+    if (error) return { ok: false, error: { code: 'GATEWAY_ERROR', message: `PayGate could not report on this payment (${error})`, resultCode: error } };
+    if (!pairValue(pairs, 'CHECKSUM') || !verifyPostedChecksum(pairs, key)) {
+        return { ok: false, error: { code: 'BAD_CHECKSUM', message: 'PayGate’s answer was not signed with the key Bookplus has for this terminal' } };
+    }
+    const g = (k) => {
+        const v = pairValue(pairs, k);
+        return v == null || v === '' ? null : v;
+    };
+    const code = int(g('TRANSACTION_STATUS'));
+    if (code == null) return { ok: false, error: { code: 'BAD_RESPONSE', message: 'PayGate did not report a status for this payment' } };
+    const vaultId = g('VAULT_ID');
+    return {
+        ok: true,
+        statusName: 'Completed',
+        transactionStatusCode: code,
+        transactionStatusDescription: STATUS_TEXT[code] || null,
+        resultCode: g('RESULT_CODE'),
+        resultDescription: g('RESULT_DESC'),
+        transactionId: g('TRANSACTION_ID'),
+        payRequestId: g('PAY_REQUEST_ID'),
+        reference: g('REFERENCE'),
+        amountCents: int(g('AMOUNT')),
+        currency: g('CURRENCY'),
+        authCode: g('AUTH_CODE'),
+        riskIndicator: g('RISK_INDICATOR'),
+        payMethod: g('PAY_METHOD'),
+        payMethodDetail: g('PAY_METHOD_DETAIL'),
+        vault: vaultId ? { vaultId, brand: g('PAY_METHOD_DETAIL'), maskedCard: g('PAYVAULT_DATA_1'), expiry: g('PAYVAULT_DATA_2') } : null,
+    };
+};
+
 /* ───────────────────────────── transport ───────────────────────────── */
 
 // Default transport: one HTTPS POST. Resolves { status, body } for any HTTP
 // status (a SOAP Fault comes back as a 500 with a parseable body).
-const httpsTransport = ({ endpoint, soapAction, body, timeoutMs = TIMEOUT_MS }) => new Promise((resolve, reject) => {
+const httpsTransport = ({ endpoint, soapAction, body, contentType = 'text/xml; charset=utf-8', timeoutMs = TIMEOUT_MS }) => new Promise((resolve, reject) => {
     const url = new URL(endpoint);
     const req = https.request({
         method: 'POST',
@@ -576,8 +720,8 @@ const httpsTransport = ({ endpoint, soapAction, body, timeoutMs = TIMEOUT_MS }) 
         port: url.port || 443,
         path: `${url.pathname}${url.search}`,
         headers: {
-            'Content-Type': 'text/xml; charset=utf-8',
-            SOAPAction: soapAction,
+            'Content-Type': contentType,
+            ...(soapAction ? { SOAPAction: soapAction } : {}),
             'Content-Length': Buffer.byteLength(body),
         },
         timeout: timeoutMs,
@@ -614,29 +758,76 @@ const send = async (soapAction, body) => {
 };
 
 const requireConfig = (terminal = DEFAULT_TERMINAL) => {
-    const c = config(terminal);
-    if (!c.paygateId || !c.password) {
+    if (!isConfigured(terminal)) {
         throw new PaygateError('Online payment is not configured', { code: 'NOT_CONFIGURED' });
     }
-    return c;
+    return config(terminal);
 };
 
-/** Start a hosted-page session → parseWebPaymentResponse's shape. */
-const initiate = async ({ reference, amountCents, currency, customer, notifyUrl, returnUrl, terminal = DEFAULT_TERMINAL, vault = false }) => {
+/** One PayWeb 3 form post → the answer's body. */
+const sendForm = async (url, pairs) => {
+    let res;
+    try {
+        res = await transport({ endpoint: url, body: new URLSearchParams(pairs).toString(), contentType: 'application/x-www-form-urlencoded' });
+    } catch (err) {
+        // Never echo the body — it carries the checksum.
+        throw new PaygateError(`Could not reach PayGate (${err && err.message ? err.message : 'network error'})`, { code: 'NETWORK' });
+    }
+    return res && typeof res.body === 'string' ? res.body : String(res?.body || '');
+};
+
+/**
+ * Start a hosted-page session → { ok, redirectUrl, fields, payRequestId, reference? }
+ * or { ok: false, error }. On terminal 1 (PayWeb 3) the card is always saved
+ * (VAULT=1); on a PayHost terminal only with `vault`.
+ */
+const initiate = async ({ reference, amountCents, currency, customer = {}, notifyUrl, returnUrl, terminal = DEFAULT_TERMINAL, vault = false, now = new Date() }) => {
     const c = requireConfig(terminal);
+    if (c.protocol === 'payweb3') {
+        const pairs = buildPayWebInitiate({
+            paygateId: c.paygateId, key: c.checksumKey, reference, amountCents, currency, returnUrl, notifyUrl, email: customer.email || '', vault: true, now,
+        });
+        return parsePayWebInitiate(await sendForm(`${c.paywebUrl}/initiate.trans`, pairs), { key: c.checksumKey, paywebUrl: c.paywebUrl });
+    }
     const body = buildWebPaymentRequest({ ...c, reference, amountCents, currency, customer, notifyUrl, returnUrl, vault });
     return parseWebPaymentResponse(await send('WebPaymentRequest', body));
 };
 
-/** Query a transaction → parseQueryResponse's shape. */
-const query = async ({ payRequestId, terminal = DEFAULT_TERMINAL }) => {
+/** Query a transaction → { ok, transactionStatusCode, …, vault } (PayWeb 3 needs our reference). */
+const query = async ({ payRequestId, reference, terminal = DEFAULT_TERMINAL }) => {
     const c = requireConfig(terminal);
+    if (c.protocol === 'payweb3') {
+        const pairs = buildPayWebQuery({ paygateId: c.paygateId, key: c.checksumKey, payRequestId, reference: reference || '' });
+        return parsePayWebQuery(await sendForm(`${c.paywebUrl}/query.trans`, pairs), { key: c.checksumKey });
+    }
     return parseQueryResponse(await send('SingleFollowUpRequest', buildQueryRequest({ ...c, payRequestId })));
 };
 
-/** Refund (part of) a transaction → parseRefundResponse's shape. */
-const refund = async ({ transactionId, amountCents }) => {
-    const c = requireConfig();
+/**
+ * Does PayHost accept this terminal's id and PayHost key? Asks about a
+ * transaction that cannot exist: PayHost answers 401 ("Requested Transaction
+ * Does Not Exist") when the login is right and 11 ("Incorrect Credentials
+ * Supplied") when it is not. Nothing is charged. → { ok, resultCode, message }
+ */
+const checkPayHostLogin = async (terminal = 'recurring') => {
+    const c = requirePayHost(terminal);
+    const q = parseQueryResponse(await send('SingleFollowUpRequest', buildQueryRequest({ ...c, payRequestId: '00000000-0000-0000-0000-000000000000' })));
+    const resultCode = q.resultCode || q.error?.resultCode || null;
+    if (String(resultCode) === '11') return { ok: false, resultCode, message: q.resultDescription || 'Incorrect Credentials Supplied' };
+    if (q.ok && String(resultCode) === '401') return { ok: true, resultCode, message: q.resultDescription };
+    return { ok: false, resultCode, message: q.resultDescription || q.error?.message || 'PayHost gave an unexpected answer' };
+};
+
+/** A PayHost-only operation on a PayWeb 3 terminal: refused before anything is sent. */
+const requirePayHost = (terminal) => {
+    const c = requireConfig(terminal);
+    if (c.protocol !== 'payhost') throw new PaygateError(`Terminal "${terminal}" uses PayWeb 3, not PayHost`, { code: 'NOT_PAYHOST' });
+    return c;
+};
+
+/** Refund (part of) a transaction on a PayHost terminal → parseRefundResponse's shape. */
+const refund = async ({ transactionId, amountCents, terminal = 'recurring' }) => {
+    const c = requirePayHost(terminal);
     return parseRefundResponse(await send('SingleFollowUpRequest', buildRefundRequest({ ...c, transactionId, amountCents })));
 };
 
@@ -654,16 +845,16 @@ const chargeVault = async ({ vaultId, reference, amountCents, currency = 'NAD', 
     const wire = requireWire('charge');
     assertCents(amountCents);
     if (!VAULT_ID_RE.test(String(vaultId || ''))) throw new PaygateError('No saved card', { code: 'NO_VAULT' });
-    const c = requireConfig(terminal);
+    const c = requirePayHost(terminal);
     const body = envelope(wire.build({ account: accountXml(c), vaultId, reference, amountCents, currency, customer, notifyUrl, returnUrl, el }));
     return parseChargeResponse(await send(wire.soapAction || 'SinglePaymentRequest', body));
 };
 
-/** Ask PayHost to delete a saved card → { ok } (parseDeleteVaultResponse). */
-const deleteVault = async ({ vaultId, terminal = DEFAULT_TERMINAL }) => {
+/** Ask PayHost to delete a saved card (terminal 2: terminal 1 has no PayHost) → { ok }. */
+const deleteVault = async ({ vaultId, terminal = 'recurring' }) => {
     const wire = requireWire('deleteVault');
     if (!VAULT_ID_RE.test(String(vaultId || ''))) throw new PaygateError('No saved card', { code: 'NO_VAULT' });
-    const c = requireConfig(terminal);
+    const c = requirePayHost(terminal);
     return parseDeleteVaultResponse(await send(wire.soapAction || 'SingleVaultRequest', envelope(wire.build({ account: accountXml(c), vaultId, el }))));
 };
 
@@ -673,6 +864,7 @@ module.exports = {
     vaultReady, setVaultWire, setWire, wireReady, recurringReady, cardSummary,
     xmlEscape, buildWebPaymentRequest, buildQueryRequest, buildRefundRequest,
     parseWebPaymentResponse, parseQueryResponse, parseRefundResponse, parseChargeResponse, parseDeleteVaultResponse,
+    DEFAULT_PAYWEB_URL, paywebDate, buildPayWebInitiate, buildPayWebQuery, parsePayWebInitiate, parsePayWebQuery,
     md5, verifyPostedChecksum, verifyReturnChecksum, verifySessionChecksum,
-    setTransport, initiate, query, refund, chargeVault, deleteVault,
+    setTransport, initiate, query, refund, chargeVault, deleteVault, checkPayHostLogin,
 };

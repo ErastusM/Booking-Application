@@ -4,18 +4,19 @@
  * without taking any money. (Bookplus takes card payments only for business
  * subscriptions.)
  *
- *   1. settings     plan billing switched on, terminal 1's PayGate ID and
- *                   password set (and whether it is PayGate's public test
- *                   account), terminal 2 (NON3DS, monthly payments) set, https
- *                   addresses
- *   2. session      PayGate accepts the ID and password and opens a N$5.00
+ *   1. settings     plan billing switched on; terminal 1 (PayWeb 3) has its
+ *                   PayGate ID and PayWeb 3 key (and whether it is PayGate's
+ *                   public test account); terminal 2 (NON3DS, PayHost) has its
+ *                   PayGate ID and PayHost key; https addresses
+ *   2. session      PayGate accepts terminal 1's ID and key and opens a N$5.00
  *                   hosted-page session. Nobody is sent to it, so it is never
  *                   paid; it shows in PayGate's MAP as "not done".
  *   3. signature    PayGate signed the session with the key Bookplus checks
- *                   callbacks with (PAYGATE_ENCRYPTION_KEY, else the password).
- *                   If not, every payment would be refused when PayGate
- *                   reports back, so this is the check that matters most.
+ *                   its results with. If not, every payment would be refused
+ *                   when PayGate reports back.
  *   4. read back    Bookplus can query that session's status from PayGate
+ *   4b. terminal 2  PayHost accepts terminal 2's ID and PayHost key (a query
+ *                   for a transaction that cannot exist; nothing is charged)
  *   5. notify       the public address PayGate posts results to reaches the
  *                   Bookplus API (it answers a blank post with "INVALID")
  *   6. result page  the page owners come back to (Account, Your plan) opens
@@ -56,19 +57,22 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
         ? item('switched_on', 'Plan payments switched on for the API', 'ok', 'SUBSCRIPTION_BILLING_ENABLED is on.')
         : item('switched_on', 'Plan payments switched on for the API', 'warn', 'SUBSCRIPTION_BILLING_ENABLED is off: PayGate’s messages about plan payments would be refused. Set SUBSCRIPTION_BILLING_ENABLED=true and reload the API when plans are to be paid.'));
 
-    const configured = !!(c.paygateId && c.password);
+    // Terminal 1 (PayWeb 3): the first payment and saving the card.
+    const configured = paygate.isConfigured();
+    const LABEL1 = 'First payment terminal (PayWeb 3)';
     if (!configured) {
-        out.push(item('credentials', 'PayGate ID and password', 'fail', 'PAYGATE_ID or PAYGATE_PASSWORD is not set on the server.'));
+        out.push(item('credentials', LABEL1, 'fail', 'PAYGATE_ID or PAYGATE_ENCRYPTION_KEY (the terminal’s PayWeb 3 key) is not set on the server.'));
     } else if (c.paygateId === TEST_PAYGATE_ID) {
-        out.push(item('credentials', 'PayGate ID and password', 'warn', `PayGate ID ${lastFour(c.paygateId)} is PayGate’s public test account: no real money moves. Use your own terminal’s PayGate ID to take payments.`));
+        out.push(item('credentials', LABEL1, 'warn', `PayGate ID ${lastFour(c.paygateId)} is PayGate’s public test account: no real money moves. Use your own terminal’s PayGate ID to take payments.`));
     } else {
-        out.push(item('credentials', 'PayGate ID and password', 'ok', `PayGate ID ${lastFour(c.paygateId)}${process.env.PAYGATE_ENCRYPTION_KEY ? ', with a separate encryption key' : ''}.`));
+        out.push(item('credentials', LABEL1, 'ok', `PayGate ID ${lastFour(c.paygateId)}.`));
     }
-    // Terminal 2 (NON3DS) charges the saved cards each month; nothing is sent to it here.
+    // Terminal 2 (NON3DS, PayHost) charges the saved cards each month.
     const rc = paygate.config('recurring');
-    out.push(rc.paygateId && rc.password
-        ? item('recurring_credentials', 'Monthly payments terminal (NON3DS)', 'ok', `PayGate ID ${lastFour(rc.paygateId)}.`)
-        : item('recurring_credentials', 'Monthly payments terminal (NON3DS)', 'fail', 'PAYGATE_RECURRING_ID or PAYGATE_RECURRING_PASSWORD is not set on the server: saved cards could not be charged each month.'));
+    const recurringConfigured = paygate.isConfigured('recurring');
+    out.push(recurringConfigured
+        ? item('recurring_credentials', 'Monthly payments terminal (NON3DS, PayHost)', 'ok', `PayGate ID ${lastFour(rc.paygateId)}${process.env.PAYGATE_RECURRING_ENCRYPTION_KEY ? ', with its PayWeb 3 key' : ''}.`)
+        : item('recurring_credentials', 'Monthly payments terminal (NON3DS, PayHost)', 'fail', 'PAYGATE_RECURRING_ID or PAYGATE_RECURRING_PASSWORD (the terminal’s PayHost key) is not set on the server: saved cards could not be charged each month.'));
 
     const addressProblems = [];
     if (!isHttps(notifyUrl)) addressProblems.push(`PayGate would post results to ${notifyUrl || '(nothing)'}: set PAYGATE_CALLBACK_BASE_URL to the API’s https address`);
@@ -79,8 +83,9 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
 
     // 2-4: a real session at PayGate, never paid.
     let session = null;
+    let signatureFailed = false;
     if (!configured) {
-        out.push(item('session', 'PayGate accepts the ID and password', 'skipped', 'Set the PayGate ID and password first.'));
+        out.push(item('session', 'PayGate accepts the first payment terminal', 'skipped', 'Set its PayGate ID and PayWeb 3 key first.'));
     } else {
         const reference = `BPCHECK${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
         try {
@@ -91,34 +96,50 @@ const runCheck = async ({ adminEmail = '' } = {}) => {
             });
             if (r.ok) {
                 session = { reference, ...r };
-                out.push(item('session', 'PayGate accepts the ID and password', 'ok', `PayGate opened a N$${(CHECK_AMOUNT_CENTS / 100).toFixed(2)} test session (${reference}). Nobody pays it; it shows in PayGate’s MAP as not done.`));
+                out.push(item('session', 'PayGate accepts the first payment terminal', 'ok', `PayGate opened a N$${(CHECK_AMOUNT_CENTS / 100).toFixed(2)} test session (${reference}). Nobody pays it; it shows in PayGate’s MAP as not done.`));
+            } else if (r.error?.code === 'BAD_CHECKSUM') {
+                signatureFailed = true;
+                out.push(item('session', 'PayGate accepts the first payment terminal', 'ok', 'PayGate opened a test session.'));
             } else {
-                out.push(item('session', 'PayGate accepts the ID and password', 'fail', `PayGate said: ${r.error?.message || 'no session'}${r.error?.resultCode ? ` (${r.error.resultCode})` : ''}. Check PAYGATE_ID and PAYGATE_PASSWORD against the terminal’s details, and that the terminal takes N$.`));
+                out.push(item('session', 'PayGate accepts the first payment terminal', 'fail', `PayGate said: ${r.error?.message || 'no session'}${r.error?.resultCode ? ` (${r.error.resultCode})` : ''}. Check PAYGATE_ID and PAYGATE_ENCRYPTION_KEY (the terminal’s PayWeb 3 key) against the terminal’s details, and that the terminal takes N$.`));
             }
         } catch (err) {
-            out.push(item('session', 'PayGate accepts the ID and password', 'fail', err.message || 'Could not reach PayGate.'));
+            out.push(item('session', 'PayGate accepts the first payment terminal', 'fail', err.message || 'Could not reach PayGate.'));
         }
     }
 
-    if (!session) {
+    if (signatureFailed) {
+        out.push(item('signature', 'PayGate signs with the key Bookplus checks', 'fail', 'PayGate’s signature on the session does not match PAYGATE_ENCRYPTION_KEY, so every payment result would be refused. Copy the terminal’s PayWeb 3 key into it exactly, reload the API and check again.'));
+        out.push(item('read_back', 'Bookplus can read a payment’s status from PayGate', 'skipped', 'Fix the key first.'));
+    } else if (!session) {
         out.push(item('signature', 'PayGate signs with the key Bookplus checks', 'skipped', 'Needs a session first.'));
         out.push(item('read_back', 'Bookplus can read a payment’s status from PayGate', 'skipped', 'Needs a session first.'));
     } else {
-        if (paygate.verifySessionChecksum(session.fields)) {
-            out.push(item('signature', 'PayGate signs with the key Bookplus checks', 'ok', 'Payment results from PayGate will be accepted.'));
-        } else {
-            const separate = !!process.env.PAYGATE_ENCRYPTION_KEY;
-            out.push(item('signature', 'PayGate signs with the key Bookplus checks', 'fail', separate
-                ? 'PayGate’s signature does not match PAYGATE_ENCRYPTION_KEY. Copy the terminal’s Encryption Key into it exactly, then reload the API.'
-                : 'PayGate accepted the password but signs with a different key, so every payment result would be refused. Set PAYGATE_ENCRYPTION_KEY to the terminal’s Encryption Key, reload the API and check again.'));
-        }
+        out.push(item('signature', 'PayGate signs with the key Bookplus checks', 'ok', 'Payment results from PayGate will be accepted.'));
         try {
-            const q = await paygate.query({ payRequestId: session.payRequestId });
-            out.push(q.ok
+            const q = await paygate.query({ payRequestId: session.payRequestId, reference: session.reference });
+            // PayWeb 3 has no transaction data until someone opens the session's page.
+            if (!q.ok && q.error?.resultCode === 'NO_TRANS_DATA') {
+                out.push(item('read_back', 'Bookplus can read a payment’s status from PayGate', 'ok', 'PayGate knows the test session; nobody has opened it, so there is nothing to pay.'));
+            } else out.push(q.ok
                 ? item('read_back', 'Bookplus can read a payment’s status from PayGate', 'ok', `PayGate reports the test session as ${q.transactionStatusDescription || (q.transactionStatusCode === paygate.TX.NOT_DONE ? 'not done' : `status ${q.transactionStatusCode}`)}.`)
                 : item('read_back', 'Bookplus can read a payment’s status from PayGate', 'fail', `PayGate said: ${q.error?.message || 'no answer'}.`));
         } catch (err) {
             out.push(item('read_back', 'Bookplus can read a payment’s status from PayGate', 'fail', err.message || 'Could not reach PayGate.'));
+        }
+    }
+
+    // 4b: terminal 2's PayHost login (nothing is charged).
+    if (!recurringConfigured) {
+        out.push(item('recurring_login', 'PayHost accepts the monthly payments terminal', 'skipped', 'Set its PayGate ID and PayHost key first.'));
+    } else {
+        try {
+            const l = await paygate.checkPayHostLogin('recurring');
+            out.push(l.ok
+                ? item('recurring_login', 'PayHost accepts the monthly payments terminal', 'ok', `PayHost accepted PayGate ID ${lastFour(rc.paygateId)} and its key. Nothing was charged.`)
+                : item('recurring_login', 'PayHost accepts the monthly payments terminal', 'fail', `PayGate said: ${l.message}${l.resultCode ? ` (${l.resultCode})` : ''}. Check PAYGATE_RECURRING_ID and PAYGATE_RECURRING_PASSWORD (the terminal’s PayHost key).`));
+        } catch (err) {
+            out.push(item('recurring_login', 'PayHost accepts the monthly payments terminal', 'fail', err.message || 'Could not reach PayGate.'));
         }
     }
 

@@ -189,36 +189,121 @@ describe('checksums', () => {
 });
 
 describe('transport', () => {
-    const prev = { id: process.env.PAYGATE_ID, pw: process.env.PAYGATE_PASSWORD };
-    beforeAll(() => { process.env.PAYGATE_ID = '10011072130'; process.env.PAYGATE_PASSWORD = 'secret'; });
-    afterAll(() => {
-        paygate.setTransport();
-        process.env.PAYGATE_ID = prev.id; process.env.PAYGATE_PASSWORD = prev.pw;
-        if (prev.id === undefined) delete process.env.PAYGATE_ID;
-        if (prev.pw === undefined) delete process.env.PAYGATE_PASSWORD;
+    const saved = { ...process.env };
+    beforeAll(() => {
+        process.env.PAYGATE_ID = '10011072130'; process.env.PAYGATE_ENCRYPTION_KEY = 'secret';
+        process.env.PAYGATE_RECURRING_ID = '10011072130'; process.env.PAYGATE_RECURRING_PASSWORD = 'test';
     });
+    afterAll(() => { paygate.setTransport(); process.env = { ...saved }; });
 
-    it('sends SOAP with the right action to the endpoint and parses the answer', async () => {
+    it('PayHost (terminal 2): SOAP with the right action to the endpoint, and the answer parsed', async () => {
         const calls = [];
         paygate.setTransport(async (req) => { calls.push(req); return { status: 200, body: queryXml() }; });
-        const r = await paygate.query({ payRequestId: 'PR' });
+        const r = await paygate.query({ payRequestId: 'PR', terminal: 'recurring' });
         expect(r.ok).toBe(true);
         expect(calls[0].soapAction).toBe('SingleFollowUpRequest');
         expect(calls[0].endpoint).toBe(paygate.DEFAULT_ENDPOINT);
         expect(calls[0].body).toContain('<PayRequestId>PR</PayRequestId>');
     });
 
-    it('a network failure is a PaygateError that never echoes the password', async () => {
+    it('PayWeb 3 (terminal 1): a form post to initiate.trans and query.trans', async () => {
+        const calls = [];
+        paygate.setTransport(async (req) => { calls.push(req); return { status: 200, body: req.endpoint.endsWith('/initiate.trans') ? PAYWEB.initiate : PAYWEB.query }; });
+        const s = await paygate.initiate({ reference: 'BSTEST152933', amountCents: 500, currency: 'NAD', customer: { email: 'o@x.na' }, notifyUrl: 'https://api.x/n', returnUrl: 'https://api.x/r' });
+        expect(s).toMatchObject({ ok: true, redirectUrl: 'https://secure.paygate.co.za/payweb3/process.trans', reference: 'BSTEST152933' });
+        expect(Object.keys(s.fields)).toEqual(['PAY_REQUEST_ID', 'CHECKSUM']);
+        expect(calls[0]).toMatchObject({ endpoint: 'https://secure.paygate.co.za/payweb3/initiate.trans', contentType: 'application/x-www-form-urlencoded' });
+        expect(calls[0].soapAction).toBeUndefined();
+        const sentPairs = [...new URLSearchParams(calls[0].body)];
+        expect(sentPairs.map(([k]) => k)).toEqual(['PAYGATE_ID', 'REFERENCE', 'AMOUNT', 'CURRENCY', 'RETURN_URL', 'TRANSACTION_DATE', 'LOCALE', 'COUNTRY', 'EMAIL', 'NOTIFY_URL', 'VAULT', 'CHECKSUM']);
+        expect(Object.fromEntries(sentPairs)).toMatchObject({ PAYGATE_ID: '10011072130', AMOUNT: '500', CURRENCY: 'NAD', COUNTRY: 'NAM', VAULT: '1' });
+        const q = await paygate.query({ payRequestId: s.payRequestId, reference: 'BSTEST153313' });
+        expect(q.ok).toBe(true);
+        expect(calls[1].endpoint).toBe('https://secure.paygate.co.za/payweb3/query.trans');
+        expect([...new URLSearchParams(calls[1].body)].map(([k]) => k)).toEqual(['PAYGATE_ID', 'PAY_REQUEST_ID', 'REFERENCE', 'CHECKSUM']);
+    });
+
+    it('a network failure is a PaygateError that never echoes a key', async () => {
         paygate.setTransport(async () => { throw new Error('ECONNRESET'); });
         await expect(paygate.initiate({ reference: 'R', amountCents: 100, currency: 'NAD', customer: {}, notifyUrl: 'n', returnUrl: 'r' }))
             .rejects.toMatchObject({ name: 'PaygateError', code: 'NETWORK' });
-        try { await paygate.refund({ transactionId: 'T', amountCents: 100 }); } catch (e) { expect(e.message).not.toContain('secret'); }
+        try { await paygate.refund({ transactionId: 'T', amountCents: 100 }); } catch (e) { expect(e.message).not.toContain('test'); }
     });
 
-    it('refuses to call PayGate without credentials', async () => {
-        delete process.env.PAYGATE_PASSWORD;
-        await expect(paygate.query({ payRequestId: 'PR' })).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
-        process.env.PAYGATE_PASSWORD = 'secret';
+    it('refuses to call PayGate without its keys, and never sends a PayHost-only request to the PayWeb 3 terminal', async () => {
+        const calls = [];
+        paygate.setTransport(async (req) => { calls.push(req); return { status: 200, body: '' }; });
+        delete process.env.PAYGATE_ENCRYPTION_KEY;
+        await expect(paygate.query({ payRequestId: 'PR', reference: 'R' })).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
+        process.env.PAYGATE_ENCRYPTION_KEY = 'secret';
+        await expect(paygate.deleteVault({ vaultId: 'abcdef1234', terminal: 'tokenize' })).rejects.toMatchObject({ code: 'NOT_PAYHOST' });
+        await expect(paygate.checkPayHostLogin('tokenize')).rejects.toMatchObject({ code: 'NOT_PAYHOST' });
+        expect(calls).toHaveLength(0);
+    });
+});
+
+// PayWeb 3 answers recorded from PayGate's test gateway (public test account
+// 10011072130, key "secret", test card), 2026-11-25. They pin the parsers to
+// the real format, signatures included.
+const PAYWEB = {
+    initiate: 'PAYGATE_ID=10011072130&PAY_REQUEST_ID=7996FD72-AEFD-6B32-8EE2-6295E63E97C8&REFERENCE=BSTEST152933&CHECKSUM=0d1421f3c9b724944a0f543a6bc2ac86',
+    query: 'PAYGATE_ID=10011072130&PAY_REQUEST_ID=0FB6EFB5-5AE2-0216-C2F8-7DA94EAD6338&REFERENCE=BSTEST153313&TRANSACTION_STATUS=0&RESULT_CODE=900205&AUTH_CODE=&CURRENCY=NAD&AMOUNT=500&RESULT_DESC=Unexpected+authentication+result+%28phase+1%29&TRANSACTION_ID=1278180591&RISK_INDICATOR=XP&PAY_METHOD=CC&PAY_METHOD_DETAIL=Visa&VAULT_ID=7412d999-c13e-42a3-9d03-b80c2e0f3dd4&PAYVAULT_DATA_1=400000xxxxxx0002&PAYVAULT_DATA_2=122030&CHECKSUM=4a475c8fe9c828ff5130dbf2293f9190',
+    // PayHost's answers to a query for a transaction that cannot exist.
+    loginOk: '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Header/><SOAP-ENV:Body><ns2:SingleFollowUpResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:QueryResponse><ns2:Status><ns2:StatusName>Error</ns2:StatusName><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>401</ns2:ResultCode><ns2:ResultDescription>Requested Transaction Does Not Exist</ns2:ResultDescription></ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    loginBad: '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Header/><SOAP-ENV:Body><ns2:SingleFollowUpResponse xmlns:ns2="http://www.paygate.co.za/PayHOST"><ns2:QueryResponse><ns2:Status><ns2:StatusName>Error</ns2:StatusName><ns2:TransactionStatusCode>0</ns2:TransactionStatusCode><ns2:TransactionStatusDescription>Not Done</ns2:TransactionStatusDescription><ns2:ResultCode>11</ns2:ResultCode><ns2:ResultDescription>Incorrect Credentials Supplied</ns2:ResultDescription></ns2:Status></ns2:QueryResponse></ns2:SingleFollowUpResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+};
+
+describe('PayWeb 3 (terminal 1: the first payment, saving the card)', () => {
+    it('builds initiate.trans with every field PayGate signs, VAULT=1, and a checksum over them in order', () => {
+        const pairs = paygate.buildPayWebInitiate({
+            paygateId: '10011072130', key: 'secret', reference: 'BSX', amountCents: 7999, currency: 'NAD',
+            returnUrl: 'https://api.x/r', notifyUrl: 'https://api.x/n', email: 'o@x.na', now: new Date('2026-11-25T15:29:33Z'),
+        });
+        expect(pairs).toEqual([
+            ['PAYGATE_ID', '10011072130'], ['REFERENCE', 'BSX'], ['AMOUNT', '7999'], ['CURRENCY', 'NAD'], ['RETURN_URL', 'https://api.x/r'],
+            ['TRANSACTION_DATE', '2026-11-25 15:29:33'], ['LOCALE', 'en-za'], ['COUNTRY', 'NAM'], ['EMAIL', 'o@x.na'], ['NOTIFY_URL', 'https://api.x/n'],
+            ['VAULT', '1'], ['CHECKSUM', paygate.md5('10011072130BSX7999NADhttps://api.x/r2026-11-25 15:29:33en-zaNAMo@x.nahttps://api.x/n1secret')],
+        ]);
+        expect(() => paygate.buildPayWebInitiate({ paygateId: '1', key: 'k', reference: 'R', amountCents: 0 })).toThrow(/positive/);
+    });
+
+    it('reads a real session answer, refusing one not signed with our key, and PayGate\'s errors', () => {
+        expect(paygate.parsePayWebInitiate(PAYWEB.initiate, { key: 'secret' })).toMatchObject({
+            ok: true, payRequestId: '7996FD72-AEFD-6B32-8EE2-6295E63E97C8', reference: 'BSTEST152933',
+            fields: { PAY_REQUEST_ID: '7996FD72-AEFD-6B32-8EE2-6295E63E97C8', CHECKSUM: '0d1421f3c9b724944a0f543a6bc2ac86' },
+            redirectUrl: 'https://secure.paygate.co.za/payweb3/process.trans',
+        });
+        expect(paygate.parsePayWebInitiate(PAYWEB.initiate, { key: 'other' })).toMatchObject({ ok: false, error: { code: 'BAD_CHECKSUM' } });
+        expect(paygate.parsePayWebInitiate('ERROR=DATA_CHK', { key: 'secret' })).toMatchObject({ ok: false, error: { resultCode: 'DATA_CHK', message: expect.stringContaining('PayWeb 3 key') } });
+        expect(paygate.parsePayWebInitiate('', { key: 'secret' })).toMatchObject({ ok: false, error: { code: 'BAD_RESPONSE' } });
+    });
+
+    it('reads a real query answer: the status, the result and the saved card; refuses a tampered or unsigned one', () => {
+        const q = paygate.parsePayWebQuery(PAYWEB.query, { key: 'secret' });
+        expect(q).toMatchObject({
+            ok: true, transactionStatusCode: 0, transactionStatusDescription: 'Not Done', resultCode: '900205',
+            resultDescription: 'Unexpected authentication result (phase 1)', transactionId: '1278180591', reference: 'BSTEST153313',
+            amountCents: 500, currency: 'NAD', payMethod: 'CC', payMethodDetail: 'Visa', authCode: null,
+            vault: { vaultId: '7412d999-c13e-42a3-9d03-b80c2e0f3dd4', brand: 'Visa', maskedCard: '400000xxxxxx0002', expiry: '122030' },
+        });
+        expect(paygate.cardSummary(q.vault)).toEqual({ vaultId: '7412d999-c13e-42a3-9d03-b80c2e0f3dd4', brand: 'Visa', last4: '0002', expMonth: 12, expYear: 2030 });
+        expect(paygate.parsePayWebQuery(PAYWEB.query.replace('TRANSACTION_STATUS=0', 'TRANSACTION_STATUS=1'), { key: 'secret' })).toMatchObject({ ok: false, error: { code: 'BAD_CHECKSUM' } });
+        expect(paygate.parsePayWebQuery(PAYWEB.query, { key: 'other' })).toMatchObject({ ok: false, error: { code: 'BAD_CHECKSUM' } });
+        expect(paygate.parsePayWebQuery('ERROR=NO_TRANS_DATA', { key: 'secret' })).toMatchObject({ ok: false, error: { resultCode: 'NO_TRANS_DATA' } });
+    });
+
+    it('a PayHost login check tells a right key (401) from a wrong one (11)', async () => {
+        const saved = { ...process.env };
+        process.env.PAYGATE_RECURRING_ID = '10011072130'; process.env.PAYGATE_RECURRING_PASSWORD = 'test';
+        try {
+            paygate.setTransport(async () => ({ status: 200, body: PAYWEB.loginOk }));
+            expect(await paygate.checkPayHostLogin('recurring')).toMatchObject({ ok: true, resultCode: '401' });
+            paygate.setTransport(async () => ({ status: 200, body: PAYWEB.loginBad }));
+            expect(await paygate.checkPayHostLogin('recurring')).toMatchObject({ ok: false, resultCode: '11', message: 'Incorrect Credentials Supplied' });
+        } finally {
+            paygate.setTransport();
+            process.env = { ...saved };
+        }
     });
 });
 
@@ -276,12 +361,19 @@ describe('terminals', () => {
     const saved = { ...process.env };
     afterEach(() => { process.env = { ...saved }; });
 
-    it('terminal 1 ("One time and tokenization") is the PAYGATE_* settings, and the default', () => {
+    it('terminal 1 ("One time and tokenization", PayWeb 3) is the PAYGATE_* settings, and the default', () => {
         process.env.PAYGATE_ID = '111';
-        process.env.PAYGATE_PASSWORD = 'pay';
-        delete process.env.PAYGATE_ENCRYPTION_KEY;
+        delete process.env.PAYGATE_PASSWORD;
+        process.env.PAYGATE_ENCRYPTION_KEY = 'pw3';
         expect(paygate.config()).toEqual(paygate.config('tokenize'));
-        expect(paygate.config('tokenize')).toMatchObject({ paygateId: '111', password: 'pay', checksumKey: 'pay' });
+        expect(paygate.config('tokenize')).toMatchObject({ protocol: 'payweb3', paygateId: '111', checksumKey: 'pw3' });
+        // A PayWeb 3 terminal needs its id and PayWeb 3 key, no PayHost password.
+        expect(paygate.isConfigured('tokenize')).toBe(true);
+        delete process.env.PAYGATE_ENCRYPTION_KEY;
+        expect(paygate.isConfigured('tokenize')).toBe(false);
+        // PAYGATE_PASSWORD is read as its key when PAYGATE_ENCRYPTION_KEY is not set.
+        process.env.PAYGATE_PASSWORD = 'pay';
+        expect(paygate.config('tokenize')).toMatchObject({ checksumKey: 'pay' });
         expect(paygate.isConfigured('tokenize')).toBe(true);
     });
 
@@ -293,7 +385,8 @@ describe('terminals', () => {
         expect(paygate.isConfigured('recurring')).toBe(false);
         process.env.PAYGATE_RECURRING_ID = '222';
         process.env.PAYGATE_RECURRING_PASSWORD = 'rec';
-        expect(paygate.config('recurring')).toMatchObject({ paygateId: '222', password: 'rec', checksumKey: 'rec' });
+        expect(paygate.config('recurring')).toMatchObject({ protocol: 'payhost', paygateId: '222', password: 'rec', checksumKey: 'rec' });
+        expect(paygate.isConfigured('recurring')).toBe(true);
         expect(paygate.config('tokenize')).toMatchObject({ paygateId: '111' });
     });
 
@@ -377,10 +470,10 @@ describe('charging and deleting a saved card (PayHost PayVault)', () => {
         expect(paygate.parseChargeResponse(charged(2))).toMatchObject({ ok: true, transactionStatusCode: 2 });
     });
 
-    it('deletes a saved card on terminal 1 with a DeleteVaultRequest; an Error or ValidationError is a failure', async () => {
+    it('deletes a saved card on terminal 2 (PayHost; terminal 1 has none) with a DeleteVaultRequest; an Error or ValidationError is a failure', async () => {
         paygate.setTransport(answer(REAL.deleted));
         expect(await paygate.deleteVault({ vaultId: 'abcdef1234' })).toEqual({ ok: true });
-        expect(sent[0].body).toContain('<SingleVaultRequest xmlns="http://www.paygate.co.za/PayHOST"><DeleteVaultRequest><Account><PayGateId>111</PayGateId><Password>pay</Password></Account><VaultId>abcdef1234</VaultId></DeleteVaultRequest></SingleVaultRequest>');
+        expect(sent[0].body).toContain('<SingleVaultRequest xmlns="http://www.paygate.co.za/PayHOST"><DeleteVaultRequest><Account><PayGateId>222</PayGateId><Password>rec</Password></Account><VaultId>abcdef1234</VaultId></DeleteVaultRequest></SingleVaultRequest>');
         expect(paygate.parseDeleteVaultResponse('<Envelope><Body><DeleteVaultResponse><Status><StatusName>Error</StatusName></Status></DeleteVaultResponse></Body></Envelope>')).toMatchObject({ ok: false });
         expect(paygate.parseDeleteVaultResponse(REAL.validationError)).toMatchObject({ ok: false });
     });
