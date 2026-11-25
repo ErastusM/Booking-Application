@@ -206,7 +206,8 @@ const startCheckout = async (owner, { acceptTerms = false } = {}, now = new Date
     };
     if (!res.ok) await failStart(res.error?.code);
     // PayGate must echo our own reference back.
-    if (res.fields.REFERENCE && res.fields.REFERENCE !== payment.reference) await failStart('reference mismatch on initiate');
+    const echoed = res.reference ?? res.fields?.REFERENCE;
+    if (echoed && echoed !== payment.reference) await failStart('reference mismatch on initiate');
 
     await SubscriptionPayment.updateOne({ _id: payment._id }, { $set: { payRequestId: res.payRequestId } });
     return {
@@ -520,7 +521,7 @@ const syncCheckout = async (payment, source = 'query') => {
     if (!payment || !payment.payRequestId) return payment;
     let q;
     try {
-        q = await paygate.query({ payRequestId: payment.payRequestId, terminal: payment.terminal || TERMINAL });
+        q = await paygate.query({ payRequestId: payment.payRequestId, reference: payment.reference, terminal: payment.terminal || TERMINAL });
     } catch (err) {
         logger.warn({ subscriptionPaymentId: String(payment._id), code: err.code }, 'PayGate query for a plan payment failed');
         q = { ok: false };

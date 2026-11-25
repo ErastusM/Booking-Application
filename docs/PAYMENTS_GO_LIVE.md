@@ -57,47 +57,61 @@ After the review, update the "last updated" dates (`TERMS_LAST_UPDATED`,
 
 ## 3. PayGate terminals
 
-PayGate gives two terminals, each with a PGID, an Encryption Key and a login
-for map.paygate.co.za:
+PayGate set up two terminals. Each key is generated in PayGate's portal and
+shown only once: copy it into a password manager, never into chat, a ticket
+or the repository.
 
-- **"One time and tokenization"** (3D Secure, terminal 1): a business's first
-  payment and any payment with a new card, which also saves the card.
-- **"NON3DS"** (terminal 2): charging a business's saved card each month, with
-  nobody present (`PAYGATE_RECURRING_*`, section 7).
-
-The map.paygate.co.za logins are for people (transactions, refunds, settlement
-reports), never for the server. Never paste a terminal's details into chat, a
-ticket or the repository.
+| Terminal | What Bookplus uses it for | Protocol | Keys |
+|---|---|---|---|
+| **"One time and tokenization"** (terminal 1, 3D Secure) | A business's first payment and any payment with a new card, which also saves the card (PayVault) | PayWeb 3 | its PayWeb 3 key |
+| **"NON3DS"** (terminal 2) | Charging the saved card each month, with nobody present; deleting saved cards | PayHost | its PayHost key and its PayWeb 3 key |
 
 On the server, in `/app/.env.production`:
 
-```
-PAYGATE_ID=
-PAYGATE_PASSWORD=
-PAYGATE_CALLBACK_BASE_URL=https://api.bookplus.pro
-MFA_ENCRYPTION_KEY=
-```
+| Setting | Value |
+|---|---|
+| `PAYGATE_ID` | terminal 1's PayGate ID |
+| `PAYGATE_ENCRYPTION_KEY` | terminal 1's PayWeb 3 key |
+| `PAYGATE_RECURRING_ID` | terminal 2's PayGate ID |
+| `PAYGATE_RECURRING_PASSWORD` | terminal 2's PayHost key |
+| `PAYGATE_RECURRING_ENCRYPTION_KEY` | terminal 2's PayWeb 3 key |
+| `PAYGATE_CALLBACK_BASE_URL` | `https://api.bookplus.pro` |
+| `MFA_ENCRYPTION_KEY` | made once with `openssl rand -hex 32`, before any admin turns on two-step sign-in; never changed |
 
-- `PAYGATE_ID`: terminal 1's PGID.
-- `PAYGATE_PASSWORD`: terminal 1's Encryption Key.
-- `MFA_ENCRYPTION_KEY`: make it once with `openssl rand -hex 32`, before any
-  admin turns on two-step sign-in, and never change it.
-
-Optional: `MFA_SESSION_HOURS` (default 12) and `PAYGATE_ENCRYPTION_KEY` (below).
-
-Reload the API so it reads the file (`docker compose restart` does not):
+Put the five PayGate values on the server with hidden prompts. Each
+`read -rs` asks for a value without showing it, and nothing below prints it:
 
 ```
 cd /app
+[ -e .env.production.bak ] || cp -p .env.production .env.production.bak
+read -rs -p 'Terminal 1 (One time and tokenization) PayGate ID: ' ID1; echo
+read -rs -p 'Terminal 1 PayWeb 3 key: ' K1; echo
+read -rs -p 'Terminal 2 (NON3DS) PayGate ID: ' ID2; echo
+read -rs -p 'Terminal 2 PayHost key: ' P2; echo
+read -rs -p 'Terminal 2 PayWeb 3 key: ' K2; echo
+sed -i '/^PAYGATE_\(ID\|PASSWORD\|ENCRYPTION_KEY\|RECURRING_ID\|RECURRING_PASSWORD\|RECURRING_ENCRYPTION_KEY\)=/d' .env.production
+{ [ -z "$(tail -c1 .env.production)" ] || echo; printf 'PAYGATE_ID=%s\nPAYGATE_ENCRYPTION_KEY=%s\nPAYGATE_RECURRING_ID=%s\nPAYGATE_RECURRING_PASSWORD=%s\nPAYGATE_RECURRING_ENCRYPTION_KEY=%s\n' "$ID1" "$K1" "$ID2" "$P2" "$K2"; } >> .env.production
+unset ID1 K1 ID2 P2 K2
+chmod 600 .env.production
+grep -cE '^PAYGATE_(ID|ENCRYPTION_KEY|RECURRING_ID|RECURRING_PASSWORD|RECURRING_ENCRYPTION_KEY)=.+' .env.production   # 5
+grep -E '^PAYGATE_CALLBACK_BASE_URL=' .env.production || echo 'PAYGATE_CALLBACK_BASE_URL=https://api.bookplus.pro' >> .env.production
 docker compose up -d --force-recreate server
 ```
 
+`docker compose restart` does not reload the file; the command above does.
+Remove `.env.production.bak` with `shred -u` once the check below passes.
+
 Then **check the connection**: admin console → Settings → Go-live checklist →
-"Check the PayGate connection". It opens a N$5.00 test session at PayGate that
-nobody pays and shows, check by check, whether PayGate accepts the ID and
-password, signs with the key Bookplus checks, and can reach Bookplus. If it
-says PayGate signs with a different key, add `PAYGATE_ENCRYPTION_KEY=<the
-terminal's Encryption Key>`, reload the API and check again.
+"Check the PayGate connection". Nothing is charged. It shows, check by check:
+
+- terminal 1 opens a N$5.00 PayWeb 3 test session that nobody pays (it shows
+  in PayGate's MAP as not done), signed with the key Bookplus checks, and
+  Bookplus can read it back;
+- PayHost accepts terminal 2's ID and PayHost key (Bookplus asks about a
+  transaction that cannot exist);
+- PayGate can reach Bookplus (only once `SUBSCRIPTION_BILLING_ENABLED=true`:
+  until then the result address answers "not found"), and owners come straight
+  back to their plan page.
 
 ## 4. Switching on
 
@@ -182,23 +196,29 @@ It is offered only when all of these are true:
 1. `SUBSCRIPTION_BILLING_ENABLED=true` in `/app/.env.production` (default off;
    while off, every card route for plans answers 404 and nothing is charged).
 2. Plans are shown to businesses (admin console → Money → Subscriptions).
-3. Both terminals are set: `PAYGATE_ID` / `PAYGATE_PASSWORD`, and
-   `PAYGATE_RECURRING_ID` / `PAYGATE_RECURRING_PASSWORD` (below).
-4. **PayVault is on for both terminals** at PayGate, and PayGate has
-   confirmed in writing that a card saved on terminal 1 (with the first
-   payment, 3D Secure) can be charged on terminal 2 (NON3DS,
-   merchant-initiated, no CVV), and which terminal deletes it (the code
-   deletes on terminal 1).
+3. Both terminals are set (section 3): `PAYGATE_ID` / `PAYGATE_ENCRYPTION_KEY`
+   for terminal 1, and `PAYGATE_RECURRING_ID` / `PAYGATE_RECURRING_PASSWORD` /
+   `PAYGATE_RECURRING_ENCRYPTION_KEY` for terminal 2.
+4. **PayVault is on** at PayGate, and a card saved on terminal 1 (with the
+   first payment, 3D Secure) can be charged on terminal 2 (NON3DS,
+   merchant-initiated, no CVV). Saved cards are deleted through PayHost on
+   terminal 2 (terminal 1 has PayWeb 3 only).
 
-The PayHost formats themselves (saving a card with the first payment,
-charging it each month, deleting it) are in `apps/api/src/services/paygate.js`
-("vault" section), taken from PayHost's WSDL and checked on PayGate's test
-gateway with its public test account and test cards: saving the card and
-reading it back (VaultId, masked number, expiry, brand), a merchant-initiated
-charge (PayGate refuses it on a 3D Secure terminal, which is why the monthly
-payment uses NON3DS), and deleting a card. PayGate's public test account
-without 3D Secure did not accept its documented password, so the first real
-monthly charge is checked live (step below).
+The formats are in `apps/api/src/services/paygate.js`, checked on PayGate's
+test gateway with its public test account and test cards:
+- terminal 1, PayWeb 3 (2026-11-25): opening a session that saves the card
+  (`VAULT=1`), PayGate's signature on it, and reading the result back
+  (`VAULT_ID`, the masked number in `PAYVAULT_DATA_1`, the expiry in
+  `PAYVAULT_DATA_2`, the brand in `PAY_METHOD_DETAIL`). The test account takes
+  ZAR only; the live terminal takes N$.
+- terminal 2, PayHost (2026-11-13): a merchant-initiated charge on a saved card
+  (PayGate refuses it on a 3D Secure terminal, which is why the monthly payment
+  uses NON3DS), deleting a card, and the login check (code 401 for a right
+  key, 11 for a wrong one).
+
+PayGate's public test accounts could not be used for a card saved on one
+terminal and charged on the other, so the first real monthly charge is checked
+live (step below).
 
 **First live check, before telling businesses:** one Bookplus-owned business
 on a trial ending soon adds a real card (smallest plan price), and the first
@@ -221,27 +241,7 @@ Before launch: off-site backups running (`ops/backup/README.md`),
 `ALERT_WEBHOOK_URL` set so payment errors reach the team, and at least two
 admins with the money roles, each with two-step sign-in on.
 
-## 7. Putting the NON3DS terminal on the server
-
-Only when switching plans on. Run on the server; each `read -rs` asks for a
-value without showing it, and nothing below prints it:
-
-```
-cd /app
-[ -e .env.production.bak ] || cp -p .env.production .env.production.bak
-read -rs -p 'NON3DS PGID: ' RID; echo
-read -rs -p 'NON3DS Encryption Key: ' RKEY; echo
-sed -i '/^PAYGATE_RECURRING_\(ID\|PASSWORD\)=/d' .env.production
-{ [ -z "$(tail -c1 .env.production)" ] || echo; printf 'PAYGATE_RECURRING_ID=%s\nPAYGATE_RECURRING_PASSWORD=%s\n' "$RID" "$RKEY"; } >> .env.production
-unset RID RKEY
-grep -cE '^PAYGATE_RECURRING_(ID|PASSWORD)=.+' .env.production   # 2
-chmod 600 .env.production
-docker compose up -d --force-recreate server
-```
-
-If that terminal signs with a different key than its Encryption Key, add
-`PAYGATE_RECURRING_ENCRYPTION_KEY` the same way. Remove `.env.production.bak`
-with `shred -u` once the API is running.
+## 7. Callbacks and the audit log
 
 PayGate's callbacks for plans go to `/api/subscriptions/paygate/notify` and
 `/return` on `PAYGATE_CALLBACK_BASE_URL`. Each one is checked by its checksum

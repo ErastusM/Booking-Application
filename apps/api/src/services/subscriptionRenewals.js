@@ -447,7 +447,8 @@ const endCancelled = async (now = new Date()) => {
 
 /* ───────────────────────── deleting saved cards ───────────────────────── */
 
-const deleteReady = () => paygate.wireReady('deleteVault') && paygate.isConfigured(billing.TERMINAL);
+// Saved cards are deleted through PayHost on terminal 2 (terminal 1 is PayWeb 3 only).
+const deleteReady = () => paygate.wireReady('deleteVault') && paygate.isConfigured(billing.RECURRING_TERMINAL);
 
 /** Ask PayGate to delete the saved cards waiting in the queue. */
 const runVaultDeletions = async (now = new Date()) => {
@@ -457,7 +458,7 @@ const runVaultDeletions = async (now = new Date()) => {
     for (const d of queue) {
         let r;
         try {
-            r = d.vaultId ? await paygate.deleteVault({ vaultId: d.vaultId, terminal: billing.TERMINAL }) : { ok: true };
+            r = d.vaultId ? await paygate.deleteVault({ vaultId: d.vaultId, terminal: billing.RECURRING_TERMINAL }) : { ok: true };
         } catch (err) {
             r = { ok: false, error: { code: err.code || 'ERROR', message: err.message } };
         }

@@ -11,10 +11,10 @@ const FinancialAuditLog = require('../../models/FinancialAuditLog');
 const paygate = require('../../services/paygate');
 const paygateCheck = require('../../services/paygateCheck');
 const { makeProvider, makeFinanceAdmin, authHeader, financeHeader } = require('../helpers/factories');
-const { createFakePaygate, KEY } = require('../helpers/fakePaygate');
+const { createFakePaygate, KEY, RECURRING_KEY } = require('../helpers/fakePaygate');
 
 const gw = createFakePaygate();
-const ENV_KEYS = ['PAYGATE_ID', 'PAYGATE_PASSWORD', 'PAYGATE_ENCRYPTION_KEY', 'PAYGATE_RECURRING_ID', 'PAYGATE_RECURRING_PASSWORD', 'PAYGATE_CALLBACK_BASE_URL', 'BUSINESS_ORIGIN', 'SUBSCRIPTION_BILLING_ENABLED'];
+const ENV_KEYS = ['PAYGATE_ID', 'PAYGATE_PASSWORD', 'PAYGATE_ENCRYPTION_KEY', 'PAYGATE_RECURRING_ID', 'PAYGATE_RECURRING_PASSWORD', 'PAYGATE_RECURRING_ENCRYPTION_KEY', 'PAYGATE_CALLBACK_BASE_URL', 'BUSINESS_ORIGIN', 'SUBSCRIPTION_BILLING_ENABLED'];
 let saved;
 let probes;
 
@@ -49,26 +49,30 @@ const run = async () => {
 };
 
 describe('PayGate connection check', () => {
-    it('everything right: a test session opens, is signed with our key, reads back; the addresses answer; no money and no payment record', async () => {
+    it('everything right: a PayWeb 3 test session opens, is signed with our key, reads back; PayHost accepts terminal 2; the addresses answer; no money and no payment record', async () => {
         const { fin, data, by } = await run();
         expect(data.ready).toBe(true);
         expect(data.items.map((i) => [i.key, i.status])).toEqual([
             ['switched_on', 'ok'], ['credentials', 'ok'], ['recurring_credentials', 'ok'], ['addresses', 'ok'], ['session', 'ok'],
-            ['signature', 'ok'], ['read_back', 'ok'], ['notify', 'ok'], ['result_page', 'ok'],
+            ['signature', 'ok'], ['read_back', 'ok'], ['recurring_login', 'ok'], ['notify', 'ok'], ['result_page', 'ok'],
         ]);
-        expect(by('credentials').detail).toContain('•••• 8888');
+        expect(by('credentials')).toMatchObject({ label: 'First payment terminal (PayWeb 3)', detail: expect.stringContaining('•••• 8888') });
         expect(JSON.stringify(data)).not.toContain('10099998888');
         expect(JSON.stringify(data)).not.toContain(KEY);
+        expect(JSON.stringify(data)).not.toContain(RECURRING_KEY);
         expect(by('addresses').detail).toBe('Results go to https://api.bookplus.pro/api/subscriptions/paygate/notify; owners come back to https://business.bookplus.pro/account?section=plan.');
         expect(by('read_back').detail).toMatch(/Not Done/);
+        expect(by('recurring_login').detail).toContain('Nothing was charged');
 
-        // One N$5.00 session at PayGate for a BPCHECK reference, with the real callback addresses.
-        const web = gw.calls.filter((c) => c.body.includes('<WebPaymentRequest>'));
-        expect(web).toHaveLength(1);
-        expect(web[0].body).toMatch(/<MerchantOrderId>BPCHECK[0-9A-F]{12}<\/MerchantOrderId>/);
-        expect(web[0].body).toContain('<Amount>500</Amount>');
-        expect(web[0].body).toContain('<NotifyUrl>https://api.bookplus.pro/api/subscriptions/paygate/notify</NotifyUrl>');
-        expect(web[0].body).toContain(`<Email>${fin.email}</Email>`);
+        // One N$5.00 PayWeb 3 session for a BPCHECK reference, with the real callback addresses.
+        const sessions = gw.sessions();
+        expect(sessions).toHaveLength(1);
+        expect(sessions[0].fields).toMatchObject({
+            REFERENCE: expect.stringMatching(/^BPCHECK[0-9A-F]{12}$/), AMOUNT: '500', CURRENCY: 'NAD',
+            NOTIFY_URL: 'https://api.bookplus.pro/api/subscriptions/paygate/notify', EMAIL: fin.email,
+        });
+        // Terminal 2 is only asked about a transaction that cannot exist: nothing charged.
+        expect(gw.charges()).toHaveLength(0);
         expect(await SubscriptionPayment.countDocuments()).toBe(0);
         expect(probes).toEqual([['POST', 'https://api.bookplus.pro/api/subscriptions/paygate/notify'], ['GET', 'https://business.bookplus.pro/account?section=plan']]);
 
@@ -78,17 +82,22 @@ describe('PayGate connection check', () => {
         expect(JSON.stringify(audit)).not.toContain(KEY);
     });
 
-    it('PayGate signs with a different key than the password: caught, and fixed by PAYGATE_ENCRYPTION_KEY', async () => {
-        process.env.PAYGATE_PASSWORD = 'not-the-encryption-key';
+    it('a wrong PayWeb 3 key: PayGate refuses the session and the check names the key', async () => {
+        process.env.PAYGATE_ENCRYPTION_KEY = 'not-the-payweb-key';
         let { data, by } = await run();
         expect(data.ready).toBe(false);
-        expect(by('session').status).toBe('ok');
-        expect(by('signature')).toMatchObject({ status: 'fail', detail: expect.stringContaining('Set PAYGATE_ENCRYPTION_KEY to the terminal’s Encryption Key') });
+        expect(by('session')).toMatchObject({ status: 'fail', detail: expect.stringContaining('PayWeb 3 key') });
+        expect(by('signature').status).toBe('skipped');
 
+        // PayGate answering with a signature that isn't ours: caught.
         process.env.PAYGATE_ENCRYPTION_KEY = KEY;
+        gw.sessionKey = 'some-other-key';
+        ({ data, by } = await run());
+        expect(by('signature')).toMatchObject({ status: 'fail', detail: expect.stringContaining('PAYGATE_ENCRYPTION_KEY') });
+        gw.sessionKey = null;
+
         ({ data, by } = await run());
         expect(by('signature').status).toBe('ok');
-        expect(by('credentials').detail).toContain('with a separate encryption key');
         // Callbacks are then checked with that key.
         const ref = 'BS0123456789ABCDEF0123456789AB';
         gw.tx.set('PR-X', { reference: ref, amountCents: 100, currency: 'NAD', code: 1, transactionId: '1' });
@@ -99,17 +108,21 @@ describe('PayGate connection check', () => {
     it('PayGate refuses the session: says what PayGate said; the checks that need a session are skipped', async () => {
         gw.initFail = true;
         const { by } = await run();
-        expect(by('session')).toMatchObject({ status: 'fail', detail: expect.stringContaining('PayGate said: Service unavailable') });
+        expect(by('session')).toMatchObject({ status: 'fail', detail: expect.stringContaining('not enabled for PayWeb 3') });
         expect(by('signature').status).toBe('skipped');
         expect(by('read_back').status).toBe('skipped');
     });
 
     it('missing settings, PayGate’s test account, wrong addresses, a redirect and a switched-off API are each named', async () => {
+        process.env.PAYGATE_RECURRING_PASSWORD = 'not-the-payhost-key';
+        expect((await run()).by('recurring_login')).toMatchObject({ status: 'fail', detail: expect.stringContaining('Incorrect Credentials Supplied (11)') });
         delete process.env.PAYGATE_RECURRING_ID;
-        expect((await run()).by('recurring_credentials')).toMatchObject({ status: 'fail', detail: expect.stringContaining('PAYGATE_RECURRING_ID') });
-        delete process.env.PAYGATE_ID;
         let { by } = await run();
-        expect(by('credentials')).toMatchObject({ status: 'fail', detail: 'PAYGATE_ID or PAYGATE_PASSWORD is not set on the server.' });
+        expect(by('recurring_credentials')).toMatchObject({ status: 'fail', detail: expect.stringContaining('PAYGATE_RECURRING_ID') });
+        expect(by('recurring_login').status).toBe('skipped');
+        delete process.env.PAYGATE_ID;
+        ({ by } = await run());
+        expect(by('credentials')).toMatchObject({ status: 'fail', detail: 'PAYGATE_ID or PAYGATE_ENCRYPTION_KEY (the terminal’s PayWeb 3 key) is not set on the server.' });
         expect(by('session').status).toBe('skipped');
 
         process.env.PAYGATE_ID = paygateCheck.TEST_PAYGATE_ID;
